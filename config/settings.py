@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     telegram_allowed_users: str = Field("", alias="TELEGRAM_ALLOWED_USERS")
     tavily_api_key: str = Field("", alias="TAVILY_API_KEY")
+    database_url: str = Field("", alias="DATABASE_URL")
 
     @property
     def allowed_user_ids(self) -> list[int]:

@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: organism_postgres
+    environment:
+      POSTGRES_USER: organism
+      POSTGRES_PASSWORD: organism_secret
+      POSTGRES_DB: organism_ai
+    ports:
+      - "5433:5432"
+    volumes:
+      - organism_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  organism_pgdata:

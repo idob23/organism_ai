@@ -21,7 +21,6 @@ REACT_PROMPT = (Path("config/prompts/planner_react.txt")).read_text(encoding="ut
 
 
 def _is_complex(task: str) -> bool:
-    """Heuristic to decide if task needs ReAct planning."""
     if len(task) > 200:
         return True
     complex_keywords = [
@@ -29,27 +28,20 @@ def _is_complex(task: str) -> bool:
         "and then", "after that", "first", "multiple", "several steps",
         "сравни", "проанализируй и", "найди и", "создай и отправь",
     ]
-    task_lower = task.lower()
-    return any(kw in task_lower for kw in complex_keywords)
+    return any(kw in task.lower() for kw in complex_keywords)
 
 
 def _extract_json(text: str) -> str:
-    """Extract JSON array from LLM response."""
-    # Try to find JSON array directly
     text = text.strip()
     if text.startswith("["):
         return text
-
-    # Look for JSON array in the text
     match = re.search(r"\[[\s\S]*\]", text)
     if match:
         return match.group(0)
-
     return text
 
 
 def _parse_steps(raw: str) -> list[PlanStep]:
-    """Parse JSON into PlanStep list."""
     json_str = _extract_json(raw)
     data = json.loads(json_str)
     steps = []
@@ -69,24 +61,26 @@ class Planner:
     def __init__(self, llm: LLMProvider) -> None:
         self.llm = llm
 
-    async def plan(self, task: str) -> list[PlanStep]:
-        """Create execution plan for a task."""
+    async def plan(self, task: str, memory_context: str = "") -> list[PlanStep]:
         use_react = _is_complex(task)
 
+        # Add memory context to task if available
+        full_task = task
+        if memory_context:
+            full_task = f"{task}\n\n[MEMORY CONTEXT]\n{memory_context}"
+
         if not use_react:
-            steps = await self._fast_plan(task)
+            steps = await self._fast_plan(full_task)
             if steps:
                 return steps
-            # Fast path failed  fall back to ReAct
             use_react = True
 
         if use_react:
-            return await self._react_plan(task)
+            return await self._react_plan(full_task)
 
         return []
 
     async def _fast_plan(self, task: str) -> list[PlanStep]:
-        """Single-shot planning."""
         for attempt in range(2):
             hint = "" if attempt == 0 else "\nIMPORTANT: Return ONLY a valid JSON array, nothing else."
             response = await self.llm.complete(
@@ -101,7 +95,6 @@ class Planner:
         return []
 
     async def _react_plan(self, task: str) -> list[PlanStep]:
-        """ReAct-style planning for complex tasks."""
         response = await self.llm.complete(
             messages=[Message(role="user", content=task)],
             system=REACT_PROMPT,
@@ -110,4 +103,4 @@ class Planner:
         try:
             return _parse_steps(response.content)
         except (json.JSONDecodeError, KeyError) as e:
-            raise ValueError(f"Planner failed to produce valid plan: {e}\nResponse: {response.content}")
+            raise ValueError(f"Planner failed: {e}\nResponse: {response.content}")

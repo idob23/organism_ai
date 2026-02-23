@@ -10,6 +10,7 @@ from src.organism.tools.file_manager import FileManagerTool
 from src.organism.tools.telegram_sender import TelegramSenderTool
 from src.organism.tools.registry import ToolRegistry
 from src.organism.core.loop import CoreLoop
+from src.organism.memory.manager import MemoryManager
 from config.settings import settings
 
 
@@ -27,7 +28,9 @@ def build_loop() -> CoreLoop:
     if settings.telegram_bot_token:
         registry.register(TelegramSenderTool(settings.telegram_bot_token))
 
-    return CoreLoop(llm, registry)
+    memory = MemoryManager() if settings.database_url else None
+
+    return CoreLoop(llm, registry, memory=memory)
 
 
 async def run_single(task: str) -> None:
@@ -73,14 +76,27 @@ async def run_telegram() -> None:
     await channel.start()
 
 
+async def run_stats() -> None:
+    memory = MemoryManager()
+    await memory.initialize()
+    stats = await memory.get_stats()
+    print(f"Total tasks:     {stats['total_tasks']}")
+    print(f"Successful:      {stats['successful_tasks']}")
+    print(f"Success rate:    {stats['success_rate']}%")
+    print(f"Avg duration:    {stats['avg_duration']}s")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Organism AI")
     parser.add_argument("--task", "-t", type=str, help="Task to execute")
     parser.add_argument("--telegram", action="store_true", help="Run Telegram bot")
+    parser.add_argument("--stats", action="store_true", help="Show memory stats")
     args = parser.parse_args()
 
     try:
-        if args.telegram:
+        if args.stats:
+            asyncio.run(run_stats())
+        elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:
             asyncio.run(run_single(args.task))
