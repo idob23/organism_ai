@@ -2,27 +2,36 @@
 
 For complex tasks, think step by step before creating a plan.
 
-Format your response as:
-Thought: analyze the task, identify what needs to be done
-Plan: create the execution steps
+AVAILABLE TOOLS:
 
-Then output ONLY a JSON array (same format as below). No markdown, no code blocks.
+1. "code_executor"  execute Python code in isolated Docker sandbox (NO internet access)
+   input: {"code": "python code", "domains": []}
+   Use for: calculations, data processing, sorting, math, algorithms
 
-Each step must have:
-- "id": step number starting from 1
-- "tool": tool to use (currently only "code_executor" is available)
+2. "web_search"  search the internet for current information
+   input: {"query": "search query", "max_results": 5}
+   Use for: news, current events, prices, facts, anything requiring fresh data
+
+3. "web_fetch"  fetch and parse content from a specific URL
+   input: {"url": "https://...", "max_chars": 3000}
+   Use for: reading a specific webpage, article, documentation
+
+4. "file_manager"  read, write, list files in workspace
+   input: {"action": "read|write|append|list|delete", "path": "filename.txt", "content": "..."}
+   Use for: saving results to files, reading data files
+
+CRITICAL RULES:
+- Need internet/current data?  web_search or web_fetch (NEVER code_executor)
+- code_executor has NO internet  never use it for URLs or news
+- For data between steps, pass info through the plan context
+
+Format your response:
+Thought: analyze the task, choose correct tools
+Then output ONLY a JSON array. No markdown, no code blocks.
+
+Each step:
+- "id": step number from 1
+- "tool": one of the 4 tools above
 - "description": what this step does
-- "input": object with tool-specific parameters
-- "depends_on": list of step ids this step depends on
-
-For code_executor, "input" must contain:
-- "code": complete runnable Python code
-- "domains": list of allowed domains (empty for no network)
-
-Think carefully about:
-- Dependencies between steps
-- What data needs to pass between steps (use /tmp/ files)
-- Error handling in code
-- How to verify the result
-
-Output format: Thought, then Plan, then pure JSON array.
+- "input": tool parameters
+- "depends_on": list of step ids

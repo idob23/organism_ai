@@ -4,14 +4,29 @@ import sys
 
 from src.organism.llm.claude import ClaudeProvider
 from src.organism.tools.code_executor import CodeExecutorTool
+from src.organism.tools.web_search import WebSearchTool
+from src.organism.tools.web_fetch import WebFetchTool
+from src.organism.tools.file_manager import FileManagerTool
+from src.organism.tools.telegram_sender import TelegramSenderTool
 from src.organism.tools.registry import ToolRegistry
 from src.organism.core.loop import CoreLoop
+from config.settings import settings
 
 
 def build_loop() -> CoreLoop:
     llm = ClaudeProvider()
     registry = ToolRegistry()
+
     registry.register(CodeExecutorTool())
+    registry.register(WebFetchTool())
+    registry.register(FileManagerTool())
+
+    if settings.tavily_api_key:
+        registry.register(WebSearchTool())
+
+    if settings.telegram_bot_token:
+        registry.register(TelegramSenderTool(settings.telegram_bot_token))
+
     return CoreLoop(llm, registry)
 
 
@@ -47,13 +62,27 @@ async def run_interactive() -> None:
             print("\nInterrupted.")
 
 
+async def run_telegram() -> None:
+    from src.organism.channels.telegram import TelegramChannel
+    if not settings.telegram_bot_token:
+        print("Error: TELEGRAM_BOT_TOKEN not set in .env")
+        sys.exit(1)
+    loop = build_loop()
+    channel = TelegramChannel(loop)
+    print("Organism AI Telegram bot starting...")
+    await channel.start()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Organism AI")
     parser.add_argument("--task", "-t", type=str, help="Task to execute")
+    parser.add_argument("--telegram", action="store_true", help="Run Telegram bot")
     args = parser.parse_args()
 
     try:
-        if args.task:
+        if args.telegram:
+            asyncio.run(run_telegram())
+        elif args.task:
             asyncio.run(run_single(args.task))
         else:
             asyncio.run(run_interactive())

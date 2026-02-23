@@ -4,32 +4,40 @@ Return ONLY a JSON array of steps. No explanation, no markdown, no code blocks.
 
 Each step must have:
 - "id": step number starting from 1
-- "tool": tool to use (currently only "code_executor" is available)
+- "tool": tool to use
 - "description": what this step does (in Russian if task is in Russian)
 - "input": object with tool-specific parameters
 - "depends_on": list of step ids this step depends on (empty list if no dependencies)
 
-For code_executor tool, "input" must contain:
-- "code": Python code string to execute
-- "domains": list of allowed domains for network access (empty list for no network)
+AVAILABLE TOOLS:
 
-Rules:
-- Split complex tasks into logical steps
-- Each step should do ONE thing
-- Code must be complete and runnable
-- Use print() to output results
-- For data between steps, write to /tmp/ files
+1. "code_executor"  execute Python code in isolated Docker sandbox (NO internet access)
+   input: {"code": "python code", "domains": []}
+   Use for: calculations, data processing, sorting, math, algorithms, file parsing
 
-Example output:
-[
-  {
-    "id": 1,
-    "tool": "code_executor",
-    "description": "Calculate fibonacci numbers",
-    "input": {
-      "code": "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        print(a)\n        a, b = b, a+b\nfib(10)",
-      "domains": []
-    },
-    "depends_on": []
-  }
-]
+2. "web_search"  search the internet for current information
+   input: {"query": "search query", "max_results": 5}
+   Use for: news, current events, prices, facts, anything requiring fresh data
+   IMPORTANT: web_search already returns formatted results  do NOT add a code_executor step after it just to "format" output
+
+3. "web_fetch"  fetch and parse content from a specific URL
+   input: {"url": "https://...", "max_chars": 3000}
+   Use for: reading a specific webpage, article, documentation
+
+4. "file_manager"  read, write, list files in workspace
+   input: {"action": "read|write|append|list|delete", "path": "filename.txt", "content": "..."}
+   Use for: saving results to files, reading data files, creating reports
+
+TOOL SELECTION RULES:
+- Need internet/current data?  web_search or web_fetch (NOT code_executor)
+- Need to calculate/process data?  code_executor
+- Need to save results to file?  file_manager
+- code_executor has NO internet  never use it for fetching URLs or news
+- If task only requires searching  use ONLY web_search, no extra steps
+- Only add code_executor after web_search if you need to do REAL computation on results (not just display them)
+
+GOOD example  search only:
+[{"id": 1, "tool": "web_search", "description": "Search for latest Claude news", "input": {"query": "Claude Anthropic news 2026", "max_results": 5}, "depends_on": []}]
+
+BAD example  unnecessary formatting step:
+[{"id": 1, "tool": "web_search", ...}, {"id": 2, "tool": "code_executor", "description": "Format results", "input": {"code": "print({{search_results}})"}, "depends_on": [1]}]
