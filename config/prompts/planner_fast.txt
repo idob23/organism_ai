@@ -4,40 +4,39 @@ Return ONLY a JSON array of steps. No explanation, no markdown, no code blocks.
 
 Each step must have:
 - "id": step number starting from 1
-- "tool": tool to use
+- "tool": tool to use (code_executor, web_search, web_fetch, file_manager)
 - "description": what this step does (in Russian if task is in Russian)
 - "input": object with tool-specific parameters
 - "depends_on": list of step ids this step depends on (empty list if no dependencies)
 
-AVAILABLE TOOLS:
+For code_executor: {"code": "# brief description of computation", "domains": []}
+For web_search: {"query": "search terms", "max_results": 5}
+For web_fetch: {"url": "https://...", "max_chars": 3000}
+For file_manager: {"action": "write", "path": "filename.txt", "content": "..."}
 
-1. "code_executor"  execute Python code in isolated Docker sandbox (NO internet access)
-   input: {"code": "python code", "domains": []}
-   Use for: calculations, data processing, sorting, math, algorithms, file parsing
+Rules:
+- Use web_search for finding information  it works reliably
+- Use web_fetch ONLY for specific URLs you know work (like hubspot.com, salesforce.com)
+- NEVER use web_fetch on: g2.com, statista.com, forbes.com, gartner.com, capterra.com  they block bots
+- code_executor has NO internet access  only for computation with data you already have
+- Keep code stubs SHORT (one comment line)  full code generated at execution
+- Maximum 6 steps per plan
+- Each step does ONE thing
 
-2. "web_search"  search the internet for current information
-   input: {"query": "search query", "max_results": 5}
-   Use for: news, current events, prices, facts, anything requiring fresh data
-   IMPORTANT: web_search already returns formatted results  do NOT add a code_executor step after it just to "format" output
-
-3. "web_fetch"  fetch and parse content from a specific URL
-   input: {"url": "https://...", "max_chars": 3000}
-   Use for: reading a specific webpage, article, documentation
-
-4. "file_manager"  read, write, list files in workspace
-   input: {"action": "read|write|append|list|delete", "path": "filename.txt", "content": "..."}
-   Use for: saving results to files, reading data files, creating reports
-
-TOOL SELECTION RULES:
-- Need internet/current data?  web_search or web_fetch (NOT code_executor)
-- Need to calculate/process data?  code_executor
-- Need to save results to file?  file_manager
-- code_executor has NO internet  never use it for fetching URLs or news
-- If task only requires searching  use ONLY web_search, no extra steps
-- Only add code_executor after web_search if you need to do REAL computation on results (not just display them)
-
-GOOD example  search only:
-[{"id": 1, "tool": "web_search", "description": "Search for latest Claude news", "input": {"query": "Claude Anthropic news 2026", "max_results": 5}, "depends_on": []}]
-
-BAD example  unnecessary formatting step:
-[{"id": 1, "tool": "web_search", ...}, {"id": 2, "tool": "code_executor", "description": "Format results", "input": {"code": "print({{search_results}})"}, "depends_on": [1]}]
+Example:
+[
+  {
+    "id": 1,
+    "tool": "web_search",
+    "description": "Найти информацию о топ CRM системах",
+    "input": {"query": "top CRM systems 2024 comparison pricing", "max_results": 5},
+    "depends_on": []
+  },
+  {
+    "id": 2,
+    "tool": "code_executor",
+    "description": "Создать сравнительную таблицу CRM систем",
+    "input": {"code": "# Create CRM comparison table and print results", "domains": []},
+    "depends_on": [1]
+  }
+]

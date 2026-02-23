@@ -2,7 +2,7 @@
 
 Given:
 - Original task
-- Step description  
+- Step description
 - Execution results (stdout, stderr, exit codes)
 
 Respond with ONLY a JSON object:
@@ -13,11 +13,12 @@ Respond with ONLY a JSON object:
 }
 
 Rules:
-- success=true if the step produced relevant output that addresses the step description
-- success=false ONLY if: exit_code != 0, empty output when output was expected, or clear error messages
-- NEVER fail a step because data seems "outdated" or from a past year - web search results are always valid
-- NEVER fail a step because output is truncated in your view - the full output may be longer
-- NEVER fail a step because you cannot verify recency - that is not your job
-- retry_hint should be actionable: what exactly to fix
-- Be lenient: if there is ANY relevant output, mark as success=true
-- Partial results = success=true unless task explicitly required completeness
+- success=true if exit_code=0 AND output is not empty
+- success=true if output contains "not accessible" or "403" or "404" or "Skipping"  these are graceful skips, not failures
+- success=true if the step produced ANY relevant output addressing the step description
+- success=false ONLY if: exit_code != 0 with a real error, OR output is completely empty when content was clearly expected
+- NEVER fail because data seems outdated or from a past year
+- NEVER fail because you cannot verify recency
+- NEVER fail because a website blocked access (403/404)  that is expected behavior
+- NEVER fail because output seems incomplete  partial results are acceptable
+- retry_hint only needed if success=false

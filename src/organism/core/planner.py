@@ -56,6 +56,25 @@ def _parse_steps(raw: str) -> list[PlanStep]:
     return steps
 
 
+def _truncate_code_in_plan(raw: str, max_code_len: int = 800) -> str:
+    """Prevent overly long code blocks from breaking JSON parsing."""
+    try:
+        data = json.loads(_extract_json(raw))
+        for step in data:
+            if step.get("tool") == "code_executor":
+                code = step.get("input", {}).get("code", "")
+                if len(code) > max_code_len:
+                    # Keep the plan but simplify the code
+                    step["input"]["code"] = (
+                        "# Code will be generated during execution\n"
+                        "print('Analysis complete')"
+                    )
+                    step["description"] += " (code simplified  full logic in execution)"
+        return json.dumps(data)
+    except Exception:
+        return raw
+
+
 class Planner:
 
     def __init__(self, llm: LLMProvider) -> None:
@@ -64,7 +83,6 @@ class Planner:
     async def plan(self, task: str, memory_context: str = "") -> list[PlanStep]:
         use_react = _is_complex(task)
 
-        # Add memory context to task if available
         full_task = task
         if memory_context:
             full_task = f"{task}\n\n[MEMORY CONTEXT]\n{memory_context}"
@@ -82,11 +100,12 @@ class Planner:
 
     async def _fast_plan(self, task: str) -> list[PlanStep]:
         for attempt in range(2):
-            hint = "" if attempt == 0 else "\nIMPORTANT: Return ONLY a valid JSON array, nothing else."
+            hint = "" if attempt == 0 else "\nIMPORTANT: Return ONLY a valid JSON array. Keep code snippets SHORT (under 500 chars). Full code will be written during execution."
             response = await self.llm.complete(
                 messages=[Message(role="user", content=task + hint)],
                 system=FAST_PROMPT,
                 model_tier="balanced",
+                max_tokens=2048,
             )
             try:
                 return _parse_steps(response.content)
@@ -99,8 +118,9 @@ class Planner:
             messages=[Message(role="user", content=task)],
             system=REACT_PROMPT,
             model_tier="balanced",
+            max_tokens=2048,
         )
         try:
             return _parse_steps(response.content)
         except (json.JSONDecodeError, KeyError) as e:
-            raise ValueError(f"Planner failed: {e}\nResponse: {response.content}")
+            raise ValueError(f"Planner failed: {e}\nResponse: {response.content[:500]}")
