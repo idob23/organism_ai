@@ -14,55 +14,91 @@ from src.organism.memory.manager import MemoryManager
 from config.settings import settings
 
 
-def build_loop() -> CoreLoop:
-    llm = ClaudeProvider()
+def build_registry() -> ToolRegistry:
     registry = ToolRegistry()
-
     registry.register(CodeExecutorTool())
     registry.register(WebFetchTool())
     registry.register(FileManagerTool())
-
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
-
     if settings.telegram_bot_token:
         registry.register(TelegramSenderTool(settings.telegram_bot_token))
+    return registry
 
+
+def build_loop(registry: ToolRegistry | None = None) -> CoreLoop:
+    llm = ClaudeProvider()
+    reg = registry or build_registry()
     memory = MemoryManager() if settings.database_url else None
-
-    return CoreLoop(llm, registry, memory=memory)
-
-
-async def run_single(task: str) -> None:
-    loop = build_loop()
-    result = await loop.run(task)
-    if not result.success:
-        print(f"\nFailed: {result.error}")
-        sys.exit(1)
+    return CoreLoop(llm, reg, memory=memory)
 
 
-async def run_interactive() -> None:
-    loop = build_loop()
-    print("Organism AI  interactive mode. Type 'exit' to quit.\n")
-    while True:
-        try:
-            task = input("Task> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nBye.")
-            break
+async def run_single(task: str, use_orchestrator: bool = False) -> None:
+    if use_orchestrator:
+        from src.organism.agents.orchestrator import Orchestrator
+        llm = ClaudeProvider()
+        registry = build_registry()
+        memory = MemoryManager() if settings.database_url else None
+        if memory:
+            await memory.initialize()
+        orch = Orchestrator(llm, registry, memory=memory)
+        result = await orch.run(task)
+        if not result.success:
+            print(f"\nFailed: {result.error}")
+            sys.exit(1)
+    else:
+        loop = build_loop()
+        result = await loop.run(task)
+        if not result.success:
+            print(f"\nFailed: {result.error}")
+            sys.exit(1)
 
-        if not task:
-            continue
-        if task.lower() in ("exit", "quit", "q"):
-            print("Bye.")
-            break
 
-        try:
-            result = await loop.run(task)
-            if not result.success:
-                print(f"Failed: {result.error}")
-        except KeyboardInterrupt:
-            print("\nInterrupted.")
+async def run_interactive(use_orchestrator: bool = False) -> None:
+    if use_orchestrator:
+        from src.organism.agents.orchestrator import Orchestrator
+        llm = ClaudeProvider()
+        registry = build_registry()
+        memory = MemoryManager() if settings.database_url else None
+        if memory:
+            await memory.initialize()
+        orch = Orchestrator(llm, registry, memory=memory)
+        print("Organism AI [Multi-Agent]  interactive mode. Type 'exit' to quit.\n")
+        while True:
+            try:
+                task = input("Task> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nBye.")
+                break
+            if not task:
+                continue
+            if task.lower() in ("exit", "quit", "q"):
+                print("Bye.")
+                break
+            try:
+                await orch.run(task)
+            except KeyboardInterrupt:
+                print("\nInterrupted.")
+    else:
+        loop = build_loop()
+        print("Organism AI  interactive mode. Type 'exit' to quit.\n")
+        while True:
+            try:
+                task = input("Task> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nBye.")
+                break
+            if not task:
+                continue
+            if task.lower() in ("exit", "quit", "q"):
+                print("Bye.")
+                break
+            try:
+                result = await loop.run(task)
+                if not result.success:
+                    print(f"Failed: {result.error}")
+            except KeyboardInterrupt:
+                print("\nInterrupted.")
 
 
 async def run_telegram() -> None:
@@ -70,7 +106,8 @@ async def run_telegram() -> None:
     if not settings.telegram_bot_token:
         print("Error: TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
-    loop = build_loop()
+    registry = build_registry()
+    loop = build_loop(registry)
     channel = TelegramChannel(loop)
     print("Organism AI Telegram bot starting...")
     await channel.start()
@@ -91,6 +128,7 @@ def main() -> None:
     parser.add_argument("--task", "-t", type=str, help="Task to execute")
     parser.add_argument("--telegram", action="store_true", help="Run Telegram bot")
     parser.add_argument("--stats", action="store_true", help="Show memory stats")
+    parser.add_argument("--multi", action="store_true", help="Use multi-agent orchestrator")
     args = parser.parse_args()
 
     try:
@@ -99,9 +137,9 @@ def main() -> None:
         elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:
-            asyncio.run(run_single(args.task))
+            asyncio.run(run_single(args.task, use_orchestrator=args.multi))
         else:
-            asyncio.run(run_interactive())
+            asyncio.run(run_interactive(use_orchestrator=args.multi))
     except KeyboardInterrupt:
         print("\nBye.")
 
