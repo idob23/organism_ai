@@ -123,17 +123,44 @@ async def run_stats() -> None:
     print(f"Avg duration:    {stats['avg_duration']}s")
 
 
+async def run_analyze() -> None:
+    from src.organism.self_improvement.optimizer import PromptOptimizer
+    llm = ClaudeProvider()
+    optimizer = PromptOptimizer(llm)
+    print("Analyzing performance...\n")
+    recommendations = await optimizer.analyze_and_recommend()
+    print(recommendations)
+
+
+async def run_cache_stats() -> None:
+    from src.organism.self_improvement.solution_cache import SolutionCacheManager
+    cache = SolutionCacheManager()
+    patterns = await cache.get_top_patterns()
+    if not patterns:
+        print("Cache is empty.")
+        return
+    print("Top cached patterns:")
+    for p in patterns:
+        print(f"  [{p['hits']} hits] {p['pattern'][:80]}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Organism AI")
     parser.add_argument("--task", "-t", type=str, help="Task to execute")
     parser.add_argument("--telegram", action="store_true", help="Run Telegram bot")
     parser.add_argument("--stats", action="store_true", help="Show memory stats")
+    parser.add_argument("--analyze", action="store_true", help="Analyze performance and get recommendations")
+    parser.add_argument("--cache", action="store_true", help="Show solution cache stats")
     parser.add_argument("--multi", action="store_true", help="Use multi-agent orchestrator")
     args = parser.parse_args()
 
     try:
         if args.stats:
             asyncio.run(run_stats())
+        elif args.analyze:
+            asyncio.run(run_analyze())
+        elif args.cache:
+            asyncio.run(run_cache_stats())
         elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:
