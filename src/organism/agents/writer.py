@@ -1,5 +1,7 @@
 ﻿import time
 from .base import BaseAgent, AgentResult
+from src.organism.core.loop import CoreLoop
+from src.organism.core.planner import Planner
 from src.organism.llm.base import Message
 
 
@@ -11,30 +13,25 @@ class WriterAgent(BaseAgent):
 
     @property
     def description(self) -> str:
-        return "Generates texts, articles, emails, social media content, summaries. Use for any writing tasks."
+        return "Generates texts, articles, reports, commercial proposals. Saves to files when asked."
 
     @property
     def tools(self) -> list[str]:
-        return ["file_manager"]
+        return ["file_manager", "pptx_creator"]
 
     async def run(self, task: str) -> AgentResult:
-        import time
         start = time.time()
         try:
-            response = await self.llm.complete(
-                messages=[Message(role="user", content=task)],
-                system=(
-                    "You are a professional writer. Create high-quality, engaging content. "
-                    "Write in the same language as the task. Be concise and impactful."
-                ),
-                model_tier="balanced",
-            )
+            # Use CoreLoop so Writer can actually use tools (file_manager, pptx_creator)
+            loop = CoreLoop(self.llm, self.registry)
+            result = await loop.run(task)
             return AgentResult(
                 agent=self.name,
                 task=task,
-                output=response.content,
-                success=True,
+                output=result.answer or result.error or "",
+                success=result.success,
                 duration=time.time() - start,
+                error=result.error or "",
             )
         except Exception as e:
             return AgentResult(
