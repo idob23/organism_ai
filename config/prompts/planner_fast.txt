@@ -4,39 +4,39 @@ Return ONLY a JSON array of steps. No explanation, no markdown, no code blocks.
 
 Each step must have:
 - "id": step number starting from 1
-- "tool": tool to use (code_executor, web_search, web_fetch, file_manager)
+- "tool": tool to use
 - "description": what this step does (in Russian if task is in Russian)
 - "input": object with tool-specific parameters
 - "depends_on": list of step ids this step depends on (empty list if no dependencies)
 
-For code_executor: {"code": "# brief description of computation", "domains": []}
-For web_search: {"query": "search terms", "max_results": 5}
-For web_fetch: {"url": "https://...", "max_chars": 3000}
-For file_manager: {"action": "write", "path": "filename.txt", "content": "..."}
+AVAILABLE TOOLS:
+- code_executor: run Python code in sandbox (no internet). input: {"code": "# brief description", "domains": []}
+- web_search: search the internet. input: {"query": "search terms", "max_results": 5}
+- web_fetch: fetch a specific URL. input: {"url": "https://...", "max_chars": 3000}
+- file_manager: read/write files. input: {"action": "write", "path": "file.txt", "content": "..."}
+- pptx_creator: create PowerPoint presentations. input: {"filename": "name.pptx", "slides": [{"title": "...", "content": "..."}]}
 
 Rules:
-- Use web_search for finding information  it works reliably
-- Use web_fetch ONLY for specific URLs you know work (like hubspot.com, salesforce.com)
-- NEVER use web_fetch on: g2.com, statista.com, forbes.com, gartner.com, capterra.com  they block bots
-- code_executor has NO internet access  only for computation with data you already have
-- Keep code stubs SHORT (one comment line)  full code generated at execution
+- For presentations use pptx_creator  NOT code_executor
+- NEVER use web_fetch on: g2.com, statista.com, forbes.com, gartner.com, capterra.com
+- code_executor has NO internet  only for computation with data you already have
+- Keep code stubs SHORT (one comment line)
 - Maximum 6 steps per plan
 - Each step does ONE thing
 
-Example:
+Example for presentation:
 [
   {
     "id": 1,
-    "tool": "web_search",
-    "description": "Найти информацию о топ CRM системах",
-    "input": {"query": "top CRM systems 2024 comparison pricing", "max_results": 5},
+    "tool": "pptx_creator",
+    "description": "Создать презентацию",
+    "input": {
+      "filename": "report.pptx",
+      "slides": [
+        {"title": "Заголовок", "content": "Подзаголовок"},
+        {"title": "Слайд 2", "content": " Пункт 1\n Пункт 2\n Пункт 3"}
+      ]
+    },
     "depends_on": []
-  },
-  {
-    "id": 2,
-    "tool": "code_executor",
-    "description": "Создать сравнительную таблицу CRM систем",
-    "input": {"code": "# Create CRM comparison table and print results", "domains": []},
-    "depends_on": [1]
   }
 ]

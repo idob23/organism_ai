@@ -27,17 +27,25 @@ def _is_complex(task: str) -> bool:
         "и потом", "затем", "после этого", "сначала", "во-первых",
         "and then", "after that", "first", "multiple", "several steps",
         "сравни", "проанализируй и", "найди и", "создай и отправь",
+        "презентаци", "pptx", "powerpoint",
     ]
-    return any(kw in task.lower() for kw in complex_keywords)
+    task_lower = task.lower()
+    return any(kw in task_lower for kw in complex_keywords)
 
 
 def _extract_json(text: str) -> str:
+    """Extract JSON array from LLM response, handling Thought+JSON format."""
     text = text.strip()
+
+    # Direct array
     if text.startswith("["):
         return text
-    match = re.search(r"\[[\s\S]*\]", text)
-    if match:
-        return match.group(0)
+
+    # Find last JSON array in text (handles Thought: ... \n [...])
+    matches = list(re.finditer(r"\[[\s\S]*\]", text))
+    if matches:
+        return matches[-1].group(0)
+
     return text
 
 
@@ -45,34 +53,15 @@ def _parse_steps(raw: str) -> list[PlanStep]:
     json_str = _extract_json(raw)
     data = json.loads(json_str)
     steps = []
-    for item in data:
+    for i, item in enumerate(data):
         steps.append(PlanStep(
-            id=item["id"],
+            id=item.get("id", i + 1),
             tool=item["tool"],
-            description=item["description"],
+            description=item.get("description", item["tool"]),
             input=item["input"],
             depends_on=item.get("depends_on", []),
         ))
     return steps
-
-
-def _truncate_code_in_plan(raw: str, max_code_len: int = 800) -> str:
-    """Prevent overly long code blocks from breaking JSON parsing."""
-    try:
-        data = json.loads(_extract_json(raw))
-        for step in data:
-            if step.get("tool") == "code_executor":
-                code = step.get("input", {}).get("code", "")
-                if len(code) > max_code_len:
-                    # Keep the plan but simplify the code
-                    step["input"]["code"] = (
-                        "# Code will be generated during execution\n"
-                        "print('Analysis complete')"
-                    )
-                    step["description"] += " (code simplified  full logic in execution)"
-        return json.dumps(data)
-    except Exception:
-        return raw
 
 
 class Planner:
@@ -81,11 +70,11 @@ class Planner:
         self.llm = llm
 
     async def plan(self, task: str, memory_context: str = "") -> list[PlanStep]:
-        use_react = _is_complex(task)
-
         full_task = task
         if memory_context:
-            full_task = f"{task}\n\n[MEMORY CONTEXT]\n{memory_context}"
+            full_task = f"{task}\n\n[Memory context: {memory_context[:300]}]"
+
+        use_react = _is_complex(task)
 
         if not use_react:
             steps = await self._fast_plan(full_task)
@@ -100,12 +89,12 @@ class Planner:
 
     async def _fast_plan(self, task: str) -> list[PlanStep]:
         for attempt in range(2):
-            hint = "" if attempt == 0 else "\nIMPORTANT: Return ONLY a valid JSON array. Keep code snippets SHORT (under 500 chars). Full code will be written during execution."
+            hint = "" if attempt == 0 else "\nIMPORTANT: Return ONLY a valid JSON array, no explanation."
             response = await self.llm.complete(
                 messages=[Message(role="user", content=task + hint)],
                 system=FAST_PROMPT,
                 model_tier="balanced",
-                max_tokens=2048,
+                max_tokens=4096,
             )
             try:
                 return _parse_steps(response.content)
@@ -118,9 +107,11 @@ class Planner:
             messages=[Message(role="user", content=task)],
             system=REACT_PROMPT,
             model_tier="balanced",
-            max_tokens=2048,
+            max_tokens=4096,
         )
         try:
             return _parse_steps(response.content)
         except (json.JSONDecodeError, KeyError) as e:
-            raise ValueError(f"Planner failed: {e}\nResponse: {response.content[:500]}")
+            raise ValueError(
+                f"Planner failed: {e}\nResponse: {response.content[:500]}"
+            )

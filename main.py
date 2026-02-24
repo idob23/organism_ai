@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import argparse
 import sys
 
@@ -8,6 +8,7 @@ from src.organism.tools.web_search import WebSearchTool
 from src.organism.tools.web_fetch import WebFetchTool
 from src.organism.tools.file_manager import FileManagerTool
 from src.organism.tools.telegram_sender import TelegramSenderTool
+from src.organism.tools.pptx_creator import PptxCreatorTool
 from src.organism.tools.registry import ToolRegistry
 from src.organism.core.loop import CoreLoop
 from src.organism.memory.manager import MemoryManager
@@ -17,6 +18,7 @@ from config.settings import settings
 def build_registry() -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(CodeExecutorTool())
+    registry.register(PptxCreatorTool())
     registry.register(WebFetchTool())
     registry.register(FileManagerTool())
     if settings.tavily_api_key:
@@ -173,3 +175,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
