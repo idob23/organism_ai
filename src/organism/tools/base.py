@@ -1,6 +1,12 @@
 ﻿from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+from pathlib import Path
+
+OUTPUTS_DIR = Path("data/outputs")
+# Guard against Windows PermissionError when dir is held open by Explorer/AV
+if not OUTPUTS_DIR.exists():
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass

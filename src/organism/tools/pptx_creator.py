@@ -1,10 +1,11 @@
 
+from pathlib import Path
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from typing import Any
-from .base import BaseTool, ToolResult
+from .base import BaseTool, ToolResult, OUTPUTS_DIR
 
 
 class PptxCreatorTool(BaseTool):
@@ -130,8 +131,9 @@ class PptxCreatorTool(BaseTool):
                         text(slide, s["content"], 0.5, 1.3, 12.3, 5.7, size=18)
                     text(slide, str(i + 1), 12.4, 6.9, 0.7, 0.4, size=12, color=GRAY, align=PP_ALIGN.RIGHT)
 
-            prs.save(filename)
-            return ToolResult(output=f"Created: {filename} ({len(expanded)} slides)", exit_code=0)
+            filepath = OUTPUTS_DIR / Path(filename).name
+            prs.save(str(filepath))
+            return ToolResult(output=f"Created: {filepath} ({len(expanded)} slides)", exit_code=0)
 
         except Exception as e:
             return ToolResult(output="", error=str(e), exit_code=1)

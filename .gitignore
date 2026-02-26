@@ -37,3 +37,6 @@ logs/
 
 # Data (add specific paths if needed)
 data/secrets/
+data/outputs/
+data/workspace/
+data/logs/

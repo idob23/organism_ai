@@ -1,5 +1,6 @@
 ﻿from typing import Any
-from .base import BaseTool, ToolResult
+from pathlib import Path
+from .base import BaseTool, ToolResult, OUTPUTS_DIR
 
 
 class TextWriterTool(BaseTool):
@@ -58,10 +59,11 @@ class TextWriterTool(BaseTool):
         content = response.content.strip()
 
         try:
-            with open(filename, "w", encoding="utf-8") as f:
+            filepath = OUTPUTS_DIR / Path(filename).name
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             return ToolResult(
-                output=f"Saved to {filename} ({len(content)} chars)\n\nPreview:\n{content[:300]}...",
+                output=f"Saved to {filepath} ({len(content)} chars)\n\nPreview:\n{content[:300]}...",
                 exit_code=0,
             )
         except Exception as e:

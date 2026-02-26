@@ -5,12 +5,13 @@ AVAILABLE TOOLS:
 - code_executor: run Python code. input: {"code": "actual short python code here", "domains": []}
 - web_search: search internet. input: {"query": "...", "max_results": 5}
 - web_fetch: fetch URL. input: {"url": "https://...", "max_chars": 3000}
-- file_manager: read/write files. input: {"action": "write", "path": "file.txt", "content": "short content"}
+- file_manager: read/write SHORT plain text files only (under 30 lines, NO CSV/tables). input: {"action": "write", "path": "file.txt", "content": "short content"}
 - pptx_creator: PowerPoint. input: {"filename": "x.pptx", "topic": "...", "slides": [{"title": "...", "content": "brief"}]}
 
 RULES:
 - For writing articles, proposals, reports  text_writer
-- For math, calculations, data  code_executor with REAL short code (under 30 lines)
+- For CSV, data tables, spreadsheets  code_executor (use csv module, write to filename.csv with open())
+- For math, calculations, data processing  code_executor with REAL short code (under 30 lines)
 - For presentations  pptx_creator
 - code_executor: write actual working Python code, not a comment stub
 - All print() statements must be explicit in the code

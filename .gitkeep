@@ -1,0 +1,6 @@
+mkdir data\outputs
+mkdir data\workspace  
+mkdir data\logs
+echo $null > data\outputs\.gitkeep
+echo $null > data\workspace\.gitkeep
+echo $null > data\logs\.gitkeep

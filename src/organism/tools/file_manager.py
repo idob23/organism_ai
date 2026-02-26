@@ -1,12 +1,8 @@
-﻿import os
-from pathlib import Path
+﻿from pathlib import Path
 from typing import Any
-from .base import BaseTool, ToolResult
+from .base import BaseTool, ToolResult, OUTPUTS_DIR
 
-
-# Sandbox: all files go here
-WORKSPACE = Path("data/workspace")
-WORKSPACE.mkdir(parents=True, exist_ok=True)
+WORKSPACE = OUTPUTS_DIR
 
 
 class FileManagerTool(BaseTool):
@@ -20,7 +16,7 @@ class FileManagerTool(BaseTool):
         return (
             "Read, write, and list files in the workspace. "
             "Use for saving results, reading data files, creating reports. "
-            "All files are stored in data/workspace/."
+            "All files are stored in data/outputs/."
         )
 
     @property
