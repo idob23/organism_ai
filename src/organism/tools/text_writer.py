@@ -63,7 +63,7 @@ class TextWriterTool(BaseTool):
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             return ToolResult(
-                output=f"Saved to {filepath} ({len(content)} chars)\n\nPreview:\n{content[:300]}...",
+                output=content,
                 exit_code=0,
             )
         except Exception as e:

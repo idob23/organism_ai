@@ -1,6 +1,8 @@
 ﻿import asyncio
+import os
+import tempfile
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from aiogram.filters import CommandStart, Command
 
 from src.organism.core.loop import CoreLoop
@@ -52,13 +54,25 @@ class TelegramChannel(BaseChannel):
                 result = await self.loop.run(task, verbose=False)
 
                 if result.success:
-                    # Format response
                     steps_info = f"Шагов: {len(result.steps)} | Время: {result.duration:.1f}s"
-                    response = f" Готово\n{steps_info}\n\n{result.output[:3000]}"
-                else:
-                    response = f" Не удалось выполнить\n{result.error[:500]}"
+                    raw = result.answer if result.answer and not result.answer.startswith("Saved to") else result.output
+                    lines = [line for line in raw.splitlines() if not line.startswith("Saved to")]
+                    clean_output = "\n".join(lines).strip()
 
-                await status_msg.edit_text(response)
+                    if len(clean_output) > 800:
+                        short_preview = clean_output[:500] + "..."
+                        await status_msg.edit_text(f"✅ Готово\n{steps_info}\n\n{short_preview}\n\n📎 Полный текст во вложении:")
+                        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as f:
+                            f.write(clean_output)
+                            tmp_path = f.name
+                        try:
+                            await message.answer_document(FSInputFile(tmp_path, filename="result.md"))
+                        finally:
+                            os.unlink(tmp_path)
+                    else:
+                        await status_msg.edit_text(f"✅ Готово\n{steps_info}\n\n{clean_output}")
+                else:
+                    await status_msg.edit_text(f"❌ Не удалось выполнить\n{result.error[:500]}")
 
             except Exception as e:
                 await status_msg.edit_text(f" Ошибка: {str(e)[:300]}")
