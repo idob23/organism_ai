@@ -72,10 +72,14 @@ class TelegramChannel(BaseChannel):
                     else:
                         await status_msg.edit_text(f"✅ Готово\n{steps_info}\n\n{clean_output}")
                 else:
-                    await status_msg.edit_text(f"❌ Не удалось выполнить\n{result.error[:500]}")
+                    # Show user-friendly error, not a raw traceback
+                    err = result.error or "неизвестная ошибка"
+                    if "Traceback" in err or "File \"/" in err:
+                        err = err.splitlines()[-1]  # last line of traceback is the actual error
+                    await status_msg.edit_text(f"❌ Не удалось выполнить\n\n{err[:300]}\n\nПопробуйте переформулировать задачу.")
 
-            except Exception as e:
-                await status_msg.edit_text(f" Ошибка: {str(e)[:300]}")
+            except Exception:
+                await status_msg.edit_text("⚠️ Внутренняя ошибка. Попробуйте ещё раз.")
 
     async def start(self) -> None:
         await self.dp.start_polling(self.bot)

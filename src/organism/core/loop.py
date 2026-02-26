@@ -129,8 +129,9 @@ class CoreLoop:
                         print(f"Memory: found {memory_hits} similar past task(s)")
                     lines = []
                     for s in similar:
-                        ans = s.get("answer", s.get("output", s.get("result", "")))
-                        lines.append(f"- {s.get('task','')[:80]}: {ans[:100]}")
+                        tools = s.get("tools_used") or []
+                        tool_str = ", ".join(tools) if tools else "unknown"
+                        lines.append(f"- [{tool_str}] {s.get('task', '')[:80]}")
                     memory_context = "\n".join(lines)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)

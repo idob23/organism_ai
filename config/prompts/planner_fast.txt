@@ -20,3 +20,6 @@ RULES:
 
 Example for calculation:
 [{"id":1,"tool":"code_executor","description":"Calculate gold mining plan","input":{"code":"season=150\nplan_kg=300\nprice=7500\nplan_g=plan_kg*1000\ndaily=plan_g/season\nrev_season=plan_g*price\nrev_day=daily*price\nmid=plan_g/2\nprint(f'Дневной план: {daily:.1f} г')\nprint(f'Выручка за сезон: {rev_season/1e9:.2f} млрд руб')\nprint(f'Выручка в день: {rev_day:,.0f} руб')\nprint(f'К середине сезона: {mid/1000:.1f} кг')","domains":[]},"depends_on":[]}]
+
+Example for CSV:
+[{"id":1,"tool":"code_executor","description":"Create equipment CSV","input":{"code":"import csv\nrows=[['Техника','Номер','Пробег'],['КамАЗ-65115','А123БВ','145000'],['ГАЗель','В456ГД','67000']]\nwith open('report.csv','w',newline='',encoding='utf-8-sig') as f:\n    csv.writer(f).writerows(rows)\nprint('CSV создан: report.csv')\nprint(f'Строк: {len(rows)-1}')","domains":[]},"depends_on":[]}]
