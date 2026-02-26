@@ -14,8 +14,18 @@ from src.organism.tools.registry import ToolRegistry
 
 _log = get_logger("core.loop")
 
-WRITE_KEYWORDS = ["напиши", "написать", "составь", "составить", "подготовь", "создай текст",
-                  "коммерческое предложение", "статью", "отчёт", "письмо", "write", "draft", "compose"]
+WRITE_KEYWORDS = [
+    "napishi", "napihi",  # transliteration fallback
+    "write", "draft", "compose",
+    "\u043d\u0430\u043f\u0438\u0448\u0438",
+    "\u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c",
+    "\u0441\u043e\u0441\u0442\u0430\u0432\u044c",
+    "\u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c",
+    "\u043a\u043e\u043c\u043c\u0435\u0440\u0447\u0435\u0441\u043a\u043e\u0435 \u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u0435",
+    "\u0448\u0430\u0431\u043b\u043e\u043d",
+    "\u0441\u0442\u0430\u0442\u044c\u044e",
+    "\u043f\u0438\u0441\u044c\u043c\u043e",
+]
 
 
 @dataclass
@@ -46,13 +56,11 @@ class TaskResult:
 
 def _is_writing_task(task: str) -> bool:
     t = task.lower()
-    return any(kw in t for kw in WRITE_KEYWORDS)
+    return any(kw.lower() in t for kw in WRITE_KEYWORDS)
 
 
 def _extract_filename(task: str) -> str | None:
-    m = re.search(r"сохрани\s+(?:в\s+)?(?:файл\s+)?(\S+\.(?:md|txt|docx|html))", task, re.IGNORECASE)
-    if not m:
-        m = re.search(r"save\s+(?:to\s+)?(?:file\s+)?(\S+\.(?:md|txt|docx|html))", task, re.IGNORECASE)
+    m = re.search(r"(\w[\w\-]+\.(?:md|txt|docx|html))", task, re.IGNORECASE)
     return m.group(1) if m else None
 
 
@@ -69,59 +77,44 @@ class CoreLoop:
         self.logger = Logger()
         self.memory = memory
 
-    async def _run_writing_task(self, task_id: str, task: str, verbose: bool) -> TaskResult:
-        """Direct path for writing tasks  bypasses Planner entirely."""
+    async def _run_writing_task(self, task_id: str, task: str, verbose: bool) -> "TaskResult | None":
         start = time.time()
-        filename = _extract_filename(task)
-
-        if verbose:
-            print(f"Writing task detected  using text_writer directly")
-            print(f"Step 1: Generate and save text")
-
+        filename = _extract_filename(task) or "output.md"
         try:
             tool = self.registry.get("text_writer")
         except KeyError:
-            # Fall back to normal planning if text_writer not registered
             return None
 
-        result = await tool.execute({
-            "prompt": task,
-            "filename": filename or "output.md",
-        })
+        if verbose:
+            print("Writing task detected - using text_writer directly")
+            print("Step 1: Generate and save text")
 
+        result = await tool.execute({"prompt": task, "filename": filename})
         duration = time.time() - start
         step_log = StepLog(step_id=1, tool="text_writer", description="Write and save text",
                            output=result.output, error=result.error,
                            success=result.exit_code == 0, duration=duration)
-
         if verbose:
             status = "OK" if result.exit_code == 0 else "FAIL"
             print(f"  [{status}] {duration:.1f}s | {result.output[:100]}")
-            print(f"\n{'='*50}")
-            print(f"Done in {duration:.1f}s")
-            print(f"{'='*50}")
+            print(f"\n{'='*50}\nDone in {duration:.1f}s\n{'='*50}")
 
-        return TaskResult(
-            task_id=task_id, task=task,
-            success=result.exit_code == 0,
-            output=result.output, answer=result.output,
-            steps=[step_log], duration=duration,
-            error=result.error if result.exit_code != 0 else "",
-        )
+        return TaskResult(task_id=task_id, task=task, success=result.exit_code == 0,
+                          output=result.output, answer=result.output,
+                          steps=[step_log], duration=duration,
+                          error=result.error if result.exit_code != 0 else "")
 
-    async def run(self, task: str, verbose: bool = True) -> TaskResult:
+    async def run(self, task: str, verbose: bool = True) -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
         self.logger.log_task_start(task_id, task)
 
         if verbose:
-            print(f"\n{'='*50}")
-            print(f"Task [{task_id}]: {task}")
-            print(f"{'='*50}")
+            print(f"\n{'='*50}\nTask [{task_id}]: {task}\n{'='*50}")
 
-        # Memory
         memory_hits = 0
+        memory_context = ""
         if self.memory:
             try:
                 await self.memory.initialize()
@@ -130,6 +123,11 @@ class CoreLoop:
                     memory_hits = len(similar)
                     if verbose:
                         print(f"Memory: found {memory_hits} similar past task(s)")
+                    lines = []
+                    for s in similar:
+                        ans = s.get("answer", s.get("output", s.get("result", "")))
+                        lines.append(f"- {s.get('task','')[:80]}: {ans[:100]}")
+                    memory_context = "\n".join(lines)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
 
@@ -140,16 +138,20 @@ class CoreLoop:
                 if result is not None:
                     result.memory_hits = memory_hits
                     _log.info(f"[{task_id}] Writing task {'SUCCESS' if result.success else 'FAILED'} in {result.duration:.1f}s")
+                    if self.memory and result.success:
+                        try:
+                            await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"])
+                        except Exception:
+                            pass
                     return result
             except Exception as e:
-                log_exception(_log, f"[{task_id}] Writing fast path failed, falling back to planner", e)
+                log_exception(_log, f"[{task_id}] Writing fast path failed", e)
 
-        # Normal planning path
         if verbose:
             print("Planning...")
 
         try:
-            steps = await self.planner.plan(task)
+            steps = await self.planner.plan(task, memory_context=memory_context)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
             error = log_exception(_log, f"[{task_id}] Planning failed", e)
@@ -168,11 +170,11 @@ class CoreLoop:
         total_tokens = 0
 
         for step in steps:
-            # Resolve {{step_N_output}} placeholders
             resolved_input = {}
             for k, v in step.input.items():
                 if isinstance(v, str):
-                    v = re.sub(r"\{\{step_(\d+)_output\}\}", lambda m: step_outputs.get(int(m.group(1)), ""), v)
+                    v = re.sub(r"\{\{step_(\d+)_output\}\}",
+                               lambda m: step_outputs.get(int(m.group(1)), ""), v)
                 resolved_input[k] = v
 
             resolved_step = PlanStep(id=step.id, tool=step.tool, description=step.description,
@@ -196,8 +198,8 @@ class CoreLoop:
                         pass
                 self.logger.log_task_end(task_id, False, duration, total_tokens)
                 return TaskResult(task_id=task_id, task=task, success=False, output=last_output,
-                                  steps=step_logs, duration=duration, error=f"Step {step.id} failed: {log.error}",
-                                  memory_hits=memory_hits)
+                                  steps=step_logs, duration=duration,
+                                  error=f"Step {step.id} failed: {log.error}", memory_hits=memory_hits)
 
         duration = time.time() - start
         _log.info(f"[{task_id}] Task SUCCESS in {duration:.1f}s, tools: {tools_used}")
@@ -211,9 +213,7 @@ class CoreLoop:
         self.logger.log_task_end(task_id, True, duration, total_tokens)
 
         if verbose:
-            print(f"\n{'='*50}")
-            print(f"Done in {duration:.1f}s | Memory hits: {memory_hits}")
-            print(f"{'='*50}")
+            print(f"\n{'='*50}\nDone in {duration:.1f}s | Memory hits: {memory_hits}\n{'='*50}")
 
         return TaskResult(task_id=task_id, task=task, success=True, output=last_output, answer=last_output,
                           steps=step_logs, total_tokens=total_tokens, duration=duration, memory_hits=memory_hits)
@@ -252,10 +252,10 @@ class CoreLoop:
             except Exception as e:
                 error = log_exception(_log, f"[{task_id}] Step {step.id} crashed", e)
                 return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                               output="", error=error, success=False, duration=time.time() - step_start, attempts=attempt)
+                               output="", error=error, success=False,
+                               duration=time.time() - step_start, attempts=attempt)
 
             duration = time.time() - step_start
-
             if verbose:
                 status = "OK" if result.success else "FAIL"
                 print(f"  [{status}] {duration:.1f}s | output: {result.output[:80] if result.output else '(empty)'}")
@@ -277,7 +277,8 @@ class CoreLoop:
             if eval_result.success:
                 _log.info(f"[{task_id}] Step {step.id} SUCCESS on attempt {attempt}")
                 return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                               output=result.output, error="", success=True, duration=duration, attempts=attempt)
+                               output=result.output, error="", success=True,
+                               duration=duration, attempts=attempt)
 
             if eval_result.retry_hint and step.tool == "code_executor":
                 step_input["code"] = f"# Previous failed: {eval_result.retry_hint}\n{step_input.get('code', '')}"
