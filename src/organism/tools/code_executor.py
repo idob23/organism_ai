@@ -130,9 +130,12 @@ class CodeExecutorTool(BaseTool):
         return code
 
     def _run_container(self, code: str, domains: list[str]) -> ToolResult:
+        import shutil
         container_name = f"organism-sandbox-{uuid.uuid4().hex[:8]}"
         tmp_dir = tempfile.mkdtemp(prefix="organism_")
         code_path = os.path.join(tmp_dir, "code.py")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir, exist_ok=True)
 
         try:
             with open(code_path, "w", encoding="utf-8") as f:
@@ -145,7 +148,11 @@ class CodeExecutorTool(BaseTool):
                 network_mode="none",
                 mem_limit=settings.sandbox_memory,
                 nano_cpus=int(settings.sandbox_cpu * 1e9),
-                volumes={tmp_dir: {"bind": "/sandbox", "mode": "ro"}},
+                volumes={
+                    tmp_dir: {"bind": "/sandbox", "mode": "ro"},
+                    output_dir: {"bind": "/output", "mode": "rw"},
+                },
+                working_dir="/output",
                 detach=True,
                 remove=False,
             )
@@ -160,6 +167,21 @@ class CodeExecutorTool(BaseTool):
             stdout = container.logs(stdout=True, stderr=False).decode("utf-8", errors="replace").strip()
             stderr = container.logs(stdout=False, stderr=True).decode("utf-8", errors="replace").strip()
 
+            # Copy any output files to the host working directory
+            saved_files = []
+            outputs_dir = os.path.join(os.getcwd(), "data", "outputs")
+            os.makedirs(outputs_dir, exist_ok=True)
+            for fname in os.listdir(output_dir):
+                src = os.path.join(output_dir, fname)
+                if os.path.isfile(src):
+                    dst = os.path.join(outputs_dir, fname)
+                    shutil.copy2(src, dst)
+                    saved_files.append(fname)
+
+            if saved_files:
+                file_note = f"\nSaved files: {', '.join(saved_files)}"
+                stdout = stdout + file_note if stdout else file_note
+
             return ToolResult(output=stdout, error=stderr, exit_code=exit_code)
 
         except docker.errors.ImageNotFound:
@@ -172,7 +194,6 @@ class CodeExecutorTool(BaseTool):
             except Exception:
                 pass
             try:
-                import shutil
                 shutil.rmtree(tmp_dir, ignore_errors=True)
             except Exception:
                 pass

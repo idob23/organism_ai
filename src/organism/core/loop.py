@@ -60,7 +60,11 @@ def _is_writing_task(task: str) -> bool:
 
 
 def _extract_filename(task: str) -> str | None:
-    m = re.search(r"(\w[\w\-]+\.(?:md|txt|docx|html))", task, re.IGNORECASE)
+    m = re.search(
+        r"(\w[\w\-]+\.(?:md|txt|docx|html|csv|xlsx|json|pdf|pptx))",
+        task,
+        re.IGNORECASE
+    )
     return m.group(1) if m else None
 
 

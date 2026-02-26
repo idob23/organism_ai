@@ -38,15 +38,20 @@ class LongTermMemory:
 
         return memory_id
 
+    # text-embedding-3-small: L2=sqrt(2*(1-cosine)), threshold 1.0 ~ cosine≥0.5
+    SIMILARITY_THRESHOLD = 1.0
+
     async def search_similar(self, task: str, limit: int = 3) -> list[dict]:
         embedding = await get_embedding(task)
 
         async with AsyncSessionLocal() as session:
             if embedding:
-                # Vector similarity search
+                # Vector similarity search with distance threshold to avoid
+                # false positives (e.g. "ГСМ" fuel ↔ "GSM" mobile)
                 stmt = select(TaskMemory).where(
                     TaskMemory.success == True,
                     TaskMemory.embedding.isnot(None),
+                    TaskMemory.embedding.l2_distance(embedding) < self.SIMILARITY_THRESHOLD,
                 ).order_by(
                     TaskMemory.embedding.l2_distance(embedding)
                 ).limit(limit)
