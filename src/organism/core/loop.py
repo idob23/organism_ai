@@ -38,6 +38,7 @@ class StepLog:
     success: bool
     duration: float
     attempts: int = 1
+    quality_score: float = 0.0
 
 
 @dataclass
@@ -52,6 +53,7 @@ class TaskResult:
     duration: float = 0.0
     error: str = ""
     memory_hits: int = 0
+    quality_score: float = 0.0
 
 
 def _is_writing_task(task: str) -> bool:
@@ -145,7 +147,7 @@ class CoreLoop:
                     _log.info(f"[{task_id}] Writing task {'SUCCESS' if result.success else 'FAILED'} in {result.duration:.1f}s")
                     if self.memory and result.success:
                         try:
-                            await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"])
+                            await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"], quality_score=0.8)
                         except Exception:
                             pass
                     return result
@@ -192,13 +194,12 @@ class CoreLoop:
                 last_output = log.output
                 if step.tool not in tools_used:
                     tools_used.append(step.tool)
-                _log.info(f"[{task_id}] Step {step.id} SUCCESS on attempt {log.attempts}")
             else:
                 duration = time.time() - start
                 _log.error(f"[{task_id}] Task FAILED at step {step.id}: {log.error}")
                 if self.memory:
                     try:
-                        await self.memory.on_task_end(task, last_output, False, duration, len(step_logs), tools_used)
+                        await self.memory.on_task_end(task, last_output, False, duration, len(step_logs), tools_used, quality_score=0.2)
                     except Exception:
                         pass
                 self.logger.log_task_end(task_id, False, duration, total_tokens)
@@ -209,19 +210,23 @@ class CoreLoop:
         duration = time.time() - start
         _log.info(f"[{task_id}] Task SUCCESS in {duration:.1f}s, tools: {tools_used}")
 
+        # Calculate average quality score
+        avg_quality = sum(s.quality_score for s in step_logs if s.success) / max(len([s for s in step_logs if s.success]), 1)
+
         if self.memory:
             try:
-                await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used)
+                await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used, quality_score=avg_quality)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory save failed", e)
 
         self.logger.log_task_end(task_id, True, duration, total_tokens)
 
         if verbose:
-            print(f"\n{'='*50}\nDone in {duration:.1f}s | Memory hits: {memory_hits}\n{'='*50}")
+            print(f"\n{'='*50}\nDone in {duration:.1f}s | Quality: {avg_quality:.2f} | Memory hits: {memory_hits}\n{'='*50}")
 
         return TaskResult(task_id=task_id, task=task, success=True, output=last_output, answer=last_output,
-                          steps=step_logs, total_tokens=total_tokens, duration=duration, memory_hits=memory_hits)
+                          steps=step_logs, total_tokens=total_tokens, duration=duration, memory_hits=memory_hits,
+                          quality_score=avg_quality)
 
     async def _execute_step(self, task_id: str, task: str, step: PlanStep, verbose: bool) -> StepLog:
         _log.info(f"[{task_id}] Step {step.id} start: [{step.tool}] {step.description[:80]}")
@@ -280,10 +285,11 @@ class CoreLoop:
             self.logger.log_step(task_id, step.id, step.tool, eval_result.success, duration, error=result.error)
 
             if eval_result.success:
-                _log.info(f"[{task_id}] Step {step.id} SUCCESS on attempt {attempt}")
-                return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                               output=result.output, error="", success=True,
-                               duration=duration, attempts=attempt)
+                 _log.info(f"[{task_id}] Step {step.id} SUCCESS on attempt {attempt} (quality: {eval_result.quality_score:.2f})")
+                 return StepLog(step_id=step.id, tool=step.tool, description=step.description,
+                                output=result.output, error="", success=True,
+                                duration=duration, attempts=attempt,
+                                quality_score=eval_result.quality_score)
 
             if eval_result.retry_hint and step.tool == "code_executor":
                 step_input["code"] = f"# Previous failed: {eval_result.retry_hint}\n{step_input.get('code', '')}"

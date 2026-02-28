@@ -20,6 +20,7 @@ class TaskMemory(Base):
     duration = Column(Float, default=0.0)
     steps_count = Column(Integer, default=0)
     tools_used = Column(Text, default="")
+    quality_score = Column(Float, default=0.0)  # NEW: 0.0 - 1.0
     embedding = Column(Vector(1536), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

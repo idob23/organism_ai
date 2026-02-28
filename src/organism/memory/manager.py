@@ -31,6 +31,7 @@ class MemoryManager:
         duration: float,
         steps_count: int,
         tools_used: list[str],
+        quality_score: float = 0.0,
     ) -> None:
         await self.longterm.save_task(
             task=task,
@@ -39,6 +40,7 @@ class MemoryManager:
             duration=duration,
             steps_count=steps_count,
             tools_used=tools_used,
+            quality_score=quality_score,
         )
 
     async def get_stats(self) -> dict:
