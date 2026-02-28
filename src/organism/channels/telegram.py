@@ -18,6 +18,20 @@ class TelegramChannel(BaseChannel):
         self.dp = Dispatcher()
         self._setup_handlers()
 
+    @staticmethod
+    async def _tick_progress(msg: Message, preview: str) -> None:
+        """Edit status message every 5s with elapsed time while task runs."""
+        icons = ["⏳", "🔄"]
+        elapsed = 0
+        while True:
+            await asyncio.sleep(5)
+            elapsed += 5
+            icon = icons[(elapsed // 5) % 2]
+            try:
+                await msg.edit_text(f"{icon} Выполняю... {elapsed}с\n{preview}")
+            except Exception:
+                pass  # ignore FloodWait / MessageNotModified
+
     def _setup_handlers(self) -> None:
         allowed = settings.allowed_user_ids
 
@@ -48,10 +62,15 @@ class TelegramChannel(BaseChannel):
                 return
 
             # Notify user that work has started
-            status_msg = await message.answer(f"Принял задачу: {task[:80]}\nВыполняю...")
+            preview = task[:60] + ("..." if len(task) > 60 else "")
+            status_msg = await message.answer(f"⏳ Принял задачу:\n{preview}\n\nВыполняю...")
+            ticker = asyncio.create_task(self._tick_progress(status_msg, preview))
 
             try:
-                result = await self.loop.run(task, verbose=False)
+                try:
+                    result = await self.loop.run(task, verbose=False)
+                finally:
+                    ticker.cancel()
 
                 if result.success:
                     steps_info = f"Шагов: {len(result.steps)} | Время: {result.duration:.1f}s"
@@ -72,10 +91,9 @@ class TelegramChannel(BaseChannel):
                     else:
                         await status_msg.edit_text(f"✅ Готово\n{steps_info}\n\n{clean_output}")
                 else:
-                    # Show user-friendly error, not a raw traceback
                     err = result.error or "неизвестная ошибка"
                     if "Traceback" in err or "File \"/" in err:
-                        err = err.splitlines()[-1]  # last line of traceback is the actual error
+                        err = err.splitlines()[-1]
                     await status_msg.edit_text(f"❌ Не удалось выполнить\n\n{err[:300]}\n\nПопробуйте переформулировать задачу.")
 
             except Exception:
