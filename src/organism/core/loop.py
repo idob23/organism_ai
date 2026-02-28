@@ -27,6 +27,19 @@ WRITE_KEYWORDS = [
     "\u043f\u0438\u0441\u044c\u043c\u043e",
 ]
 
+SEARCH_KEYWORDS = [
+    "find", "search", "look up",
+    "найди",           # найди
+    "поищи",           # поищи
+    "найти",           # найти
+    "актуальные",  # актуальные
+    "текущие",  # текущие
+    "свежие",     # свежие
+    "узнай",           # узнай
+    "проверь",  # проверь
+    "исследуй",  # исследуй
+]
+
 
 @dataclass
 class StepLog:
@@ -58,7 +71,14 @@ class TaskResult:
 
 def _is_writing_task(task: str) -> bool:
     t = task.lower()
-    return any(kw.lower() in t for kw in WRITE_KEYWORDS)
+    has_write = any(kw.lower() in t for kw in WRITE_KEYWORDS)
+    if not has_write:
+        return False
+    # If task also contains search signals — let Planner handle it
+    has_search = any(kw.lower() in t for kw in SEARCH_KEYWORDS)
+    if has_search:
+        return False
+    return True
 
 
 def _extract_filename(task: str) -> str | None:

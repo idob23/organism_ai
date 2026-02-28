@@ -100,6 +100,27 @@ RULES:
 Example:
 [{"id":1,"tool":"pptx_creator","description":"Create presentation","input":{"filename":"report.pptx","topic":"Monthly report","slides":[{"title":"Overview","content":"Key metrics and results"}]},"depends_on":[]}]"""
 
+PLAN_MIXED = """You are a task planner. Return ONLY a JSON array.
+
+AVAILABLE TOOLS:
+- web_search: search internet. input: {"query": "...", "max_results": 5}
+- web_fetch: fetch URL. input: {"url": "https://...", "max_chars": 3000}
+- text_writer: write long text and save to file. input: {"prompt": "detailed instructions including context from previous steps", "filename": "file.md"}
+- code_executor: run Python code. input: {"code": "python code", "domains": []}
+
+RULES:
+- For "find + write" tasks: first web_search, then text_writer with {{step_1_output}} in prompt
+- For "research + calculate" tasks: first web_search, then code_executor
+- text_writer prompt MUST include: the original task + "Use this research data: {{step_1_output}}"
+- Maximum 3 steps
+- NEVER use web_fetch on: g2.com, statista.com, forbes.com
+
+Example (find + write):
+[
+  {"id":1,"tool":"web_search","description":"Search for information","input":{"query":"search query","max_results":5},"depends_on":[]},
+  {"id":2,"tool":"text_writer","description":"Write document based on research","input":{"prompt":"Write a memo about X. Use this research data: {{step_1_output}}","filename":"memo.md"},"depends_on":[1]}
+]"""
+
 
 # Map task type → specialized prompt
 SPECIALIZED_PROMPTS = {
@@ -108,6 +129,7 @@ SPECIALIZED_PROMPTS = {
     "data": PLAN_CODE,
     "research": PLAN_RESEARCH,
     "presentation": PLAN_PRESENTATION,
+    "mixed": PLAN_MIXED,
 }
 
 
