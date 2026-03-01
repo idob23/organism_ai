@@ -1,13 +1,15 @@
 ﻿from .longterm import LongTermMemory
 from .working import WorkingMemory
 from .database import init_db
+from src.organism.llm.base import LLMProvider
 
 
 class MemoryManager:
 
-    def __init__(self) -> None:
+    def __init__(self, llm: LLMProvider | None = None) -> None:
         self.longterm = LongTermMemory()
         self.working = WorkingMemory()
+        self.llm = llm
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -19,8 +21,8 @@ class MemoryManager:
         self.working.clear()
         self.working.task = task
 
-        # Search for similar past tasks
-        similar = await self.longterm.search_similar(task, limit=3)
+        # Search for similar past tasks (with LLM reranking when available)
+        similar = await self.longterm.search_similar(task, limit=3, llm=self.llm)
         return similar
 
     async def on_task_end(

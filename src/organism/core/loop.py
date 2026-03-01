@@ -103,8 +103,10 @@ class CoreLoop:
         self.evaluator = Evaluator(llm)
         self.validator = SafetyValidator()
         self.logger = Logger()
-        self.memory = memory
         self.cache = SolutionCache()
+        if memory is not None and memory.llm is None:
+            memory.llm = llm
+        self.memory = memory
 
     def _validate_plan(self, steps: list[PlanStep]) -> str | None:
         """Validate plan before execution. Returns error message or None if valid."""

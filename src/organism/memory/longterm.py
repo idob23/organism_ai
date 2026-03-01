@@ -5,6 +5,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from .database import TaskMemory, UserProfile, AsyncSessionLocal
 from .embeddings import get_embedding
+from src.organism.llm.base import LLMProvider, Message
 
 
 def _enrich_for_embedding(task: str, tools_used: list[str] = None, outcome: str = None) -> str:
@@ -76,8 +77,38 @@ class LongTermMemory:
     # text-embedding-3-small: L2=sqrt(2*(1-cosine)), threshold 1.0 ~ cosine>=0.5
     SIMILARITY_THRESHOLD = 1.0
 
+    @staticmethod
+    async def _rerank(
+        task: str, candidates: list[dict], llm: LLMProvider, top_k: int = 3
+    ) -> list[dict]:
+        """Use Haiku to rerank candidates by relevance to task. Falls back to original order on error."""
+        numbered = "\n".join(
+            f"{i}. {c['task'][:120]}" for i, c in enumerate(candidates)
+        )
+        prompt = (
+            f"Task: {task}\n\n"
+            f"Candidates:\n{numbered}\n\n"
+            f"Return the indices (0-based) of the {top_k} most relevant candidates, "
+            f"comma-separated, most relevant first. Only indices, no explanation."
+        )
+        try:
+            resp = await llm.complete(
+                messages=[Message(role="user", content=prompt)],
+                model_tier="fast",
+                max_tokens=32,
+            )
+            raw = resp.content.strip()
+            indices = [int(x.strip()) for x in raw.split(",") if x.strip().isdigit()]
+            indices = [i for i in indices if 0 <= i < len(candidates)][:top_k]
+            if indices:
+                return [candidates[i] for i in indices]
+        except Exception:
+            pass
+        return candidates[:top_k]
+
     async def search_similar(
-        self, task: str, limit: int = 3, min_quality: float = 0.6
+        self, task: str, limit: int = 3, min_quality: float = 0.6,
+        llm: LLMProvider | None = None,
     ) -> list[dict]:
         """Hybrid search: 0.7 * vector_score + 0.3 * bm25_score.
 
@@ -208,7 +239,10 @@ class LongTermMemory:
         if best_score < 0.6:
             return []
 
-        return [_to_dict(m) for _, m in scored[:limit]]
+        candidates = [_to_dict(m) for _, m in scored[:limit * 2]]
+        if llm and len(candidates) > 3:
+            return await self._rerank(task, candidates, llm, top_k=limit)
+        return candidates[:limit]
 
     async def get_stats(self) -> dict:
         async with AsyncSessionLocal() as session:
