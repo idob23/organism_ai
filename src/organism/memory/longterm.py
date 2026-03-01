@@ -1,5 +1,6 @@
 ﻿import uuid
 import json
+from datetime import datetime, timedelta
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from .database import TaskMemory, UserProfile, AsyncSessionLocal
@@ -75,24 +76,42 @@ class LongTermMemory:
     # text-embedding-3-small: L2=sqrt(2*(1-cosine)), threshold 1.0 ~ cosine>=0.5
     SIMILARITY_THRESHOLD = 1.0
 
-    async def search_similar(self, task: str, limit: int = 3) -> list[dict]:
+    async def search_similar(
+        self, task: str, limit: int = 3, min_quality: float = 0.6
+    ) -> list[dict]:
         """Hybrid search: 0.7 * vector_score + 0.3 * bm25_score.
 
         Vector search uses pgvector L2 distance (semantic similarity).
         BM25 search uses PostgreSQL ts_vector with Russian stemming (keyword overlap).
         Combining both improves recall — e.g. "расход ГСМ" finds fuel tasks even
         when phrased differently or using abbreviations.
+
+        Metadata filtering: success=True, quality_score >= min_quality, last 90 days.
+
+        Adaptive K:
+          - best score > 0.9 → return 1 (near-exact match, no more needed)
+          - best score < 0.6 → return [] (nothing relevant)
+          - otherwise → return up to limit
         """
+        cutoff = datetime.utcnow() - timedelta(days=90)
+
         # Search with just [TASK] tag — we don't know tools/outcome yet
         search_text = _enrich_for_embedding(task=task)
         embedding = await get_embedding(search_text)
 
         async with AsyncSessionLocal() as session:
             if not embedding:
-                # Fallback: recent successful tasks
-                stmt = select(TaskMemory).where(
-                    TaskMemory.success == True,
-                ).order_by(TaskMemory.created_at.desc()).limit(limit)
+                # Fallback: recent high-quality tasks
+                stmt = (
+                    select(TaskMemory)
+                    .where(
+                        TaskMemory.success == True,
+                        TaskMemory.quality_score >= min_quality,
+                        TaskMemory.created_at >= cutoff,
+                    )
+                    .order_by(TaskMemory.created_at.desc())
+                    .limit(limit)
+                )
                 result = await session.execute(stmt)
                 return [_to_dict(m) for m in result.scalars().all()]
 
@@ -104,6 +123,8 @@ class LongTermMemory:
                 select(TaskMemory, dist_expr.label("l2_dist"))
                 .where(
                     TaskMemory.success == True,
+                    TaskMemory.quality_score >= min_quality,
+                    TaskMemory.created_at >= cutoff,
                     TaskMemory.embedding.isnot(None),
                     dist_expr < self.SIMILARITY_THRESHOLD,
                 )
@@ -123,12 +144,14 @@ class LongTermMemory:
                                        plainto_tsquery('russian', :q)) AS bm25_rank
                         FROM task_memories
                         WHERE success = true
+                          AND quality_score >= :min_quality
+                          AND created_at >= :cutoff
                           AND to_tsvector('russian', task)
                               @@ plainto_tsquery('russian', :q)
                         ORDER BY bm25_rank DESC
                         LIMIT :lim
                     """),
-                    {"q": task, "lim": fetch},
+                    {"q": task, "lim": fetch, "min_quality": min_quality, "cutoff": cutoff},
                 )
                 bm25_rows = bm25_result.all()
             except Exception:
@@ -171,6 +194,19 @@ class LongTermMemory:
                 if rid in id_to_memory
             ]
             scored.sort(key=lambda x: x[0], reverse=True)
+
+        if not scored:
+            return []
+
+        best_score = scored[0][0]
+
+        # Adaptive K: near-exact match → only 1 result
+        if best_score > 0.9:
+            return [_to_dict(scored[0][1])]
+
+        # Adaptive K: nothing relevant → skip memory entirely
+        if best_score < 0.6:
+            return []
 
         return [_to_dict(m) for _, m in scored[:limit]]
 
