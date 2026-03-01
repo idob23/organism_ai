@@ -130,7 +130,7 @@ organism_ai/
 - Success Rate: ~93%+ (was 90.6%)
 - Average Quality Score: ~0.80+
 - Stages 1-5 complete, Stage 6 (commercialization) in progress
-- Sprint 1 of Quality Plan complete (Q-1.1 through Q-1.5)
+- Sprints 1-3 of Quality Plan complete (Q-1.1 through Q-3.5)
 
 ## Development Roadmap — Quality Plan
 ### Sprint 1 ✅ (Foundation) — COMPLETE
@@ -140,19 +140,19 @@ organism_ai/
 - Q-1.4: Plan Validation Layer ✅
 - Q-1.5: Enriched embeddings ✅
 
-### Sprint 2 (Multi-level RAG) — IN PROGRESS
+### Sprint 2 ✅ (Multi-level RAG) — COMPLETE
 - Q-2.1: L1 Solution Cache — hash + task normalization ✅
-- Q-2.2: Hybrid Search (vector + BM25 ts_vector in PostgreSQL)
-- Q-2.3: Metadata filtering + Adaptive K
-- Q-2.4: LLM Reranking (Haiku) for top-10 → top-3
-- Q-2.5: L3 Knowledge Base — rules table + extraction mechanism
+- Q-2.2: Hybrid Search (vector + BM25 ts_vector in PostgreSQL) ✅
+- Q-2.3: Metadata filtering + Adaptive K ✅
+- Q-2.4: LLM Reranking (Haiku) for top candidates ✅
+- Q-2.5: L3 Knowledge Base — rules table + extraction mechanism ✅
 
-### Sprint 3 (Smart Agents)
-- Q-3.1: Agent specialization (different strategies, temperature)
-- Q-3.2: Writer 3-phase (outline → draft → polish)
-- Q-3.3: Inter-agent context summarization (Haiku)
-- Q-3.4: Agent Self-Reflection + save to memory
-- Q-3.5: Context Window Budget
+### Sprint 3 ✅ (Smart Agents) — COMPLETE
+- Q-3.1: Agent specialization (temperature, max_iterations, TemperatureLocked) ✅
+- Q-3.2: Writer 3-phase (outline → draft → polish) ✅
+- Q-3.3: Inter-agent context summarization (Haiku) ✅
+- Q-3.4: Agent Self-Reflection + save to agent_reflections table ✅
+- Q-3.5: Context Window Budget (3000t sweet spot, priority trimming) ✅
 
 ### Sprint 4 (Personalization & Automation)
 - Q-4.1: User Facts Extraction
