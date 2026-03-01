@@ -46,6 +46,18 @@ class SolutionCacheEntry(Base):
     expires_at = Column(DateTime, nullable=False)
 
 
+class KnowledgeRule(Base):
+    __tablename__ = "knowledge_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rule_text = Column(Text, nullable=False)
+    confidence = Column(Float, default=0.8)
+    source_tasks = Column(Text, default="")  # comma-separated task hashes
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 engine = create_async_engine(settings.database_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

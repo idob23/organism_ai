@@ -9,6 +9,7 @@ from src.organism.llm.base import LLMProvider
 from src.organism.logging.logger import Logger
 from src.organism.logging.error_handler import get_logger, log_exception
 from src.organism.memory.manager import MemoryManager
+from src.organism.memory.knowledge_base import KnowledgeBase
 from src.organism.memory.solution_cache import SolutionCache
 from src.organism.safety.validator import SafetyValidator
 from src.organism.tools.registry import ToolRegistry
@@ -104,6 +105,7 @@ class CoreLoop:
         self.validator = SafetyValidator()
         self.logger = Logger()
         self.cache = SolutionCache()
+        self.knowledge_base = KnowledgeBase()
         if memory is not None and memory.llm is None:
             memory.llm = llm
         self.memory = memory
@@ -248,8 +250,15 @@ class CoreLoop:
         if verbose:
             print("Planning...")
 
+        knowledge_rules: list[str] = []
+        if self.memory:
+            try:
+                knowledge_rules = await self.knowledge_base.get_rules()
+            except Exception:
+                pass
+
         try:
-            steps = await self.planner.plan(task, memory_context=memory_context)
+            steps = await self.planner.plan(task, memory_context=memory_context, knowledge_rules=knowledge_rules or None)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
             log_exception(_log, f"[{task_id}] Planning failed", e)

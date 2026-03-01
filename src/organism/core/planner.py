@@ -198,10 +198,18 @@ class Planner:
     def __init__(self, llm: LLMProvider) -> None:
         self.llm = llm
 
-    async def plan(self, task: str, memory_context: str = '') -> list[PlanStep]:
+    async def plan(
+        self,
+        task: str,
+        memory_context: str = '',
+        knowledge_rules: list[str] | None = None,
+    ) -> list[PlanStep]:
         full_task = task
+        if knowledge_rules:
+            rules_str = "\n".join(f"- {r}" for r in knowledge_rules)
+            full_task = f"{full_task}\n\n[Rules:\n{rules_str}]"
         if memory_context:
-            full_task = f"{task}\n\n[Memory: {memory_context[:200]}]"
+            full_task = f"{full_task}\n\n[Memory: {memory_context[:200]}]"
 
         # Phase 1: Classify task type (Haiku — fast, cheap)
         task_type = await self._classify(task)
