@@ -46,6 +46,17 @@ class SolutionCacheEntry(Base):
     expires_at = Column(DateTime, nullable=False)
 
 
+class AgentReflection(Base):
+    __tablename__ = "agent_reflections"
+
+    id = Column(String, primary_key=True)
+    agent_name = Column(String, nullable=False)
+    task_hash = Column(String(16), nullable=False, index=True)
+    score = Column(Integer, nullable=False)   # 1-5
+    insight = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class KnowledgeRule(Base):
     __tablename__ = "knowledge_rules"
 

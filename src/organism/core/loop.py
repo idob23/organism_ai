@@ -8,6 +8,7 @@ from src.organism.core.planner import PlanStep, Planner
 from src.organism.llm.base import LLMProvider
 from src.organism.logging.logger import Logger
 from src.organism.logging.error_handler import get_logger, log_exception
+from src.organism.core.context_budget import ContextBudget
 from src.organism.memory.manager import MemoryManager
 from src.organism.memory.knowledge_base import KnowledgeBase
 from src.organism.memory.solution_cache import SolutionCache
@@ -106,6 +107,7 @@ class CoreLoop:
         self.logger = Logger()
         self.cache = SolutionCache()
         self.knowledge_base = KnowledgeBase()
+        self.context_budget = ContextBudget()
         if memory is not None and memory.llm is None:
             memory.llm = llm
         self.memory = memory
@@ -257,8 +259,26 @@ class CoreLoop:
             except Exception:
                 pass
 
+        # Build context-budgeted prompt (trims to ~3000 token sweet spot)
+        _, task_context = self.context_budget.build_prompt(
+            system="",  # system is chosen per task type inside Planner
+            knowledge_rules=knowledge_rules,
+            memory_context=memory_context,
+            task=task,
+        )
+        if verbose:
+            u = self.context_budget.last_usage
+            _log.info(
+                f"[{task_id}] Context budget: {u['total']}/{self.context_budget.budget_tokens}t "
+                f"(task={u['task']} rules={u['rules']} memory={u['memory']})"
+            )
+            print(
+                f"Context: {u['total']}/{self.context_budget.budget_tokens} tokens "
+                f"| task={u['task']} rules={u['rules']} memory={u['memory']}"
+            )
+
         try:
-            steps = await self.planner.plan(task, memory_context=memory_context, knowledge_rules=knowledge_rules or None)
+            steps = await self.planner.plan(task, task_context=task_context)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
             log_exception(_log, f"[{task_id}] Planning failed", e)

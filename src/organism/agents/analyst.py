@@ -1,9 +1,12 @@
-﻿import time
-from .base import BaseAgent, AgentResult
+import time
+from .base import BaseAgent, AgentResult, TemperatureLocked
 from src.organism.core.loop import CoreLoop
 
 
 class AnalystAgent(BaseAgent):
+
+    temperature = 0.0      # deterministic — calculations must be reproducible
+    max_iterations = 3
 
     @property
     def name(self) -> str:
@@ -17,19 +20,25 @@ class AnalystAgent(BaseAgent):
     def tools(self) -> list[str]:
         return ["code_executor", "file_manager"]
 
-    async def run(self, task: str) -> AgentResult:
-        start = time.time()
+    async def _run_impl(self, task: str, start: float) -> AgentResult:
+        # Enforce code_executor for all calculations — never mental math
         enriched = (
             f"{task}\n\n"
-            "Use pandas/numpy for analysis. Print clear formatted results with statistics."
+            "IMPORTANT: All calculations MUST be done via code_executor (Python). "
+            "Never compute numbers mentally. Use pandas/numpy for analysis. "
+            "Print all results with clear labels and units."
         )
-        loop = CoreLoop(self.llm, self.registry)
-        result = await loop.run(enriched, verbose=False)
+        llm = TemperatureLocked(self.llm, self.temperature)
+        loop = CoreLoop(llm, self.registry)
+        loop_result = await loop.run(enriched, verbose=False)
         return AgentResult(
-            agent=self.name,
-            task=task,
-            output=result.output,
-            success=result.success,
-            duration=time.time() - start,
-            error=result.error,
+            agent=self.name, task=task,
+            output=loop_result.output, success=loop_result.success,
+            duration=time.time() - start, error=loop_result.error,
         )
+
+    async def run(self, task: str) -> AgentResult:
+        start = time.time()
+        result = await self._run_impl(task, start)
+        await self._save_reflection(task, result)
+        return result

@@ -30,6 +30,7 @@ class ClaudeProvider(LLMProvider):
         system: str = "",
         model_tier: str = "balanced",
         max_tokens: int = 4096,
+        temperature: float | None = None,
     ) -> LLMResponse:
         kwargs: dict[str, Any] = {
             "model":      self._get_model(model_tier),
@@ -38,6 +39,8 @@ class ClaudeProvider(LLMProvider):
         }
         if system:
             kwargs["system"] = system
+        if temperature is not None:
+            kwargs["temperature"] = temperature
 
         response = await self.client.messages.create(**kwargs)
 
@@ -59,6 +62,7 @@ class ClaudeProvider(LLMProvider):
         system: str = "",
         model_tier: str = "balanced",
         max_tokens: int = 4096,
+        temperature: float | None = None,
     ) -> LLMResponse:
         kwargs: dict[str, Any] = {
             "model":      self._get_model(model_tier),
@@ -68,6 +72,8 @@ class ClaudeProvider(LLMProvider):
         }
         if system:
             kwargs["system"] = system
+        if temperature is not None:
+            kwargs["temperature"] = temperature
 
         response = await self.client.messages.create(**kwargs)
 

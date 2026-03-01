@@ -1,6 +1,8 @@
-﻿from .longterm import LongTermMemory
+﻿import hashlib
+import uuid
+from .longterm import LongTermMemory
 from .working import WorkingMemory
-from .database import init_db
+from .database import init_db, AgentReflection, AsyncSessionLocal
 from src.organism.llm.base import LLMProvider
 
 
@@ -44,6 +46,21 @@ class MemoryManager:
             tools_used=tools_used,
             quality_score=quality_score,
         )
+
+    async def save_reflection(
+        self, agent_name: str, task: str, score: int, insight: str
+    ) -> None:
+        await self.initialize()
+        task_hash = hashlib.sha256(task.strip().lower().encode()).hexdigest()[:16]
+        async with AsyncSessionLocal() as session:
+            session.add(AgentReflection(
+                id=uuid.uuid4().hex,
+                agent_name=agent_name,
+                task_hash=task_hash,
+                score=score,
+                insight=insight,
+            ))
+            await session.commit()
 
     async def get_stats(self) -> dict:
         return await self.longterm.get_stats()

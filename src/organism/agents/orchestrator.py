@@ -60,10 +60,10 @@ class Orchestrator:
         self.llm = llm
         self.memory = memory
         self._agents: dict[str, BaseAgent] = {
-            "coder":      CoderAgent(llm, registry),
-            "researcher": ResearcherAgent(llm, registry),
-            "writer":     WriterAgent(llm, registry),
-            "analyst":    AnalystAgent(llm, registry),
+            "coder":      CoderAgent(llm, registry, memory),
+            "researcher": ResearcherAgent(llm, registry, memory),
+            "writer":     WriterAgent(llm, registry, memory),
+            "analyst":    AnalystAgent(llm, registry, memory),
         }
 
     async def run(self, task: str, verbose: bool = True) -> OrchestratorResult:
@@ -122,7 +122,8 @@ class Orchestrator:
                 print(f"  [{status}] {result.duration:.1f}s | {result.output[:100]}")
 
             if result.success:
-                context += f"\n[{agent_name}] result:\n{result.output[:800]}\n"
+                summary = await self._summarize_context(result.output, agent_name)
+                context += f"\n[{agent_name}] result:\n{summary}\n"
             else:
                 if verbose:
                     print(f"  Error: {result.error[:100]}")
@@ -157,6 +158,25 @@ class Orchestrator:
             agent_results=agent_results,
             duration=duration,
         )
+
+    async def _summarize_context(self, output: str, agent_name: str) -> str:
+        """Summarize agent output via Haiku (~100 tokens). Falls back to truncated raw output."""
+        try:
+            resp = await self.llm.complete(
+                messages=[Message(role="user", content=output[:3000])],
+                system=(
+                    f"Summarize the key facts and results from this {agent_name} output "
+                    f"in 3-5 bullet points. "
+                    f"Keep all numbers, names, dates exactly as-is. "
+                    f"Output only the bullet point summary, no intro."
+                ),
+                model_tier="fast",
+                max_tokens=150,
+            )
+            summary = resp.content.strip()
+            return summary if summary else output[:800]
+        except Exception:
+            return output[:800]
 
     async def _route(self, task: str) -> list[dict]:
         response = await self.llm.complete(

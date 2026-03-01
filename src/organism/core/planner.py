@@ -203,13 +203,18 @@ class Planner:
         task: str,
         memory_context: str = '',
         knowledge_rules: list[str] | None = None,
+        task_context: str | None = None,
     ) -> list[PlanStep]:
-        full_task = task
-        if knowledge_rules:
-            rules_str = "\n".join(f"- {r}" for r in knowledge_rules)
-            full_task = f"{full_task}\n\n[Rules:\n{rules_str}]"
-        if memory_context:
-            full_task = f"{full_task}\n\n[Memory: {memory_context[:200]}]"
+        # Use pre-built context from ContextBudget if provided; otherwise build it here
+        if task_context is not None:
+            full_task = task_context
+        else:
+            full_task = task
+            if knowledge_rules:
+                rules_str = "\n".join(f"- {r}" for r in knowledge_rules)
+                full_task = f"{full_task}\n\n[Rules:\n{rules_str}]"
+            if memory_context:
+                full_task = f"{full_task}\n\n[Memory: {memory_context[:200]}]"
 
         # Phase 1: Classify task type (Haiku — fast, cheap)
         task_type = await self._classify(task)

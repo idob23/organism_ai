@@ -40,6 +40,7 @@ class LLMProvider(ABC):
         system: str = "",
         model_tier: str = "balanced",
         max_tokens: int = 4096,
+        temperature: float | None = None,
     ) -> LLMResponse:
         """Simple completion without tools."""
 
@@ -51,5 +52,45 @@ class LLMProvider(ABC):
         system: str = "",
         model_tier: str = "balanced",
         max_tokens: int = 4096,
+        temperature: float | None = None,
     ) -> LLMResponse:
         """Completion with function calling."""
+
+
+class TemperatureLocked(LLMProvider):
+    """Wraps any LLMProvider and pins temperature for all calls.
+
+    Agents pass this to CoreLoop so their temperature propagates through
+    Planner and Evaluator without modifying those classes.
+    """
+
+    def __init__(self, provider: LLMProvider, temperature: float) -> None:
+        self._provider = provider
+        self._temperature = temperature
+
+    async def complete(
+        self,
+        messages: list[Message],
+        system: str = "",
+        model_tier: str = "balanced",
+        max_tokens: int = 4096,
+        temperature: float | None = None,
+    ) -> LLMResponse:
+        return await self._provider.complete(
+            messages, system=system, model_tier=model_tier,
+            max_tokens=max_tokens, temperature=self._temperature,
+        )
+
+    async def complete_with_tools(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        system: str = "",
+        model_tier: str = "balanced",
+        max_tokens: int = 4096,
+        temperature: float | None = None,
+    ) -> LLMResponse:
+        return await self._provider.complete_with_tools(
+            messages, tools, system=system, model_tier=model_tier,
+            max_tokens=max_tokens, temperature=self._temperature,
+        )
