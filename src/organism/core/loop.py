@@ -93,6 +93,7 @@ def _extract_filename(task: str) -> str | None:
 class CoreLoop:
 
     MAX_RETRIES = 3
+    MAX_PLAN_STEPS = 5
 
     def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None) -> None:
         self.llm = llm
@@ -102,6 +103,46 @@ class CoreLoop:
         self.validator = SafetyValidator()
         self.logger = Logger()
         self.memory = memory
+
+    def _validate_plan(self, steps: list[PlanStep]) -> str | None:
+        """Validate plan before execution. Returns error message or None if valid."""
+        if not steps:
+            return "Empty plan — no steps generated"
+
+        if len(steps) > self.MAX_PLAN_STEPS:
+            return f"Plan has {len(steps)} steps, maximum is {self.MAX_PLAN_STEPS}"
+
+        available_tools = self.registry.list_all()
+        step_ids = {s.id for s in steps}
+
+        for step in steps:
+            if step.tool not in available_tools:
+                return f"Step {step.id}: tool '{step.tool}' not found. Available: {available_tools}"
+
+            inp = step.input or {}
+
+            if step.tool == "code_executor" and "code" not in inp:
+                return f"Step {step.id}: code_executor requires 'code' in input"
+
+            if step.tool == "web_search" and "query" not in inp:
+                return f"Step {step.id}: web_search requires 'query' in input"
+
+            if step.tool == "web_fetch" and "url" not in inp:
+                return f"Step {step.id}: web_fetch requires 'url' in input"
+
+            if step.tool == "text_writer" and "prompt" not in inp:
+                return f"Step {step.id}: text_writer requires 'prompt' in input"
+
+            if step.tool == "pptx_creator" and "topic" not in inp:
+                return f"Step {step.id}: pptx_creator requires 'topic' in input"
+
+            for dep in step.depends_on:
+                if dep not in step_ids:
+                    return f"Step {step.id}: depends_on references non-existent step {dep}"
+                if dep >= step.id:
+                    return f"Step {step.id}: depends_on step {dep} which comes after (circular)"
+
+        return None
 
     async def _run_writing_task(self, task_id: str, task: str, verbose: bool) -> "TaskResult | None":
         start = time.time()
@@ -181,9 +222,31 @@ class CoreLoop:
             steps = await self.planner.plan(task, memory_context=memory_context)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
-            error = log_exception(_log, f"[{task_id}] Planning failed", e)
+            log_exception(_log, f"[{task_id}] Planning failed", e)
             return TaskResult(task_id=task_id, task=task, success=False, output="",
                               error=f"Planning failed: {e}", duration=time.time() - start, memory_hits=memory_hits)
+
+        # Validate plan before execution
+        validation_error = self._validate_plan(steps)
+        if validation_error:
+            _log.warning(f"[{task_id}] Plan validation failed: {validation_error}, re-planning...")
+            if verbose:
+                print(f"  Plan invalid: {validation_error}")
+                print("  Re-planning with generic prompt...")
+            try:
+                steps = await self.planner._fast_plan(task)
+                if not steps:
+                    steps = await self.planner._react_plan(task)
+                validation_error = self._validate_plan(steps)
+                if validation_error:
+                    return TaskResult(task_id=task_id, task=task, success=False, output="",
+                                      error=f"Plan validation failed after retry: {validation_error}",
+                                      duration=time.time() - start, memory_hits=memory_hits)
+                _log.info(f"[{task_id}] Re-plan created: {len(steps)} steps  {[s.tool for s in steps]}")
+            except Exception as e:
+                log_exception(_log, f"[{task_id}] Re-planning failed", e)
+                return TaskResult(task_id=task_id, task=task, success=False, output="",
+                                  error=f"Re-planning failed: {e}", duration=time.time() - start, memory_hits=memory_hits)
 
         if verbose:
             print(f"Plan: {len(steps)} step(s)")

@@ -6,6 +6,22 @@ from .database import TaskMemory, UserProfile, AsyncSessionLocal
 from .embeddings import get_embedding
 
 
+def _enrich_for_embedding(task: str, tools_used: list[str] = None, outcome: str = None) -> str:
+    """Build enriched text for embedding: [TASK] + [TOOLS] + [OUTCOME].
+
+    This improves semantic search by distinguishing tasks that have similar text
+    but different tools/outcomes. E.g., "create GSM report" vs "create mining report"
+    will have different TOOLS and OUTCOME sections, making embeddings more distinct.
+    """
+    parts = [f"[TASK] {task}"]
+    if tools_used:
+        parts.append(f"[TOOLS] {','.join(tools_used)}")
+    if outcome:
+        # Truncate outcome to keep embedding focused
+        parts.append(f"[OUTCOME] {outcome[:200]}")
+    return " ".join(parts)
+
+
 class LongTermMemory:
 
     async def save_task(
@@ -20,8 +36,13 @@ class LongTermMemory:
     ) -> str:
         memory_id = uuid.uuid4().hex
 
-        # Try to get embedding
-        embedding = await get_embedding(task)
+        # Enriched embedding: task + tools + outcome summary
+        enriched_text = _enrich_for_embedding(
+            task=task,
+            tools_used=tools_used,
+            outcome=result[:200] if success else None,
+        )
+        embedding = await get_embedding(enriched_text)
 
         async with AsyncSessionLocal() as session:
             memory = TaskMemory(
@@ -44,12 +65,13 @@ class LongTermMemory:
     SIMILARITY_THRESHOLD = 1.0
 
     async def search_similar(self, task: str, limit: int = 3) -> list[dict]:
-        embedding = await get_embedding(task)
+        # Search with just [TASK] tag — we don't know tools/outcome yet
+        search_text = _enrich_for_embedding(task=task)
+        embedding = await get_embedding(search_text)
 
         async with AsyncSessionLocal() as session:
             if embedding:
                 # Vector similarity search with distance threshold
-                # Only return successful tasks with decent quality
                 stmt = select(TaskMemory).where(
                     TaskMemory.success == True,
                     TaskMemory.embedding.isnot(None),
