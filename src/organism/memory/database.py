@@ -1,7 +1,7 @@
 ﻿from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Boolean
-from sqlalchemy import func
+from sqlalchemy import func, text
 from pgvector.sqlalchemy import Vector
 from config.settings import settings
 
@@ -53,3 +53,12 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Q-2.2: GIN index for Russian full-text search (BM25 hybrid search).
+        # Safe to run on existing DBs — IF NOT EXISTS makes it idempotent.
+        # Manual migration SQL (if needed outside init_db):
+        #   CREATE INDEX IF NOT EXISTS idx_task_memories_task_fts
+        #   ON task_memories USING GIN (to_tsvector('russian', task));
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_task_memories_task_fts "
+            "ON task_memories USING GIN (to_tsvector('russian', task))"
+        ))

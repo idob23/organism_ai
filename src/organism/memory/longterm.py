@@ -22,6 +22,17 @@ def _enrich_for_embedding(task: str, tools_used: list[str] = None, outcome: str 
     return " ".join(parts)
 
 
+def _to_dict(m: TaskMemory) -> dict:
+    return {
+        "task": m.task,
+        "result": m.result,
+        "tools_used": m.tools_used.split(",") if m.tools_used else [],
+        "duration": m.duration,
+        "steps_count": m.steps_count,
+        "quality_score": m.quality_score,
+    }
+
+
 class LongTermMemory:
 
     async def save_task(
@@ -65,42 +76,103 @@ class LongTermMemory:
     SIMILARITY_THRESHOLD = 1.0
 
     async def search_similar(self, task: str, limit: int = 3) -> list[dict]:
+        """Hybrid search: 0.7 * vector_score + 0.3 * bm25_score.
+
+        Vector search uses pgvector L2 distance (semantic similarity).
+        BM25 search uses PostgreSQL ts_vector with Russian stemming (keyword overlap).
+        Combining both improves recall — e.g. "расход ГСМ" finds fuel tasks even
+        when phrased differently or using abbreviations.
+        """
         # Search with just [TASK] tag — we don't know tools/outcome yet
         search_text = _enrich_for_embedding(task=task)
         embedding = await get_embedding(search_text)
 
         async with AsyncSessionLocal() as session:
-            if embedding:
-                # Vector similarity search with distance threshold
+            if not embedding:
+                # Fallback: recent successful tasks
                 stmt = select(TaskMemory).where(
+                    TaskMemory.success == True,
+                ).order_by(TaskMemory.created_at.desc()).limit(limit)
+                result = await session.execute(stmt)
+                return [_to_dict(m) for m in result.scalars().all()]
+
+            fetch = limit * 2
+
+            # --- Vector search (pgvector L2 distance) ---
+            dist_expr = TaskMemory.embedding.l2_distance(embedding)
+            vec_stmt = (
+                select(TaskMemory, dist_expr.label("l2_dist"))
+                .where(
                     TaskMemory.success == True,
                     TaskMemory.embedding.isnot(None),
-                    TaskMemory.embedding.l2_distance(embedding) < self.SIMILARITY_THRESHOLD,
-                ).order_by(
-                    TaskMemory.embedding.l2_distance(embedding)
-                ).limit(limit)
-            else:
-                # Fallback: just get recent successful tasks
-                stmt = select(TaskMemory).where(
-                    TaskMemory.success == True,
-                ).order_by(
-                    TaskMemory.created_at.desc()
-                ).limit(limit)
+                    dist_expr < self.SIMILARITY_THRESHOLD,
+                )
+                .order_by(dist_expr)
+                .limit(fetch)
+            )
+            vec_result = await session.execute(vec_stmt)
+            vec_pairs = vec_result.all()  # [(TaskMemory, l2_dist), ...]
 
-            result = await session.execute(stmt)
-            memories = result.scalars().all()
+            # --- BM25 keyword search (ts_vector Russian config) ---
+            bm25_rows: list = []
+            try:
+                bm25_result = await session.execute(
+                    text("""
+                        SELECT id,
+                               ts_rank(to_tsvector('russian', task),
+                                       plainto_tsquery('russian', :q)) AS bm25_rank
+                        FROM task_memories
+                        WHERE success = true
+                          AND to_tsvector('russian', task)
+                              @@ plainto_tsquery('russian', :q)
+                        ORDER BY bm25_rank DESC
+                        LIMIT :lim
+                    """),
+                    {"q": task, "lim": fetch},
+                )
+                bm25_rows = bm25_result.all()
+            except Exception:
+                pass  # BM25 unavailable — fall back to vector-only
 
-        return [
-            {
-                "task": m.task,
-                "result": m.result,
-                "tools_used": m.tools_used.split(",") if m.tools_used else [],
-                "duration": m.duration,
-                "steps_count": m.steps_count,
-                "quality_score": m.quality_score,
-            }
-            for m in memories
-        ]
+            # --- Build id → (TaskMemory, vec_score) from vector results ---
+            id_to_memory: dict[str, TaskMemory] = {}
+            vec_scores: dict[str, float] = {}
+            for m, dist in vec_pairs:
+                id_to_memory[m.id] = m
+                vec_scores[m.id] = max(0.0, 1.0 - dist / self.SIMILARITY_THRESHOLD)
+
+            # --- Normalize BM25 ranks to [0, 1] ---
+            bm25_scores: dict[str, float] = {}
+            if bm25_rows:
+                raw = {row[0]: float(row[1]) for row in bm25_rows}
+                max_rank = max(raw.values())
+                bm25_scores = {
+                    rid: (s / max_rank if max_rank > 0 else 0.0)
+                    for rid, s in raw.items()
+                }
+
+            # --- Fetch full ORM objects for BM25-only results ---
+            bm25_only_ids = set(bm25_scores) - set(id_to_memory)
+            if bm25_only_ids:
+                extra = await session.execute(
+                    select(TaskMemory).where(TaskMemory.id.in_(bm25_only_ids))
+                )
+                for m in extra.scalars().all():
+                    id_to_memory[m.id] = m
+
+            # --- Combine: hybrid_score = 0.7 * vec_score + 0.3 * bm25_score ---
+            all_ids = set(vec_scores) | set(bm25_scores)
+            scored = [
+                (
+                    0.7 * vec_scores.get(rid, 0.0) + 0.3 * bm25_scores.get(rid, 0.0),
+                    id_to_memory[rid],
+                )
+                for rid in all_ids
+                if rid in id_to_memory
+            ]
+            scored.sort(key=lambda x: x[0], reverse=True)
+
+        return [_to_dict(m) for _, m in scored[:limit]]
 
     async def get_stats(self) -> dict:
         async with AsyncSessionLocal() as session:
