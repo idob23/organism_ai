@@ -9,6 +9,7 @@ from src.organism.llm.base import LLMProvider
 from src.organism.logging.logger import Logger
 from src.organism.logging.error_handler import get_logger, log_exception
 from src.organism.memory.manager import MemoryManager
+from src.organism.memory.solution_cache import SolutionCache
 from src.organism.safety.validator import SafetyValidator
 from src.organism.tools.registry import ToolRegistry
 
@@ -103,6 +104,7 @@ class CoreLoop:
         self.validator = SafetyValidator()
         self.logger = Logger()
         self.memory = memory
+        self.cache = SolutionCache()
 
     def _validate_plan(self, steps: list[PlanStep]) -> str | None:
         """Validate plan before execution. Returns error message or None if valid."""
@@ -199,6 +201,27 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
 
+        # L1 Solution Cache — check before planning/fast-path
+        cache_hash: str | None = None
+        canonical_task: str | None = None
+        if self.memory:
+            try:
+                canonical_task = await self.cache.normalize_task(task, self.llm)
+                cache_hash = self.cache.hash_task(canonical_task)
+                cached = await self.cache.get(cache_hash)
+                if cached:
+                    if verbose:
+                        print(f"Cache HIT (quality={cached['quality_score']:.2f}, hits={cached['hits']})")
+                    _log.info(f"[{task_id}] Cache HIT hash={cache_hash[:8]} quality={cached['quality_score']:.2f}")
+                    return TaskResult(
+                        task_id=task_id, task=task, success=True,
+                        output=cached["result"], answer=cached["result"],
+                        duration=time.time() - start, memory_hits=memory_hits,
+                        quality_score=cached["quality_score"],
+                    )
+            except Exception as e:
+                log_exception(_log, f"[{task_id}] Cache check failed", e)
+
         # Fast path for writing tasks
         if _is_writing_task(task):
             try:
@@ -211,6 +234,11 @@ class CoreLoop:
                             await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"], quality_score=0.8)
                         except Exception:
                             pass
+                        if cache_hash and canonical_task:
+                            try:
+                                await self.cache.put(cache_hash, canonical_task, task, result.output, 0.8)
+                            except Exception:
+                                pass
                     return result
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Writing fast path failed", e)
@@ -301,6 +329,12 @@ class CoreLoop:
                 await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used, quality_score=avg_quality)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory save failed", e)
+            if cache_hash and canonical_task and avg_quality >= self.cache.MIN_QUALITY:
+                try:
+                    await self.cache.put(cache_hash, canonical_task, task, last_output, avg_quality)
+                    _log.info(f"[{task_id}] Cache stored hash={cache_hash[:8]} quality={avg_quality:.2f}")
+                except Exception as e:
+                    log_exception(_log, f"[{task_id}] Cache store failed", e)
 
         self.logger.log_task_end(task_id, True, duration, total_tokens)
 

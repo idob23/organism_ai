@@ -33,6 +33,19 @@ class UserProfile(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class SolutionCacheEntry(Base):
+    __tablename__ = "solution_cache"
+
+    task_hash = Column(String(64), primary_key=True)   # SHA-256 hex
+    canonical_task = Column(Text, nullable=False)
+    original_task = Column(Text, nullable=False)
+    result = Column(Text, nullable=False)
+    quality_score = Column(Float, default=0.0)
+    hits = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+
+
 engine = create_async_engine(settings.database_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

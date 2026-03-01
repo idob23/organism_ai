@@ -73,6 +73,15 @@ Score saved to memory, used for caching decisions and self-improvement.
 Before execution: checks tool exists, required inputs present, step count ≤ 5,
 no circular dependencies. Auto re-plans on validation failure.
 
+### L1 Solution Cache (Q-2.1)
+`SolutionCache` in memory/solution_cache.py. In `CoreLoop.run()`, after memory search:
+1. Haiku normalizes task to canonical form (synonym folding, filler removal)
+2. SHA-256 hash of canonical form used as cache key
+3. `solution_cache` DB table checked — cache hit returns immediately
+4. Successful results (quality >= 0.8) stored after execution, TTL 30 days
+5. On hash collision with higher quality result, entry is refreshed
+Gate: cache check only runs when `self.memory` is set (DB available).
+
 ### Enriched Embeddings (Q-1.5)
 Embeddings include `[TASK] text [TOOLS] tools [OUTCOME] result` for better
 semantic search. Distinguishes similar tasks with different tools/outcomes.
@@ -131,8 +140,8 @@ organism_ai/
 - Q-1.4: Plan Validation Layer ✅
 - Q-1.5: Enriched embeddings ✅
 
-### Sprint 2 (Multi-level RAG) — NEXT
-- Q-2.1: L1 Solution Cache — hash + task normalization
+### Sprint 2 (Multi-level RAG) — IN PROGRESS
+- Q-2.1: L1 Solution Cache — hash + task normalization ✅
 - Q-2.2: Hybrid Search (vector + BM25 ts_vector in PostgreSQL)
 - Q-2.3: Metadata filtering + Adaptive K
 - Q-2.4: LLM Reranking (Haiku) for top-10 → top-3
