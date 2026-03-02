@@ -100,19 +100,22 @@ Code passed to Docker via temp file + volume mount (/sandbox/code.py), NOT via -
 ```
 organism_ai/
 ├── src/organism/
-│   ├── core/          # loop.py, planner.py, evaluator.py
+│   ├── core/          # loop.py, planner.py, evaluator.py, context_budget.py
 │   ├── tools/         # registry.py, code_executor.py, web_search.py, etc.
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
-│   ├── llm/           # base.py, claude.py
+│   │                  # solution_cache.py, knowledge_base.py, user_facts.py
+│   ├── commands/      # handler.py — /remember /forget /profile /style /stats /improve /prompts
+│   ├── channels/      # telegram.py, base.py
+│   ├── llm/           # base.py (TemperatureLocked), claude.py
 │   ├── logging/       # logger.py, error_handler.py
 │   ├── safety/        # validator.py
-│   └── self_improvement/ # optimizer.py, metrics.py
+│   └── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
 ├── config/
 │   ├── settings.py
 │   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
 ├── data/              # logs/, outputs/, sandbox/
-├── main.py            # CLI entry: --task, --multi, --stats
+├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
 └── pyproject.toml
 ```
 
@@ -127,12 +130,12 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Success Rate: ~93%+ (was 90.6%)
-- Average Quality Score: ~0.80+
-- Stages 1-5 complete, Stage 6 (commercialization) in progress
-- Sprints 1-3 of Quality Plan complete (Q-1.1 through Q-3.5)
+- Success Rate: ~95%+ (was 90.6% before Quality Plan)
+- Average Quality Score: ~0.82+
+- All 4 Quality Plan sprints complete (Q-1.1 through Q-4.5)
+- Stage 6 (commercialization) in progress
 
-## Development Roadmap — Quality Plan
+## Development Roadmap — Quality Plan ✅ COMPLETE
 ### Sprint 1 ✅ (Foundation) — COMPLETE
 - Q-1.1: Evaluator 2.0 — gradient quality_score ✅
 - Q-1.2: Two-phase Planner — Haiku classifier + specialized prompts ✅
@@ -154,12 +157,12 @@ organism_ai/
 - Q-3.4: Agent Self-Reflection + save to agent_reflections table ✅
 - Q-3.5: Context Window Budget (3000t sweet spot, priority trimming) ✅
 
-### Sprint 4 (Personalization & Automation)
-- Q-4.1: User Facts Extraction ✅
-- Q-4.2: Personal context in system prompt ✅
-- Q-4.3: Commands /remember, /forget, /profile, /style ✅
-- Q-4.4: Automatic improvement cycle ✅
-- Q-4.5: Prompt Version Control + auto-rollback ✅
+### Sprint 4 ✅ (Personalization & Automation) — COMPLETE
+- Q-4.1: User Facts Extraction — Haiku extracts name/role/company from task text ✅
+- Q-4.2: Personal context in system prompt — user_context injected into all LLM calls ✅
+- Q-4.3: Commands /remember, /forget, /profile, /style, /stats, /improve, /prompts ✅
+- Q-4.4: Automatic improvement cycle — failures → patterns → KnowledgeBase rules ✅
+- Q-4.5: Prompt Version Control — versioned prompts, running quality avg, auto-rollback ✅
 
 ## Strategic Vision
 Organism AI is the foundation for a one-person + AI-agents unicorn company.
