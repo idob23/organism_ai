@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-02T13:59:43",
+  "timestamp": "2026-03-02T21:25:39",
   "mode": "full",
   "results": [
     {
@@ -8,11 +8,9 @@
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
       "quality_score": 0.95,
-      "duration": 11.41,
-      "tools_used": [
-        "code_executor"
-      ],
-      "cache_hit": false,
+      "duration": 2.47,
+      "tools_used": [],
+      "cache_hit": true,
       "error": ""
     },
     {
@@ -21,7 +19,7 @@
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
       "quality_score": 0.95,
-      "duration": 1.68,
+      "duration": 1.4,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -32,7 +30,7 @@
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
       "quality_score": 0.8,
-      "duration": 1.26,
+      "duration": 1.46,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -42,8 +40,8 @@
       "type": "mixed",
       "task": "найди актуальные экологические требования к золотодобыче в России и напиши краткое резюме для руководителя артели",
       "success": true,
-      "quality_score": 0.6833,
-      "duration": 78.6,
+      "quality_score": 0.6167,
+      "duration": 84.95,
       "tools_used": [
         "text_writer",
         "web_search"
@@ -57,7 +55,7 @@
       "task": "создай презентацию из 5 слайдов о технологии россыпной золотодобычи: введение, оборудование, технология, показатели, выв",
       "success": true,
       "quality_score": 0.8,
-      "duration": 1.2,
+      "duration": 1.22,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -67,8 +65,8 @@
       "type": "research",
       "task": "найди текущую цену золота на мировом рынке в долларах и рублях за грамм",
       "success": true,
-      "quality_score": 0.45,
-      "duration": 52.21,
+      "quality_score": 0.65,
+      "duration": 21.17,
       "tools_used": [
         "web_fetch",
         "web_search"
@@ -82,7 +80,7 @@
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
       "quality_score": 0.95,
-      "duration": 1.57,
+      "duration": 2.12,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -93,9 +91,11 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.95,
-      "duration": 1.38,
-      "tools_used": [],
-      "cache_hit": true,
+      "duration": 15.76,
+      "tools_used": [
+        "code_executor"
+      ],
+      "cache_hit": false,
       "error": ""
     },
     {
@@ -104,7 +104,7 @@
       "task": "найди актуальные цены на дизельное топливо в России и рассчитай стоимость топлива для золотодобывающего сезона: расход 2",
       "success": true,
       "quality_score": 0.75,
-      "duration": 124.22,
+      "duration": 167.06,
       "tools_used": [
         "multi-agent"
       ],
@@ -127,8 +127,8 @@
     "total": 10,
     "successful": 10,
     "success_rate": 100.0,
-    "avg_quality": 0.8283,
-    "avg_duration": 27.35,
+    "avg_quality": 0.8417,
+    "avg_duration": 29.76,
     "cache_hits": 5,
     "cache_hit_rate": 50.0
   }
