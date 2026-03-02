@@ -54,15 +54,21 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
             await memory.initialize()
         orch = Orchestrator(llm, registry, memory=memory)
         result = await orch.run(task)
-        if not result.success:
-            print(f"\nFailed: {result.error}")
-            sys.exit(1)
     else:
         loop = build_loop()
         result = await loop.run(task)
-        if not result.success:
-            print(f"\nFailed: {result.error}")
-            sys.exit(1)
+
+    # Drain background tasks (CausalAnalyzer, TemplateExtractor) before exit
+    _pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    if _pending:
+        try:
+            await asyncio.wait(_pending, timeout=5.0)
+        except Exception:
+            pass
+
+    if not result.success:
+        print(f"\nFailed: {result.error}")
+        sys.exit(1)
 
 
 async def run_interactive(use_orchestrator: bool = False) -> None:

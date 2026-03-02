@@ -9,7 +9,7 @@ row gets valid_until stamped.  get_all_facts() returns only active rows
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import select
 
@@ -101,7 +101,7 @@ class UserFactsExtractor:
                     continue  # Nothing changed — skip
 
                 new_id = str(uuid.uuid4())
-                now = datetime.now(timezone.utc)
+                now = datetime.utcnow()
 
                 if existing:
                     # Archive the old row
@@ -138,7 +138,7 @@ class UserFactsExtractor:
             history = []
             for row in rows:
                 history.append({
-                    "value": row.value,
+                    "fact_value": row.value,
                     "valid_from": row.valid_from.isoformat() if row.valid_from else None,
                     "valid_until": row.valid_until.isoformat() if row.valid_until else None,
                     "is_current": row.valid_until is None,

@@ -8,7 +8,8 @@ from .graph import MemoryGraph
 from .causal_analyzer import CausalAnalyzer
 from .templates import TemplateExtractor
 from .search_policy import SearchPolicy
-from .database import init_db, AgentReflection, AsyncSessionLocal
+from .database import init_db, AgentReflection, TaskMemory, AsyncSessionLocal
+from sqlalchemy import select
 from src.organism.llm.base import LLMProvider
 
 
@@ -26,6 +27,18 @@ class MemoryManager:
     async def initialize(self) -> None:
         if not self._initialized:
             await init_db()
+            # Restore last_task_id from DB so temporal edges work across CLI invocations
+            try:
+                async with AsyncSessionLocal() as session:
+                    row = await session.scalar(
+                        select(TaskMemory.id)
+                        .order_by(TaskMemory.created_at.desc())
+                        .limit(1)
+                    )
+                    if row:
+                        self.working.last_task_id = row
+            except Exception:
+                pass
             self._initialized = True
 
     async def on_task_start(self, task: str) -> list[dict]:
