@@ -33,6 +33,7 @@ class TextWriterTool(BaseTool):
         prompt: str = input["prompt"]
         filename: str = input["filename"]
         language: str = input.get("language", "ru")
+        user_context: str = input.get("user_context", "")
 
         from src.organism.llm.claude import ClaudeProvider
         from src.organism.llm.base import Message
@@ -48,6 +49,8 @@ class TextWriterTool(BaseTool):
             "You are a professional copywriter and business consultant. "
             "Write structured, persuasive, professional content in Markdown."
         )
+        if user_context:
+            system = system + "\n" + user_context
 
         response = await llm.complete(
             messages=[Message(role="user", content=prompt)],

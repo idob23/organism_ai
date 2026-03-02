@@ -155,11 +155,11 @@ organism_ai/
 - Q-3.5: Context Window Budget (3000t sweet spot, priority trimming) ✅
 
 ### Sprint 4 (Personalization & Automation)
-- Q-4.1: User Facts Extraction
-- Q-4.2: Personal context in system prompt
-- Q-4.3: Commands /remember, /forget, /profile, /style
-- Q-4.4: Automatic improvement cycle
-- Q-4.5: Prompt Version Control + auto-rollback
+- Q-4.1: User Facts Extraction ✅
+- Q-4.2: Personal context in system prompt ✅
+- Q-4.3: Commands /remember, /forget, /profile, /style ✅
+- Q-4.4: Automatic improvement cycle ✅
+- Q-4.5: Prompt Version Control + auto-rollback ✅
 
 ## Strategic Vision
 Organism AI is the foundation for a one-person + AI-agents unicorn company.

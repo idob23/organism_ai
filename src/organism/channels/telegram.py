@@ -34,6 +34,8 @@ class TelegramChannel(BaseChannel):
 
     def _setup_handlers(self) -> None:
         allowed = settings.allowed_user_ids
+        from src.organism.commands.handler import CommandHandler
+        cmd_handler = CommandHandler()
 
         @self.dp.message(CommandStart())
         async def cmd_start(message: Message) -> None:
@@ -59,6 +61,12 @@ class TelegramChannel(BaseChannel):
 
             task = message.text.strip()
             if not task:
+                return
+
+            # Handle slash commands before processing as a task
+            if cmd_handler.is_command(task):
+                result_text = await cmd_handler.handle(task, self.loop.memory)
+                await message.answer(result_text)
                 return
 
             # Notify user that work has started

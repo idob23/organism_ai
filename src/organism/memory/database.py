@@ -69,6 +69,19 @@ class KnowledgeRule(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class PromptVersion(Base):
+    __tablename__ = "prompt_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    prompt_name = Column(String, nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    content = Column(Text, nullable=False)
+    avg_quality = Column(Float, default=0.0)
+    task_count = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    is_active = Column(Boolean, default=False, nullable=False)
+
+
 engine = create_async_engine(settings.database_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

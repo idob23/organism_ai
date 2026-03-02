@@ -204,6 +204,7 @@ class Planner:
         memory_context: str = '',
         knowledge_rules: list[str] | None = None,
         task_context: str | None = None,
+        user_context: str = '',
     ) -> list[PlanStep]:
         # Use pre-built context from ContextBudget if provided; otherwise build it here
         if task_context is not None:
@@ -217,29 +218,30 @@ class Planner:
                 full_task = f"{full_task}\n\n[Memory: {memory_context[:200]}]"
 
         # Phase 1: Classify task type (Haiku — fast, cheap)
-        task_type = await self._classify(task)
+        task_type = await self._classify(task, user_context)
 
         # Phase 2: Plan with specialized prompt
         use_react = _is_complex(task)
 
         if not use_react:
-            steps = await self._specialized_plan(full_task, task_type)
+            steps = await self._specialized_plan(full_task, task_type, user_context)
             if steps:
                 return steps
             # Fallback to generic fast plan
-            steps = await self._fast_plan(full_task)
+            steps = await self._fast_plan(full_task, user_context)
             if steps:
                 return steps
             use_react = True
 
-        return await self._react_plan(full_task)
+        return await self._react_plan(full_task, user_context)
 
-    async def _classify(self, task: str) -> str:
+    async def _classify(self, task: str, user_context: str = '') -> str:
         """Phase 1: Classify task type using Haiku (fast, ~100 tokens)."""
+        sys = f"{user_context}\n\n{CLASSIFIER_PROMPT}" if user_context else CLASSIFIER_PROMPT
         try:
             response = await self.llm.complete(
                 messages=[Message(role='user', content=task)],
-                system=CLASSIFIER_PROMPT,
+                system=sys,
                 model_tier='fast',
                 max_tokens=150,
             )
@@ -255,17 +257,18 @@ class Planner:
             pass
         return 'mixed'
 
-    async def _specialized_plan(self, task: str, task_type: str) -> list[PlanStep]:
+    async def _specialized_plan(self, task: str, task_type: str, user_context: str = '') -> list[PlanStep]:
         """Phase 2: Plan with specialized prompt (only relevant tools)."""
         prompt = SPECIALIZED_PROMPTS.get(task_type)
         if not prompt:
             return []
+        sys = f"{user_context}\n\n{prompt}" if user_context else prompt
 
         for attempt in range(2):
             hint = '' if attempt == 0 else '\nReturn ONLY valid JSON array, no explanation.'
             response = await self.llm.complete(
                 messages=[Message(role='user', content=task + hint)],
-                system=prompt,
+                system=sys,
                 model_tier='balanced',
                 max_tokens=4096,
             )
@@ -275,13 +278,14 @@ class Planner:
                 continue
         return []
 
-    async def _fast_plan(self, task: str) -> list[PlanStep]:
+    async def _fast_plan(self, task: str, user_context: str = '') -> list[PlanStep]:
         """Fallback: generic plan with all tools."""
+        sys = f"{user_context}\n\n{FAST_PROMPT}" if user_context else FAST_PROMPT
         for attempt in range(2):
             hint = '' if attempt == 0 else '\nReturn ONLY valid JSON array, no explanation.'
             response = await self.llm.complete(
                 messages=[Message(role='user', content=task + hint)],
-                system=FAST_PROMPT,
+                system=sys,
                 model_tier='balanced',
                 max_tokens=4096,
             )
@@ -291,10 +295,11 @@ class Planner:
                 continue
         return []
 
-    async def _react_plan(self, task: str) -> list[PlanStep]:
+    async def _react_plan(self, task: str, user_context: str = '') -> list[PlanStep]:
+        sys = f"{user_context}\n\n{REACT_PROMPT}" if user_context else REACT_PROMPT
         response = await self.llm.complete(
             messages=[Message(role='user', content=task)],
-            system=REACT_PROMPT,
+            system=sys,
             model_tier='balanced',
             max_tokens=4096,
         )

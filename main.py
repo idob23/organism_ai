@@ -38,6 +38,13 @@ def build_loop(registry: ToolRegistry | None = None) -> CoreLoop:
 
 
 async def run_single(task: str, use_orchestrator: bool = False) -> None:
+    from src.organism.commands.handler import CommandHandler
+    handler = CommandHandler()
+    if handler.is_command(task):
+        memory = MemoryManager() if settings.database_url else None
+        print(await handler.handle(task, memory))
+        return
+
     if use_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
         llm = ClaudeProvider()
@@ -59,6 +66,9 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
 
 
 async def run_interactive(use_orchestrator: bool = False) -> None:
+    from src.organism.commands.handler import CommandHandler
+    handler = CommandHandler()
+
     if use_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
         llm = ClaudeProvider()
@@ -79,6 +89,9 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
             if task.lower() in ("exit", "quit", "q"):
                 print("Bye.")
                 break
+            if handler.is_command(task):
+                print(await handler.handle(task, memory))
+                continue
             try:
                 await orch.run(task)
             except KeyboardInterrupt:
@@ -97,6 +110,9 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
             if task.lower() in ("exit", "quit", "q"):
                 print("Bye.")
                 break
+            if handler.is_command(task):
+                print(await handler.handle(task, loop.memory))
+                continue
             try:
                 result = await loop.run(task)
                 if not result.success:
@@ -136,6 +152,26 @@ async def run_analyze() -> None:
     print(recommendations)
 
 
+async def run_improve(days: int = 7) -> None:
+    from src.organism.self_improvement.auto_improver import AutoImprover
+    from src.organism.memory.knowledge_base import KnowledgeBase
+    if not settings.database_url:
+        print("Error: DATABASE_URL not configured")
+        return
+    llm = ClaudeProvider()
+    memory = MemoryManager()
+    await memory.initialize()
+    kb = KnowledgeBase()
+    print(f"Running auto-improvement cycle (last {days} days)...")
+    summary = await AutoImprover().run_cycle(memory, llm, kb, days=days)
+    print(f"Done:")
+    print(f"  Failed tasks found:   {summary['failures_found']}")
+    print(f"  Patterns analyzed:    {summary['patterns_analyzed']}")
+    print(f"  Rules saved:          {summary['rules_saved']}")
+    if summary["rules_saved"] == 0:
+        print("  (not enough repeating failure patterns yet)")
+
+
 async def run_cache_stats() -> None:
     from src.organism.self_improvement.solution_cache import SolutionCacheManager
     cache = SolutionCacheManager()
@@ -155,6 +191,8 @@ def main() -> None:
     parser.add_argument("--stats", action="store_true", help="Show memory stats")
     parser.add_argument("--analyze", action="store_true", help="Analyze performance and get recommendations")
     parser.add_argument("--cache", action="store_true", help="Show solution cache stats")
+    parser.add_argument("--improve", action="store_true", help="Run auto-improvement cycle (failures → rules)")
+    parser.add_argument("--days", type=int, default=7, help="Days window for --improve (default: 7)")
     parser.add_argument("--multi", action="store_true", help="Use multi-agent orchestrator")
     args = parser.parse_args()
 
@@ -165,6 +203,8 @@ def main() -> None:
             asyncio.run(run_analyze())
         elif args.cache:
             asyncio.run(run_cache_stats())
+        elif args.improve:
+            asyncio.run(run_improve(days=args.days))
         elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:

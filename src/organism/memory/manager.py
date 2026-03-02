@@ -2,6 +2,7 @@
 import uuid
 from .longterm import LongTermMemory
 from .working import WorkingMemory
+from .user_facts import UserFactsExtractor
 from .database import init_db, AgentReflection, AsyncSessionLocal
 from src.organism.llm.base import LLMProvider
 
@@ -11,6 +12,7 @@ class MemoryManager:
     def __init__(self, llm: LLMProvider | None = None) -> None:
         self.longterm = LongTermMemory()
         self.working = WorkingMemory()
+        self.facts = UserFactsExtractor()
         self.llm = llm
         self._initialized = False
 
@@ -46,6 +48,13 @@ class MemoryManager:
             tools_used=tools_used,
             quality_score=quality_score,
         )
+        # Extract personal facts from the user's original task text (not from LLM output)
+        if self.llm:
+            try:
+                facts = await self.facts.extract_facts(task, self.llm)
+                await self.facts.save_facts(facts)
+            except Exception:
+                pass
 
     async def save_reflection(
         self, agent_name: str, task: str, score: int, insight: str

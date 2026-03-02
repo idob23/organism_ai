@@ -2,11 +2,16 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.organism.llm.base import LLMProvider, Message
 from src.organism.tools.base import ToolResult
 
+if TYPE_CHECKING:
+    from src.organism.self_improvement.prompt_versioning import PromptVersionControl
+
 EVALUATOR_PROMPT = Path("config/prompts/evaluator.txt").read_text(encoding="utf-8")
+_PROMPT_NAME = "evaluator"
 
 
 @dataclass
@@ -19,8 +24,13 @@ class EvalResult:
 
 class Evaluator:
 
-    def __init__(self, llm: LLMProvider) -> None:
+    def __init__(
+        self, llm: LLMProvider, pvc: "PromptVersionControl | None" = None
+    ) -> None:
         self.llm = llm
+        self.pvc = pvc
+        self._eval_count = 0
+        self._pvc_seeded = False
 
     async def evaluate(
         self,
@@ -65,7 +75,23 @@ class Evaluator:
             model_tier="fast",
         )
 
-        return self._parse(response.content)
+        eval_result = self._parse(response.content)
+
+        # Prompt version control: record quality after each LLM-based evaluation
+        if self.pvc:
+            try:
+                if not self._pvc_seeded:
+                    if not await self.pvc.get_active(_PROMPT_NAME):
+                        await self.pvc.save_version(_PROMPT_NAME, EVALUATOR_PROMPT)
+                    self._pvc_seeded = True
+                self._eval_count += 1
+                await self.pvc.record_quality(_PROMPT_NAME, eval_result.quality_score)
+                if self._eval_count % 10 == 0:
+                    await self.pvc.auto_rollback(_PROMPT_NAME)
+            except Exception:
+                pass
+
+        return eval_result
 
     def _parse(self, text: str) -> EvalResult:
         try:

@@ -12,6 +12,8 @@ from src.organism.core.context_budget import ContextBudget
 from src.organism.memory.manager import MemoryManager
 from src.organism.memory.knowledge_base import KnowledgeBase
 from src.organism.memory.solution_cache import SolutionCache
+from src.organism.memory.user_facts import format_for_prompt
+from src.organism.self_improvement.prompt_versioning import PromptVersionControl
 from src.organism.safety.validator import SafetyValidator
 from src.organism.tools.registry import ToolRegistry
 
@@ -102,7 +104,8 @@ class CoreLoop:
         self.llm = llm
         self.registry = registry
         self.planner = Planner(llm)
-        self.evaluator = Evaluator(llm)
+        pvc = PromptVersionControl() if memory is not None else None
+        self.evaluator = Evaluator(llm, pvc=pvc)
         self.validator = SafetyValidator()
         self.logger = Logger()
         self.cache = SolutionCache()
@@ -152,7 +155,7 @@ class CoreLoop:
 
         return None
 
-    async def _run_writing_task(self, task_id: str, task: str, verbose: bool) -> "TaskResult | None":
+    async def _run_writing_task(self, task_id: str, task: str, verbose: bool, user_context: str = "") -> "TaskResult | None":
         start = time.time()
         filename = _extract_filename(task) or "output.md"
         try:
@@ -164,7 +167,10 @@ class CoreLoop:
             print("Writing task detected - using text_writer directly")
             print("Step 1: Generate and save text")
 
-        result = await tool.execute({"prompt": task, "filename": filename})
+        tool_input: dict = {"prompt": task, "filename": filename}
+        if user_context:
+            tool_input["user_context"] = user_context
+        result = await tool.execute(tool_input)
         duration = time.time() - start
         step_log = StepLog(step_id=1, tool="text_writer", description="Write and save text",
                            output=result.output, error=result.error,
@@ -190,6 +196,7 @@ class CoreLoop:
 
         memory_hits = 0
         memory_context = ""
+        user_context = ""
         if self.memory:
             try:
                 await self.memory.initialize()
@@ -206,6 +213,13 @@ class CoreLoop:
                     memory_context = "\n".join(lines)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
+            try:
+                user_facts = await self.memory.facts.get_all_facts()
+                user_context = format_for_prompt(user_facts)
+                if user_context and verbose:
+                    print(f"User context: {user_context}")
+            except Exception:
+                pass
 
         # L1 Solution Cache — check before planning/fast-path
         cache_hash: str | None = None
@@ -231,7 +245,7 @@ class CoreLoop:
         # Fast path for writing tasks
         if _is_writing_task(task):
             try:
-                result = await self._run_writing_task(task_id, task, verbose)
+                result = await self._run_writing_task(task_id, task, verbose, user_context)
                 if result is not None:
                     result.memory_hits = memory_hits
                     _log.info(f"[{task_id}] Writing task {'SUCCESS' if result.success else 'FAILED'} in {result.duration:.1f}s")
@@ -278,7 +292,7 @@ class CoreLoop:
             )
 
         try:
-            steps = await self.planner.plan(task, task_context=task_context)
+            steps = await self.planner.plan(task, task_context=task_context, user_context=user_context)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
             log_exception(_log, f"[{task_id}] Planning failed", e)
