@@ -13,6 +13,7 @@ HELP_TEXT = (
     "  /remember <key> <value>  — save a personal fact\n"
     "  /forget <key>            — delete a fact by key\n"
     "  /profile                 — show all saved personal facts\n"
+    "  /history <key>           — show change history for a fact\n"
     "  /style <style>           — set writing style (formal/informal/technical/brief)\n"
     "  /stats                   — show system statistics\n"
     "  /improve [days]          — run auto-improvement cycle (default: last 7 days)\n"
@@ -47,6 +48,8 @@ class CommandHandler:
             return await self._handle_forget(parts, memory)
         elif cmd == "/profile":
             return await self._handle_profile(memory)
+        elif cmd == "/history":
+            return await self._handle_history(parts, memory)
         elif cmd == "/style":
             return await self._handle_style(parts, memory)
         elif cmd == "/stats":
@@ -70,18 +73,43 @@ class CommandHandler:
         return f"Saved: {key} = {value}"
 
     async def _handle_forget(self, parts: list[str], memory: "MemoryManager") -> str:
-        """Delete a fact by key: /forget <key>."""
+        """Retire the active fact for a key: /forget <key>."""
         if len(parts) < 2:
             return "Usage: /forget <key>\nExample: /forget name"
         key = parts[1].lower().strip()
         from src.organism.memory.database import UserProfile, AsyncSessionLocal
+        from sqlalchemy import select
+        from datetime import datetime, timezone
         async with AsyncSessionLocal() as session:
-            existing = await session.get(UserProfile, key)
+            stmt = (
+                select(UserProfile)
+                .where(UserProfile.key == key)
+                .where(UserProfile.valid_until.is_(None))
+            )
+            result = await session.execute(stmt)
+            existing = result.scalar_one_or_none()
             if existing:
-                await session.delete(existing)
+                existing.valid_until = datetime.now(timezone.utc)
                 await session.commit()
                 return f"Deleted: {key}"
         return f"Key not found: {key}"
+
+    async def _handle_history(self, parts: list[str], memory: "MemoryManager") -> str:
+        """Show change history for a fact key: /history <key>."""
+        if len(parts) < 2:
+            return "Usage: /history <key>\nExample: /history name"
+        key = parts[1].lower().strip()
+        history = await memory.facts.get_fact_history(key)
+        if not history:
+            return f"No history found for: {key}"
+        lines = [f"History for '{key}':"]
+        for entry in history:
+            status = "(current)" if entry["is_current"] else "(archived)"
+            vf = entry["valid_from"][:19] if entry["valid_from"] else "unknown"
+            vu = entry["valid_until"][:19] if entry["valid_until"] else "now"
+            lines.append(f"  {entry['value']}  {status}")
+            lines.append(f"    {vf} -> {vu}")
+        return "\n".join(lines)
 
     async def _handle_profile(self, memory: "MemoryManager") -> str:
         """Show all saved personal facts."""

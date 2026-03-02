@@ -28,9 +28,13 @@ class TaskMemory(Base):
 class UserProfile(Base):
     __tablename__ = "user_profile"
 
-    key = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)          # UUID, generated on insert
+    key = Column(String, nullable=False, index=True)  # fact_type, e.g. "name"
     value = Column(Text, nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    valid_from = Column(DateTime, server_default=func.now())
+    valid_until = Column(DateTime, nullable=True)   # NULL = currently active
+    superseded_by = Column(String, nullable=True)   # id of the row that replaced this one
 
 
 class SolutionCacheEntry(Base):
@@ -67,6 +71,8 @@ class KnowledgeRule(Base):
     usage_count = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    valid_from = Column(DateTime, server_default=func.now())
+    valid_until = Column(DateTime, nullable=True)   # NULL = currently active
 
 
 class PromptVersion(Base):
@@ -98,3 +104,51 @@ async def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_task_memories_task_fts "
             "ON task_memories USING GIN (to_tsvector('russian', task))"
         ))
+        # Q-5.1: Temporal fact tracking — ADD COLUMN IF NOT EXISTS migrations.
+        # Each statement is independent so a single failure does not block others.
+        _migrations_51 = [
+            # user_profile: new columns
+            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
+            " id VARCHAR DEFAULT gen_random_uuid()::text",
+            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
+            " valid_from TIMESTAMP DEFAULT NOW()",
+            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
+            " valid_until TIMESTAMP",
+            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
+            " superseded_by VARCHAR",
+            # knowledge_rules: new columns
+            "ALTER TABLE knowledge_rules ADD COLUMN IF NOT EXISTS"
+            " valid_from TIMESTAMP DEFAULT NOW()",
+            "ALTER TABLE knowledge_rules ADD COLUMN IF NOT EXISTS"
+            " valid_until TIMESTAMP",
+        ]
+        for ddl in _migrations_51:
+            try:
+                await conn.execute(text(ddl))
+            except Exception:
+                pass
+        # Migrate user_profile PK from 'key' to 'id' on existing DBs.
+        # On fresh DBs create_all already used 'id' as PK, so the DO block
+        # detects that and skips the constraint change safely.
+        try:
+            await conn.execute(text(
+                "UPDATE user_profile SET id = gen_random_uuid()::text WHERE id IS NULL"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE user_profile ALTER COLUMN id SET NOT NULL"
+            ))
+            await conn.execute(text("""
+                DO $$ BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.key_column_usage
+                        WHERE table_name = 'user_profile'
+                          AND constraint_name = 'user_profile_pkey'
+                          AND column_name = 'key'
+                    ) THEN
+                        ALTER TABLE user_profile DROP CONSTRAINT user_profile_pkey;
+                        ALTER TABLE user_profile ADD PRIMARY KEY (id);
+                    END IF;
+                END $$
+            """))
+        except Exception:
+            pass

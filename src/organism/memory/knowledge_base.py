@@ -5,11 +5,12 @@ from .database import KnowledgeRule, AsyncSessionLocal
 class KnowledgeBase:
 
     async def get_rules(self, top_k: int = 5, min_confidence: float = 0.7) -> list[str]:
-        """Return top rules ordered by confidence * usage_count descending."""
+        """Return top active rules ordered by confidence * usage_count descending."""
         async with AsyncSessionLocal() as session:
             stmt = (
                 select(KnowledgeRule)
                 .where(KnowledgeRule.confidence >= min_confidence)
+                .where(KnowledgeRule.valid_until.is_(None))  # Q-5.1: active only
                 .order_by((KnowledgeRule.confidence * KnowledgeRule.usage_count).desc())
                 .limit(top_k)
             )

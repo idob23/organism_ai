@@ -1,11 +1,15 @@
 """Q-4.1: User Facts Extraction.
+Q-5.1: Temporal tracking — save_facts() archives old values instead of overwriting.
 
 Extracts personal facts from user task messages via Haiku and persists them
-in the existing user_profile table (key=fact_type, value=fact_value).
-Only the user's original task text is processed — never LLM output.
+in the user_profile table.  Each fact change creates a new row; the previous
+row gets valid_until stamped.  get_all_facts() returns only active rows
+(valid_until IS NULL).
 """
 import json
 import re
+import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -70,22 +74,73 @@ class UserFactsExtractor:
             return []
 
     async def save_facts(self, facts: list[dict]) -> None:
-        """Upsert facts into user_profile (key=fact_type, value=fact_value)."""
+        """Persist facts with temporal archiving.
+
+        For each fact:
+        - If no active row exists for the key → insert fresh row.
+        - If active row exists with the same value → skip (no change).
+        - If active row exists with a different value → stamp valid_until on the
+          old row, link it to the new row via superseded_by, insert new active row.
+        """
         if not facts:
             return
         async with AsyncSessionLocal() as session:
             for fact in facts:
                 key = fact["fact_type"]
                 value = fact["fact_value"]
-                existing = await session.get(UserProfile, key)
+                # Find the currently-active row for this key
+                stmt = (
+                    select(UserProfile)
+                    .where(UserProfile.key == key)
+                    .where(UserProfile.valid_until.is_(None))
+                )
+                result = await session.execute(stmt)
+                existing = result.scalar_one_or_none()
+
+                if existing and existing.value == value:
+                    continue  # Nothing changed — skip
+
+                new_id = str(uuid.uuid4())
+                now = datetime.now(timezone.utc)
+
                 if existing:
-                    existing.value = value
-                else:
-                    session.add(UserProfile(key=key, value=value))
+                    # Archive the old row
+                    existing.valid_until = now
+                    existing.superseded_by = new_id
+
+                session.add(UserProfile(
+                    id=new_id,
+                    key=key,
+                    value=value,
+                    valid_from=now,
+                    valid_until=None,
+                    superseded_by=None,
+                ))
             await session.commit()
 
     async def get_all_facts(self) -> dict:
-        """Return all stored user facts as {fact_type: fact_value}."""
+        """Return only currently-active user facts as {fact_type: fact_value}."""
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(UserProfile))
+            stmt = select(UserProfile).where(UserProfile.valid_until.is_(None))
+            result = await session.execute(stmt)
             return {row.key: row.value for row in result.scalars().all()}
+
+    async def get_fact_history(self, key: str) -> list[dict]:
+        """Return all versions of a fact ordered by valid_from descending."""
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(UserProfile)
+                .where(UserProfile.key == key)
+                .order_by(UserProfile.valid_from.desc())
+            )
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+            history = []
+            for row in rows:
+                history.append({
+                    "value": row.value,
+                    "valid_from": row.valid_from.isoformat() if row.valid_from else None,
+                    "valid_until": row.valid_until.isoformat() if row.valid_until else None,
+                    "is_current": row.valid_until is None,
+                })
+            return history
