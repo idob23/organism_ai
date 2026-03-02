@@ -1,0 +1,509 @@
+#!/usr/bin/env python3
+"""Organism AI benchmark suite.
+
+Measures quality across all 10 task types and reports a formatted summary.
+
+Usage:
+    python benchmark.py           # run all 10 tasks
+    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
+"""
+import argparse
+import asyncio
+import json
+import sys
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+
+# Project root on path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from src.organism.llm.claude import ClaudeProvider
+from src.organism.tools.code_executor import CodeExecutorTool
+from src.organism.tools.web_search import WebSearchTool
+from src.organism.tools.web_fetch import WebFetchTool
+from src.organism.tools.file_manager import FileManagerTool
+from src.organism.tools.pptx_creator import PptxCreatorTool
+from src.organism.tools.text_writer import TextWriterTool
+from src.organism.tools.registry import ToolRegistry
+from src.organism.core.loop import CoreLoop
+from src.organism.memory.manager import MemoryManager
+from src.organism.commands.handler import CommandHandler
+from config.settings import settings
+
+# ── Task definitions ──────────────────────────────────────────────────────────
+#
+#  id   — task number (printed in table)
+#  type — label shown in table
+#  task — the actual prompt sent to the system
+#  mode — "loop" (default) | "orchestrator" | "command"
+#
+# IMPORTANT: task #8 is a rephrased version of #1 — it must run AFTER #1 so
+#            the solution cache is warm and the cache-hit can be verified.
+
+TASKS = [
+    {
+        "id": 1,
+        "type": "code",
+        "task": (
+            "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 "
+            "\u043f\u043b\u0430\u043d \u0434\u043e\u0431\u044b\u0447\u0438 "
+            "\u0437\u043e\u043b\u043e\u0442\u0430: \u0441\u0435\u0437\u043e\u043d "
+            "150 \u0434\u043d\u0435\u0439, \u043f\u043b\u0430\u043d 300 \u043a\u0433, "
+            "\u0446\u0435\u043d\u0430 7500 \u0440\u0443\u0431/\u0433\u0440\u0430\u043c\u043c. "
+            "\u0412\u044b\u0432\u0435\u0434\u0438: \u0434\u043d\u0435\u0432\u043d\u043e\u0439 "
+            "\u043f\u043b\u0430\u043d \u0433, \u0434\u043d\u0435\u0432\u043d\u0443\u044e "
+            "\u0432\u044b\u0440\u0443\u0447\u043a\u0443, \u0438\u0442\u043e\u0433\u043e\u0432\u0443\u044e "
+            "\u0432\u044b\u0440\u0443\u0447\u043a\u0443"
+        ),
+    },
+    {
+        "id": 2,
+        "type": "csv",
+        "task": (
+            "\u0441\u043e\u0437\u0434\u0430\u0439 CSV \u0442\u0430\u0431\u043b\u0438\u0446\u0443 "
+            "\u0440\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u043d\u0430 \u0442\u0435\u0445\u043d\u0438\u043a\u0443 "
+            "\u0437\u0430 \u043d\u0435\u0434\u0435\u043b\u044e: "
+            "\u0431\u0443\u043b\u044c\u0434\u043e\u0437\u0435\u0440 500 \u043b/\u0434\u0435\u043d\u044c "
+            "* 70 \u0440\u0443\u0431/\u043b, "
+            "\u044d\u043a\u0441\u043a\u0430\u0432\u0430\u0442\u043e\u0440 300 \u043b/\u0434\u0435\u043d\u044c "
+            "* 70 \u0440\u0443\u0431/\u043b, 5 \u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043d\u0435\u0439"
+        ),
+    },
+    {
+        "id": 3,
+        "type": "writing",
+        "task": (
+            "\u043d\u0430\u043f\u0438\u0448\u0438 \u043a\u0440\u0430\u0442\u043a\u0443\u044e "
+            "\u0438\u043d\u0441\u0442\u0440\u0443\u043a\u0446\u0438\u044e \u043f\u043e "
+            "\u0442\u0435\u0445\u043d\u0438\u043a\u0435 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438 "
+            "\u043f\u0440\u0438 \u0440\u0430\u0431\u043e\u0442\u0435 \u0441 "
+            "\u0434\u0440\u043e\u0431\u0438\u043b\u043a\u043e\u0439 \u0433\u043e\u0440\u043d\u043e\u0439 "
+            "\u043f\u043e\u0440\u043e\u0434\u044b \u2014 5 \u043a\u043b\u044e\u0447\u0435\u0432\u044b\u0445 \u043f\u0440\u0430\u0432\u0438\u043b"
+        ),
+    },
+    {
+        "id": 4,
+        "type": "mixed",
+        "task": (
+            "\u043d\u0430\u0439\u0434\u0438 \u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u044b\u0435 "
+            "\u044d\u043a\u043e\u043b\u043e\u0433\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0442\u0440\u0435\u0431\u043e\u0432\u0430\u043d\u0438\u044f "
+            "\u043a \u0437\u043e\u043b\u043e\u0442\u043e\u0434\u043e\u0431\u044b\u0447\u0435 "
+            "\u0432 \u0420\u043e\u0441\u0441\u0438\u0438 \u0438 \u043d\u0430\u043f\u0438\u0448\u0438 "
+            "\u043a\u0440\u0430\u0442\u043a\u043e\u0435 \u0440\u0435\u0437\u044e\u043c\u0435 "
+            "\u0434\u043b\u044f \u0440\u0443\u043a\u043e\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044f \u0430\u0440\u0442\u0435\u043b\u0438"
+        ),
+    },
+    {
+        "id": 5,
+        "type": "presentation",
+        "task": (
+            "\u0441\u043e\u0437\u0434\u0430\u0439 \u043f\u0440\u0435\u0437\u0435\u043d\u0442\u0430\u0446\u0438\u044e "
+            "\u0438\u0437 5 \u0441\u043b\u0430\u0439\u0434\u043e\u0432 "
+            "\u043e \u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u0438 "
+            "\u0440\u043e\u0441\u0441\u044b\u043f\u043d\u043e\u0439 \u0437\u043e\u043b\u043e\u0442\u043e\u0434\u043e\u0431\u044b\u0447\u0438: "
+            "\u0432\u0432\u0435\u0434\u0435\u043d\u0438\u0435, "
+            "\u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435, "
+            "\u0442\u0435\u0445\u043d\u043e\u043b\u043e\u0433\u0438\u044f, "
+            "\u043f\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u0438, "
+            "\u0432\u044b\u0432\u043e\u0434\u044b"
+        ),
+    },
+    {
+        "id": 6,
+        "type": "research",
+        "task": (
+            "\u043d\u0430\u0439\u0434\u0438 \u0442\u0435\u043a\u0443\u0449\u0443\u044e "
+            "\u0446\u0435\u043d\u0443 \u0437\u043e\u043b\u043e\u0442\u0430 "
+            "\u043d\u0430 \u043c\u0438\u0440\u043e\u0432\u043e\u043c \u0440\u044b\u043d\u043a\u0435 "
+            "\u0432 \u0434\u043e\u043b\u043b\u0430\u0440\u0430\u0445 \u0438 "
+            "\u0440\u0443\u0431\u043b\u044f\u0445 \u0437\u0430 \u0433\u0440\u0430\u043c\u043c"
+        ),
+    },
+    {
+        "id": 7,
+        "type": "analysis",
+        "task": (
+            "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 "
+            "\u0440\u0435\u043d\u0442\u0430\u0431\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c "
+            "\u0443\u0447\u0430\u0441\u0442\u043a\u0430: "
+            "\u0432\u044b\u0440\u0443\u0447\u043a\u0430 15 \u043c\u043b\u043d "
+            "\u0440\u0443\u0431, \u0440\u0430\u0441\u0445\u043e\u0434\u044b: "
+            "\u0437\u0430\u0440\u043f\u043b\u0430\u0442\u0430 3 \u043c\u043b\u043d, "
+            "\u0442\u043e\u043f\u043b\u0438\u0432\u043e 2 \u043c\u043b\u043d, "
+            "\u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 4 \u043c\u043b\u043d, "
+            "\u043f\u0440\u043e\u0447\u0435\u0435 1 \u043c\u043b\u043d. "
+            "\u0418\u0442\u043e\u0433: \u043f\u0440\u0438\u0431\u044b\u043b\u044c "
+            "\u0438 \u0440\u0435\u043d\u0442\u0430\u0431\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c %"
+        ),
+    },
+    {
+        "id": 8,
+        "type": "cache",
+        # Rephrased version of task #1 — should hit the solution cache
+        "task": (
+            "\u043f\u043e\u0441\u0447\u0438\u0442\u0430\u0439 "
+            "\u0434\u043e\u0431\u044b\u0447\u0443 \u0437\u043e\u043b\u043e\u0442\u0430: "
+            "\u043f\u043b\u0430\u043d 300 \u043a\u0433 \u0437\u0430 \u0441\u0435\u0437\u043e\u043d "
+            "150 \u0434\u043d\u0435\u0439, \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c "
+            "7500 \u0440\u0443\u0431 \u0437\u0430 \u0433\u0440\u0430\u043c\u043c. "
+            "\u0420\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 \u0434\u043d\u0435\u0432\u043d\u0443\u044e "
+            "\u0434\u043e\u0431\u044b\u0447\u0443 \u0438 \u043e\u0431\u0449\u0443\u044e "
+            "\u0432\u044b\u0440\u0443\u0447\u043a\u0443"
+        ),
+    },
+    {
+        "id": 9,
+        "type": "multi-agent",
+        "task": (
+            "\u043d\u0430\u0439\u0434\u0438 \u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u044b\u0435 "
+            "\u0446\u0435\u043d\u044b \u043d\u0430 \u0434\u0438\u0437\u0435\u043b\u044c\u043d\u043e\u0435 "
+            "\u0442\u043e\u043f\u043b\u0438\u0432\u043e \u0432 \u0420\u043e\u0441\u0441\u0438\u0438 "
+            "\u0438 \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 "
+            "\u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c \u0442\u043e\u043f\u043b\u0438\u0432\u0430 "
+            "\u0434\u043b\u044f \u0437\u043e\u043b\u043e\u0442\u043e\u0434\u043e\u0431\u044b\u0432\u0430\u044e\u0449\u0435\u0433\u043e "
+            "\u0441\u0435\u0437\u043e\u043d\u0430: "
+            "\u0440\u0430\u0441\u0445\u043e\u0434 2000 \u043b/\u0434\u0435\u043d\u044c, "
+            "150 \u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043d\u0435\u0439"
+        ),
+        "mode": "orchestrator",
+    },
+    {
+        "id": 10,
+        "type": "command",
+        "task": "/stats",
+        "mode": "command",
+    },
+]
+
+# Task IDs included in --quick mode
+QUICK_IDS = {1, 2, 3, 7, 8}
+
+
+# ── Result dataclass ──────────────────────────────────────────────────────────
+
+@dataclass
+class BenchmarkResult:
+    id: int
+    type: str
+    task: str
+    success: bool
+    quality_score: float
+    duration: float
+    tools_used: list = field(default_factory=list)
+    cache_hit: bool = False
+    error: str = ""
+
+
+# ── Infrastructure (mirrors main.py) ─────────────────────────────────────────
+
+def build_registry() -> ToolRegistry:
+    registry = ToolRegistry()
+    registry.register(CodeExecutorTool())
+    registry.register(PptxCreatorTool())
+    registry.register(TextWriterTool())
+    registry.register(WebFetchTool())
+    registry.register(FileManagerTool())
+    if settings.tavily_api_key:
+        registry.register(WebSearchTool())
+    return registry
+
+
+# ── Task runners ──────────────────────────────────────────────────────────────
+
+async def run_loop_task(task_def: dict, loop: CoreLoop) -> BenchmarkResult:
+    """Run a single task through CoreLoop and extract benchmark metrics."""
+    task_text = task_def["task"]
+    t0 = time.time()
+    try:
+        result = await loop.run(task_text, verbose=False)
+        duration = time.time() - t0
+
+        # Cache hits: TaskResult has steps=[] (cache returns before any tool execution)
+        cache_hit = result.success and len(result.steps) == 0
+        tools_used = sorted({s.tool for s in result.steps if s.success})
+
+        return BenchmarkResult(
+            id=task_def["id"],
+            type=task_def["type"],
+            task=task_text,
+            success=result.success,
+            quality_score=result.quality_score,
+            duration=duration,
+            tools_used=tools_used,
+            cache_hit=cache_hit,
+            error=result.error or "",
+        )
+    except Exception as exc:
+        return BenchmarkResult(
+            id=task_def["id"],
+            type=task_def["type"],
+            task=task_text,
+            success=False,
+            quality_score=0.0,
+            duration=time.time() - t0,
+            error=str(exc)[:200],
+        )
+
+
+async def run_orchestrator_task(
+    task_def: dict,
+    llm: ClaudeProvider,
+    registry: ToolRegistry,
+    memory: MemoryManager | None,
+) -> BenchmarkResult:
+    """Run a task through the multi-agent Orchestrator."""
+    from src.organism.agents.orchestrator import Orchestrator
+
+    task_text = task_def["task"]
+    t0 = time.time()
+    try:
+        orch = Orchestrator(llm, registry, memory=memory)
+        result = await orch.run(task_text)
+        duration = time.time() - t0
+        # AgentResult has no quality_score; use 0.75 on success as a reasonable default
+        quality = 0.75 if result.success else 0.0
+        return BenchmarkResult(
+            id=task_def["id"],
+            type=task_def["type"],
+            task=task_text,
+            success=result.success,
+            quality_score=quality,
+            duration=duration,
+            tools_used=["multi-agent"],
+            error=result.error or "",
+        )
+    except Exception as exc:
+        return BenchmarkResult(
+            id=task_def["id"],
+            type=task_def["type"],
+            task=task_text,
+            success=False,
+            quality_score=0.0,
+            duration=time.time() - t0,
+            error=str(exc)[:200],
+        )
+
+
+async def run_command_task(
+    task_def: dict, memory: MemoryManager | None
+) -> BenchmarkResult:
+    """Run a slash command through CommandHandler."""
+    handler = CommandHandler()
+    task_text = task_def["task"]
+    t0 = time.time()
+    try:
+        output = await handler.handle(task_text, memory)
+        duration = time.time() - t0
+        # Consider it a success if output is non-empty and doesn't start with an error
+        success = bool(output and not output.lower().startswith("memory error"))
+        return BenchmarkResult(
+            id=task_def["id"],
+            type=task_def["type"],
+            task=task_text,
+            success=success,
+            quality_score=1.0 if success else 0.0,
+            duration=duration,
+        )
+    except Exception as exc:
+        return BenchmarkResult(
+            id=task_def["id"],
+            type=task_def["type"],
+            task=task_text,
+            success=False,
+            quality_score=0.0,
+            duration=time.time() - t0,
+            error=str(exc)[:200],
+        )
+
+
+# ── Output formatting ─────────────────────────────────────────────────────────
+
+# Short display names for tools (keep ≤ 9 chars so the Tools column stays tidy)
+_TOOL_SHORT = {
+    "code_executor": "code_exec",
+    "text_writer":   "txt_write",
+    "web_search":    "web_srch",
+    "web_fetch":     "web_fetch",
+    "pptx_creator":  "pptx",
+    "file_manager":  "file_mgr",
+    "multi-agent":   "multi-agt",
+}
+
+
+def _trunc(text: str, width: int) -> str:
+    """Truncate to *width* chars, padding with spaces if shorter."""
+    if len(text) <= width:
+        return text.ljust(width)
+    return text[:width - 3] + "..."
+
+
+def _fmt_tools(tools: list) -> str:
+    if not tools:
+        return "-"
+    return ",".join(_TOOL_SHORT.get(t, t[:9]) for t in tools)
+
+
+def print_table(results: list[BenchmarkResult]) -> None:
+    LINE = "=" * 102
+    HEADER = (
+        f"  {'#':>2}  {'Type':<14}  {'Task':<40}  "
+        f"{'OK':>2}  {'Qual':>5}  {'Time':>6}  {'Tools':<18}  Cache"
+    )
+    print(f"\n{LINE}")
+    print(HEADER)
+    print(LINE)
+
+    for r in results:
+        ok = "OK" if r.success else "--"
+        qual = f"{r.quality_score:.2f}" if r.quality_score > 0 else " n/a"
+        t = f"{r.duration:.1f}s"
+        tools_col = _fmt_tools(r.tools_used)
+        cache_col = "HIT" if r.cache_hit else "-"
+        print(
+            f"  {r.id:>2}  {r.type:<14}  {_trunc(r.task, 40)}  "
+            f"{ok:>2}  {qual:>5}  {t:>6}  {tools_col:<18}  {cache_col}"
+        )
+
+    print(LINE)
+
+    # Summary line
+    total = len(results)
+    successful = sum(1 for r in results if r.success)
+    success_pct = successful / total * 100 if total else 0.0
+    scored = [r.quality_score for r in results if r.quality_score > 0]
+    avg_qual = sum(scored) / len(scored) if scored else 0.0
+    avg_time = sum(r.duration for r in results) / total if total else 0.0
+    cache_hits = sum(1 for r in results if r.cache_hit)
+    cache_pct = cache_hits / total * 100 if total else 0.0
+
+    print(
+        f"\n  Summary: {successful}/{total} success ({success_pct:.1f}%)  |  "
+        f"Avg quality: {avg_qual:.2f}  |  "
+        f"Avg time: {avg_time:.1f}s  |  "
+        f"Cache hits: {cache_hits}/{total} ({cache_pct:.0f}%)\n"
+    )
+
+    # List any failures
+    failed = [r for r in results if not r.success]
+    if failed:
+        print("  Failed tasks:")
+        for r in failed:
+            snippet = r.error[:100] if r.error else "(no error message)"
+            print(f"    #{r.id} {r.type}: {snippet}")
+        print()
+
+
+# ── JSON persistence ──────────────────────────────────────────────────────────
+
+def save_json(results: list[BenchmarkResult], mode: str) -> Path:
+    total = len(results)
+    successful = sum(1 for r in results if r.success)
+    scored = [r.quality_score for r in results if r.quality_score > 0]
+    avg_qual = sum(scored) / len(scored) if scored else 0.0
+    avg_time = sum(r.duration for r in results) / total if total else 0.0
+    cache_hits = sum(1 for r in results if r.cache_hit)
+
+    payload = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "mode": mode,
+        "results": [
+            {
+                "id": r.id,
+                "type": r.type,
+                "task": r.task[:120],
+                "success": r.success,
+                "quality_score": round(r.quality_score, 4),
+                "duration": round(r.duration, 2),
+                "tools_used": r.tools_used,
+                "cache_hit": r.cache_hit,
+                "error": r.error[:200] if r.error else "",
+            }
+            for r in results
+        ],
+        "summary": {
+            "total": total,
+            "successful": successful,
+            "success_rate": round(successful / total * 100, 1) if total else 0.0,
+            "avg_quality": round(avg_qual, 4),
+            "avg_duration": round(avg_time, 2),
+            "cache_hits": cache_hits,
+            "cache_hit_rate": round(cache_hits / total * 100, 1) if total else 0.0,
+        },
+    }
+
+    out = Path("data/benchmark_results.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return out
+
+
+# ── Main orchestration ────────────────────────────────────────────────────────
+
+async def run_benchmark(quick: bool) -> None:
+    mode = "quick" if quick else "full"
+    tasks = [t for t in TASKS if not quick or t["id"] in QUICK_IDS]
+
+    print(f"\nOrganism AI Benchmark  [{mode.upper()} — {len(tasks)} tasks]")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    # Build shared resources — same pattern as main.py
+    llm = ClaudeProvider()
+    registry = build_registry()
+    memory = MemoryManager() if settings.database_url else None
+    if memory:
+        await memory.initialize()
+
+    loop = CoreLoop(llm, registry, memory=memory)
+
+    results: list[BenchmarkResult] = []
+
+    for i, task_def in enumerate(tasks, 1):
+        task_mode = task_def.get("mode", "loop")
+        preview = task_def["task"][:55]
+        print(f"  [{i:>2}/{len(tasks)}]  #{task_def['id']} {task_def['type']:<14}  {preview}...")
+
+        if task_mode == "orchestrator":
+            bm = await run_orchestrator_task(task_def, llm, registry, memory)
+        elif task_mode == "command":
+            bm = await run_command_task(task_def, memory)
+        else:
+            bm = await run_loop_task(task_def, loop)
+
+        ok = "OK" if bm.success else "FAIL"
+        extra = "  [CACHE HIT]" if bm.cache_hit else ""
+        print(f"           {ok}  quality={bm.quality_score:.2f}  time={bm.duration:.1f}s{extra}")
+        results.append(bm)
+
+    print_table(results)
+    out = save_json(results, mode)
+    print(f"  Results saved -> {out}\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Organism AI benchmark suite",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python benchmark.py            # full suite (10 tasks)\n"
+            "  python benchmark.py --quick    # fast check (5 tasks, no web/multi-agent)\n"
+        ),
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Run only tasks 1, 2, 3, 7, 8 (code + writing + analysis + cache)",
+    )
+    args = parser.parse_args()
+
+    try:
+        asyncio.run(run_benchmark(quick=args.quick))
+    except KeyboardInterrupt:
+        print("\nBenchmark interrupted.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

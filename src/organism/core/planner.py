@@ -164,22 +164,86 @@ def _sanitize_json(text: str) -> str:
 
 
 def _extract_json(text: str) -> str:
+    """Extract the JSON array from text.
+
+    Uses bracket-depth tracking so that any prefix/suffix text (e.g. "Thinking: ...")
+    is ignored.  If no matching ']' is found (truncated response) the substring from
+    the first '[' to end-of-text is returned so the truncation-recovery paths can try
+    to complete it.
+    """
     text = text.strip()
+    # Strip markdown code fences
     text = re.sub(r'^```(?:json)?\s*', '', text)
     text = re.sub(r'\s*```$', '', text)
     text = text.strip()
-    if text.startswith('['):
-        return text
-    matches = list(re.finditer(r'\[[\s\S]*\]', text))
-    if matches:
-        return matches[-1].group(0)
-    return text
+
+    start = text.find('[')
+    if start == -1:
+        return text  # No array found; let the caller deal with it
+
+    # Walk from '[' to its matching ']' respecting string literals and nesting
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if escape:
+            escape = False
+            continue
+        if c == '\\' and in_string:
+            escape = True
+            continue
+        if c == '"':
+            in_string = not in_string
+            continue
+        if not in_string:
+            if c == '[':
+                depth += 1
+            elif c == ']':
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+
+    # Truncated response — return from '[' to end so recovery can close it
+    return text[start:]
 
 
-def _parse_steps(raw: str) -> list[PlanStep]:
-    json_str = _extract_json(raw)
-    json_str = _sanitize_json(json_str)
-    data = json.loads(json_str)
+def _extract_objects(text: str) -> list[str]:
+    """Extract complete top-level {...} objects from arbitrary text."""
+    objects: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] == '{':
+            depth = 0
+            in_string = False
+            escape = False
+            start = i
+            j = i
+            while j < n:
+                c = text[j]
+                if escape:
+                    escape = False
+                elif c == '\\' and in_string:
+                    escape = True
+                elif c == '"':
+                    in_string = not in_string
+                elif not in_string:
+                    if c == '{':
+                        depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            objects.append(text[start:j + 1])
+                            i = j
+                            break
+                j += 1
+        i += 1
+    return objects
+
+
+def _build_steps(data: list) -> list[PlanStep]:
+    """Convert a parsed JSON list into PlanStep objects."""
     steps = []
     for i, item in enumerate(data):
         inp = item.get('input') or item.get('params') or {}
@@ -191,6 +255,63 @@ def _parse_steps(raw: str) -> list[PlanStep]:
             depends_on=item.get('depends_on', []),
         ))
     return steps
+
+
+def _parse_steps(raw: str) -> list[PlanStep]:
+    """Parse plan steps with progressive fallbacks for broken/truncated JSON.
+
+    Fallback chain:
+    1. Direct json.loads on extracted+sanitised JSON array.
+    2. raw_decode — handles "Extra data" (trailing text after valid JSON).
+    3. Truncation recovery — append closing suffixes and retry json.loads.
+    4. Object-level regex — extract complete {...} objects from the raw text.
+    """
+    json_str = _extract_json(raw)
+    json_str = _sanitize_json(json_str)
+
+    # 1. Direct parse
+    try:
+        return _build_steps(json.loads(json_str))
+    except json.JSONDecodeError as e:
+        first_err = str(e).lower()
+
+    # 2. raw_decode — succeeds on "Extra data" by stopping at the first valid value
+    try:
+        data, _ = json.JSONDecoder().raw_decode(json_str)
+        if isinstance(data, list):
+            return _build_steps(data)
+    except (json.JSONDecodeError, KeyError):
+        pass
+
+    # 3. Truncation recovery — try common closing suffixes
+    if any(kw in first_err for kw in ('unterminated', 'expecting', 'end of data')):
+        for suffix in ('"}]', '"}}]', '}}]', '"}]}', ']'):
+            try:
+                return _build_steps(json.loads(json_str + suffix))
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    # 4. Object-level regex — extract whatever complete step objects exist
+    steps: list[PlanStep] = []
+    for i, blob in enumerate(_extract_objects(raw)):
+        try:
+            obj = json.loads(_sanitize_json(blob))
+            if 'tool' not in obj:
+                continue
+            inp = obj.get('input') or obj.get('params') or {}
+            steps.append(PlanStep(
+                id=obj.get('id', i + 1),
+                tool=obj['tool'],
+                description=obj.get('description', obj['tool']),
+                input=inp,
+                depends_on=obj.get('depends_on', []),
+            ))
+        except (json.JSONDecodeError, KeyError):
+            continue
+    if steps:
+        return steps
+
+    raise json.JSONDecodeError('Could not parse plan from response', json_str, 0)
 
 
 class Planner:
