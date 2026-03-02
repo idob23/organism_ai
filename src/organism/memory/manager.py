@@ -3,6 +3,7 @@ import uuid
 from .longterm import LongTermMemory
 from .working import WorkingMemory
 from .user_facts import UserFactsExtractor
+from .graph import MemoryGraph
 from .database import init_db, AgentReflection, AsyncSessionLocal
 from src.organism.llm.base import LLMProvider
 
@@ -13,6 +14,7 @@ class MemoryManager:
         self.longterm = LongTermMemory()
         self.working = WorkingMemory()
         self.facts = UserFactsExtractor()
+        self.graph = MemoryGraph()
         self.llm = llm
         self._initialized = False
 
@@ -39,7 +41,7 @@ class MemoryManager:
         tools_used: list[str],
         quality_score: float = 0.0,
     ) -> None:
-        await self.longterm.save_task(
+        task_id = await self.longterm.save_task(
             task=task,
             result=result,
             success=success,
@@ -48,6 +50,13 @@ class MemoryManager:
             tools_used=tools_used,
             quality_score=quality_score,
         )
+        # Q-5.2: create a temporal edge from the previous task to this one
+        try:
+            if self.working.last_task_id:
+                await self.graph.add_temporal_edge(self.working.last_task_id, task_id)
+            self.working.last_task_id = task_id
+        except Exception:
+            pass
         # Extract personal facts from the user's original task text (not from LLM output)
         if self.llm:
             try:

@@ -7,6 +7,7 @@ class WorkingMemory:
     task: str = ""
     steps_results: list[dict[str, Any]] = field(default_factory=list)
     context: dict[str, Any] = field(default_factory=dict)
+    last_task_id: str | None = None  # Q-5.2: id of the last saved task, for temporal edges
 
     def add_step_result(self, step_id: int, tool: str, output: str, success: bool) -> None:
         self.steps_results.append({

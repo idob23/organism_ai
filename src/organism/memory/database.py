@@ -1,6 +1,6 @@
 ﻿from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Boolean
+from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Boolean, Index
 from sqlalchemy import func, text
 from pgvector.sqlalchemy import Vector
 from config.settings import settings
@@ -73,6 +73,22 @@ class KnowledgeRule(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     valid_from = Column(DateTime, server_default=func.now())
     valid_until = Column(DateTime, nullable=True)   # NULL = currently active
+
+
+class MemoryEdge(Base):
+    __tablename__ = "memory_edges"
+    __table_args__ = (
+        Index("ix_edges_from_type", "from_id", "edge_type"),
+        Index("ix_edges_to_type", "to_id", "edge_type"),
+    )
+
+    id = Column(String, primary_key=True)          # uuid
+    from_id = Column(String, nullable=False)        # task_memories.id or user_profile.id
+    to_id = Column(String, nullable=False)
+    edge_type = Column(String, nullable=False)      # temporal|causal|entity|procedural
+    weight = Column(Float, default=1.0)
+    meta_json = Column("metadata", Text, nullable=True)  # JSON string; 'metadata' reserved by SA
+    created_at = Column(DateTime, server_default=func.now())
 
 
 class PromptVersion(Base):
