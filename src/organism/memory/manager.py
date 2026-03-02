@@ -6,6 +6,7 @@ from .working import WorkingMemory
 from .user_facts import UserFactsExtractor
 from .graph import MemoryGraph
 from .causal_analyzer import CausalAnalyzer
+from .templates import TemplateExtractor
 from .database import init_db, AgentReflection, AsyncSessionLocal
 from src.organism.llm.base import LLMProvider
 
@@ -17,6 +18,7 @@ class MemoryManager:
         self.working = WorkingMemory()
         self.facts = UserFactsExtractor()
         self.graph = MemoryGraph()
+        self.templates = TemplateExtractor()
         self.llm = llm
         self._initialized = False
 
@@ -68,6 +70,14 @@ class MemoryManager:
                 )
             except Exception:
                 pass
+        # Q-5.4: extract procedural template for high-quality tasks (fire-and-forget)
+        if self.llm and quality_score >= 0.8:
+            try:
+                asyncio.create_task(
+                    self._safe_extract_template(task, tools_used, result, quality_score)
+                )
+            except Exception:
+                pass
         # Extract personal facts from the user's original task text (not from LLM output)
         if self.llm:
             try:
@@ -101,6 +111,19 @@ class MemoryManager:
         """Background wrapper for CausalAnalyzer — swallows all exceptions."""
         try:
             await analyzer.analyze_task(task_id, task, tools_used, self.llm)
+        except Exception:
+            pass
+
+    async def _safe_extract_template(
+        self,
+        task: str,
+        tools_used: list[str],
+        result: str,
+        quality_score: float,
+    ) -> None:
+        """Background wrapper for TemplateExtractor — swallows all exceptions."""
+        try:
+            await self.templates.extract_template(task, tools_used, result, quality_score, self.llm)
         except Exception:
             pass
 

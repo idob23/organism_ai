@@ -1,0 +1,12 @@
+Analyze this completed task and extract a reusable template pattern.
+Task: {task}
+Tools used: {tools}
+Result summary (first 500 chars): {result}
+
+If this represents a repeatable pattern (e.g. creating reports, generating CSV files, writing documents of a certain type), respond with JSON:
+{"pattern_name": "short_snake_case_name", "task_pattern": "generic description without specific data values", "code_template": "code skeleton if code_executor was used, null otherwise"}
+
+If this is a one-off unique task with no repeatable pattern, respond:
+{"pattern_name": null}
+
+Return ONLY the JSON, no explanation.

@@ -273,6 +273,25 @@ class CoreLoop:
             except Exception:
                 pass
 
+        # Q-5.4: Template hint — look up matching procedural template before planning
+        template_hint = ""
+        if self.memory:
+            try:
+                tmpl = await self.memory.templates.find_template(task)
+                if tmpl:
+                    hint_parts = [
+                        f"Reusable template '{tmpl['pattern_name']}'"
+                        f" (quality={tmpl['avg_quality']:.2f}, used {tmpl['success_count']}x):",
+                        f"  Tools: {tmpl['tools_sequence']}",
+                    ]
+                    if tmpl.get("code_template"):
+                        hint_parts.append(f"  Code skeleton: {tmpl['code_template'][:300]}")
+                    template_hint = "\n".join(hint_parts)
+                    if verbose:
+                        print(f"Template hint: {tmpl['pattern_name']}")
+            except Exception:
+                pass
+
         # Build context-budgeted prompt (trims to ~3000 token sweet spot)
         _, task_context = self.context_budget.build_prompt(
             system="",  # system is chosen per task type inside Planner
@@ -280,6 +299,8 @@ class CoreLoop:
             memory_context=memory_context,
             task=task,
         )
+        if template_hint:
+            task_context = f"{task_context}\n\n{template_hint}"
         if verbose:
             u = self.context_budget.last_usage
             _log.info(

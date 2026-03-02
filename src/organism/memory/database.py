@@ -75,6 +75,20 @@ class KnowledgeRule(Base):
     valid_until = Column(DateTime, nullable=True)   # NULL = currently active
 
 
+class ProceduralTemplate(Base):
+    __tablename__ = "procedural_templates"
+
+    id = Column(String, primary_key=True)
+    pattern_name = Column(String, nullable=False, index=True)  # e.g. "csv_report"
+    tools_sequence = Column(Text, nullable=False)               # JSON: ["code_executor"]
+    code_template = Column(Text, nullable=True)                 # code skeleton if applicable
+    task_pattern = Column(Text, nullable=False)                 # generic task description
+    success_count = Column(Integer, default=1)
+    avg_quality = Column(Float, default=0.0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class MemoryEdge(Base):
     __tablename__ = "memory_edges"
     __table_args__ = (
