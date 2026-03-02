@@ -326,6 +326,7 @@ class Planner:
         knowledge_rules: list[str] | None = None,
         task_context: str | None = None,
         user_context: str = '',
+        task_type_hint: str | None = None,
     ) -> list[PlanStep]:
         # Use pre-built context from ContextBudget if provided; otherwise build it here
         if task_context is not None:
@@ -338,8 +339,12 @@ class Planner:
             if memory_context:
                 full_task = f"{full_task}\n\n[Memory: {memory_context[:200]}]"
 
-        # Phase 1: Classify task type (Haiku — fast, cheap)
-        task_type = await self._classify(task, user_context)
+        # Phase 1: Classify task type (Haiku — fast, cheap).
+        # task_type_hint can override the classifier (e.g. force "writing" for memory-answer tasks).
+        if task_type_hint and task_type_hint in SPECIALIZED_PROMPTS:
+            task_type = task_type_hint
+        else:
+            task_type = await self._classify(task, user_context)
 
         # Phase 2: Plan with specialized prompt
         use_react = _is_complex(task)

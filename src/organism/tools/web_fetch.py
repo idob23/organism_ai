@@ -55,6 +55,7 @@ class WebFetchTool(BaseTool):
                 timeout=15.0,
                 follow_redirects=True,
                 max_redirects=3,
+                verify=False,  # Many Russian sites use non-standard cert chains
                 headers={"User-Agent": "Mozilla/5.0 (compatible; OrganismAI/1.0)"},
             ) as client:
                 response = await client.get(url)
@@ -71,6 +72,12 @@ class WebFetchTool(BaseTool):
         except httpx.TooManyRedirects:
             return ToolResult(
                 output=f"Too many redirects for {url}. Site likely requires login. Use web_search instead.",
+                error="",
+                exit_code=0,
+            )
+        except httpx.ConnectError as e:
+            return ToolResult(
+                output=f"Cannot connect to {url} (SSL/network error). Use web_search instead.",
                 error="",
                 exit_code=0,
             )

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across all 10 task types and reports a formatted summary.
+Measures quality across 14 task types and reports a formatted summary.
+
+Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
+             analysis, cache, multi-agent, command)
+Tasks 11-14: Sprint 5 coverage (temporal-query, entity-query, template-reuse,
+             causal-query) — require a warm DB with prior memory/graph data.
 
 Usage:
-    python benchmark.py           # run all 10 tasks
+    python benchmark.py           # run all 14 tasks
     python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
 """
 import argparse
@@ -175,9 +180,62 @@ TASKS = [
         "task": "/stats",
         "mode": "command",
     },
+    # ── Sprint 5 tasks (Q-5.1 through Q-5.5) ─────────────────────────────────
+    {
+        "id": 11,
+        "type": "temporal-query",
+        # когда последний раз делали отчёт по расходу ГСМ и какой был результат
+        # Verifies: SearchPolicy classifies as temporal → memory searches chronologically
+        "task": (
+            "\u043a\u043e\u0433\u0434\u0430 \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0439 \u0440\u0430\u0437 "
+            "\u0434\u0435\u043b\u0430\u043b\u0438 \u043e\u0442\u0447\u0451\u0442 \u043f\u043e "
+            "\u0440\u0430\u0441\u0445\u043e\u0434\u0443 \u0413\u0421\u041c \u0438 "
+            "\u043a\u0430\u043a\u043e\u0439 \u0431\u044b\u043b \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442"
+        ),
+    },
+    {
+        "id": 12,
+        "type": "entity-query",
+        # покажи все задачи связанные с КамАЗ-65115 и его обслуживанием
+        # Verifies: entity intent → graph search via entity edges
+        "task": (
+            "\u043f\u043e\u043a\u0430\u0436\u0438 \u0432\u0441\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 "
+            "\u0441\u0432\u044f\u0437\u0430\u043d\u043d\u044b\u0435 \u0441 "
+            "\u041a\u0430\u043c\u0410\u0417-65115 \u0438 \u0435\u0433\u043e "
+            "\u043e\u0431\u0441\u043b\u0443\u0436\u0438\u0432\u0430\u043d\u0438\u0435\u043c"
+        ),
+    },
+    {
+        "id": 13,
+        "type": "template-reuse",
+        # создай CSV таблицу расходов на ГСМ за август 2025: КамАЗ-65115 900л, Экскаватор PC-300 1100л, Бульдозер Т-170 1050л
+        # Verifies: procedural template from Sprint 5 surfaces and assists planner
+        "task": (
+            "\u0441\u043e\u0437\u0434\u0430\u0439 CSV \u0442\u0430\u0431\u043b\u0438\u0446\u0443 "
+            "\u0440\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u043d\u0430 \u0413\u0421\u041c "
+            "\u0437\u0430 \u0430\u0432\u0433\u0443\u0441\u0442 2025: "
+            "\u041a\u0430\u043c\u0410\u0417-65115 900\u043b, "
+            "\u042d\u043a\u0441\u043a\u0430\u0432\u0430\u0442\u043e\u0440 PC-300 1100\u043b, "
+            "\u0411\u0443\u043b\u044c\u0434\u043e\u0437\u0435\u0440 \u0422-170 1050\u043b"
+        ),
+    },
+    {
+        "id": 14,
+        "type": "causal-query",
+        # почему расход топлива на бульдозер выше нормы и что можно сделать для снижения
+        # Verifies: causal intent → memory searches causal edges, finds related tasks
+        "task": (
+            "\u043f\u043e\u0447\u0435\u043c\u0443 \u0440\u0430\u0441\u0445\u043e\u0434 "
+            "\u0442\u043e\u043f\u043b\u0438\u0432\u0430 \u043d\u0430 \u0431\u0443\u043b\u044c\u0434\u043e\u0437\u0435\u0440 "
+            "\u0432\u044b\u0448\u0435 \u043d\u043e\u0440\u043c\u044b \u0438 "
+            "\u0447\u0442\u043e \u043c\u043e\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c "
+            "\u0434\u043b\u044f \u0441\u043d\u0438\u0436\u0435\u043d\u0438\u044f"
+        ),
+    },
 ]
 
 # Task IDs included in --quick mode
+# Sprint 5 tasks (11-14) are excluded — they require a warm DB with memory/graph data
 QUICK_IDS = {1, 2, 3, 7, 8}
 
 

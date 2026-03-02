@@ -13,6 +13,7 @@ from src.organism.memory.manager import MemoryManager
 from src.organism.memory.knowledge_base import KnowledgeBase
 from src.organism.memory.solution_cache import SolutionCache
 from src.organism.memory.user_facts import format_for_prompt
+from src.organism.memory.search_policy import SearchPolicy
 from src.organism.self_improvement.prompt_versioning import PromptVersionControl
 from src.organism.safety.validator import SafetyValidator
 from src.organism.tools.registry import ToolRegistry
@@ -209,7 +210,12 @@ class CoreLoop:
                     for s in similar:
                         tools = s.get("tools_used") or []
                         tool_str = ", ".join(tools) if tools else "unknown"
-                        lines.append(f"- [{tool_str}] {s.get('task', '')[:80]}")
+                        task_str = s.get("task", "")[:70]
+                        result_str = (s.get("result") or "")[:80].replace("\n", " ")
+                        line = f"- [{tool_str}] {task_str}"
+                        if result_str:
+                            line += f" -> {result_str}"
+                        lines.append(line)
                     memory_context = "\n".join(lines)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
@@ -312,8 +318,18 @@ class CoreLoop:
                 f"| task={u['task']} rules={u['rules']} memory={u['memory']}"
             )
 
+        # For temporal queries with memory hits, override task type to "writing" so
+        # the planner uses text_writer to synthesize the answer from memory context
+        # instead of going to web_search (which cannot answer internal-state questions).
+        task_type_hint = None
+        if memory_hits > 0:
+            _mem_intent = SearchPolicy().classify_intent(task)
+            if _mem_intent == "temporal":
+                task_type_hint = "writing"
+                _log.info(f"[{task_id}] Temporal query + memory hits → task_type_hint=writing")
+
         try:
-            steps = await self.planner.plan(task, task_context=task_context, user_context=user_context)
+            steps = await self.planner.plan(task, task_context=task_context, user_context=user_context, task_type_hint=task_type_hint)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
             log_exception(_log, f"[{task_id}] Planning failed", e)
@@ -372,6 +388,24 @@ class CoreLoop:
                 if step.tool not in tools_used:
                     tools_used.append(step.tool)
             else:
+                # Soft-fail continuation: web_fetch connection/block issues are non-fatal
+                # when a previous step already produced useful output.
+                _soft_webfetch = (
+                    step.tool == "web_fetch"
+                    and last_output
+                    and log.output
+                    and any(kw in log.output for kw in (
+                        "Use web_search instead",
+                        "not accessible",
+                        "Domain blocked",
+                        "Cannot connect",
+                    ))
+                )
+                if _soft_webfetch:
+                    _log.warning(f"[{task_id}] web_fetch soft-fail at step {step.id} — continuing with previous output")
+                    step_outputs[step.id] = last_output  # pass prior output downstream
+                    continue
+
                 duration = time.time() - start
                 _log.error(f"[{task_id}] Task FAILED at step {step.id}: {log.error}")
                 if self.memory:
