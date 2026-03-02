@@ -96,6 +96,15 @@ Cleans \n \r \t inside JSON strings before parsing. Solves "Invalid control char
 ### code_executor via tmpfile
 Code passed to Docker via temp file + volume mount (/sandbox/code.py), NOT via -c argument.
 
+### Memory Graph (Q-5.2)
+memory_edges table: temporal|causal|entity|procedural edges between tasks.
+Edges inferred async by CausalAnalyzer (fire-and-forget after task completion).
+
+### Adaptive Search Policy (Q-5.5)
+Intent classified by Russian keyword regex (no LLM cost): factual|temporal|causal|entity|procedural.
+Each intent activates different memory sources with different weights.
+Graceful degradation: if graph empty, falls back to pure vector search.
+
 ## File Structure
 ```
 organism_ai/
@@ -132,10 +141,17 @@ organism_ai/
 ## Current Metrics (March 2026)
 - Success Rate: ~95%+ (was 90.6% before Quality Plan)
 - Average Quality Score: ~0.82+
-- All 4 Quality Plan sprints complete (Q-1.1 through Q-4.5)
+- All 5 Quality Plan sprints complete (Q-1.1 through Q-5.5)
 - Stage 6 (commercialization) in progress
 
 ## Development Roadmap — Quality Plan ✅ COMPLETE
+### Sprint 5 ✅ (Memory Enhancement — Graph + Temporal) — COMPLETE
+- Q-5.1: Temporal fact tracking — valid_from/valid_until in user_profile and knowledge_rules ✅
+- Q-5.2: Memory edges table — memory_edges with temporal|causal|entity|procedural edges ✅
+- Q-5.3: Causal inference — async background worker analyzes task relationships via Haiku ✅
+- Q-5.4: Procedural templates — extract and reuse successful tool+code patterns ✅
+- Q-5.5: Adaptive search policy — intent classification and weighted multi-source memory search ✅
+
 ### Sprint 1 ✅ (Foundation) — COMPLETE
 - Q-1.1: Evaluator 2.0 — gradient quality_score ✅
 - Q-1.2: Two-phase Planner — Haiku classifier + specialized prompts ✅

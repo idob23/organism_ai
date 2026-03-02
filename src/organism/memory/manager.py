@@ -7,6 +7,7 @@ from .user_facts import UserFactsExtractor
 from .graph import MemoryGraph
 from .causal_analyzer import CausalAnalyzer
 from .templates import TemplateExtractor
+from .search_policy import SearchPolicy
 from .database import init_db, AgentReflection, AsyncSessionLocal
 from src.organism.llm.base import LLMProvider
 
@@ -31,9 +32,76 @@ class MemoryManager:
         self.working.clear()
         self.working.task = task
 
-        # Search for similar past tasks (with LLM reranking when available)
-        similar = await self.longterm.search_similar(task, limit=3, llm=self.llm)
-        return similar
+        policy = SearchPolicy()
+        intent = policy.classify_intent(task)
+        weights = policy.get_weights(intent)
+
+        results: list[dict] = []
+
+        # Vector search — always active, weight varies by intent
+        if weights["vector"] > 0:
+            try:
+                similar = await self.longterm.search_similar(task, limit=3, llm=self.llm)
+                for item in similar:
+                    item["_source"] = "vector"
+                    item["_weight"] = weights["vector"]
+                results.extend(similar)
+            except Exception:
+                pass
+
+        # Temporal — recent tasks via graph edges
+        if weights["temporal"] > 0.3 and self.working.last_task_id:
+            try:
+                temporal = await self.graph.get_related_tasks(
+                    self.working.last_task_id, edge_types=["temporal"], limit=3
+                )
+                for item in temporal:
+                    item["_source"] = "temporal"
+                    item["_weight"] = weights["temporal"]
+                results.extend(temporal)
+            except Exception:
+                pass
+
+        # Causal — cause-effect relationships via graph
+        if weights["causal"] > 0.3 and self.working.last_task_id:
+            try:
+                causal = await self.graph.get_related_tasks(
+                    self.working.last_task_id, edge_types=["causal"], limit=3
+                )
+                for item in causal:
+                    item["_source"] = "causal"
+                    item["_weight"] = weights["causal"]
+                results.extend(causal)
+            except Exception:
+                pass
+
+        # Entity — tasks connected through shared entities
+        if weights["entity"] > 0.3:
+            try:
+                entities = self._extract_entities(task, policy)
+                for entity in entities[:2]:  # max 2 entities to limit DB calls
+                    entity_tasks = await self.graph.get_entity_subgraph(entity, depth=1)
+                    for item in entity_tasks:
+                        item["_source"] = "entity"
+                        item["_weight"] = weights["entity"]
+                    results.extend(entity_tasks)
+            except Exception:
+                pass
+
+        # Deduplicate by task_id / id, sort by _weight desc, cap at 5
+        seen: set[str] = set()
+        unique: list[dict] = []
+        for r in sorted(results, key=lambda x: x.get("_weight", 0), reverse=True):
+            tid = r.get("task_id") or r.get("id", "")
+            if tid and tid not in seen:
+                seen.add(tid)
+                unique.append(r)
+        return unique[:5]
+
+    def _extract_entities(self, task: str, policy: SearchPolicy | None = None) -> list[str]:
+        """Delegate to SearchPolicy.extract_entities (simple heuristic, no LLM)."""
+        p = policy or SearchPolicy()
+        return p.extract_entities(task)
 
     async def on_task_end(
         self,
