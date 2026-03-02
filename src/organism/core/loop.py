@@ -249,7 +249,19 @@ class CoreLoop:
                 log_exception(_log, f"[{task_id}] Cache check failed", e)
 
         # Fast path for writing tasks
-        if _is_writing_task(task):
+        # If intent is retrieval-oriented (temporal/causal/entity) and we have
+        # memory context, skip fast path so the planner can answer from memory
+        # instead of generating new content via text_writer.
+        _skip_fast_path = False
+        if memory_context and self.memory:
+            _intent = SearchPolicy().classify_intent(task)
+            if _intent in ("temporal", "causal", "entity"):
+                _skip_fast_path = True
+                _log.info(f"[{task_id}] Intent={_intent} + memory -> skip writing fast path")
+                if verbose:
+                    print(f"Intent: {_intent} + memory context -> skip fast path, let planner decide")
+
+        if not _skip_fast_path and _is_writing_task(task):
             try:
                 result = await self._run_writing_task(task_id, task, verbose, user_context)
                 if result is not None:
@@ -326,7 +338,7 @@ class CoreLoop:
             _mem_intent = SearchPolicy().classify_intent(task)
             if _mem_intent == "temporal":
                 task_type_hint = "writing"
-                _log.info(f"[{task_id}] Temporal query + memory hits → task_type_hint=writing")
+                _log.info(f"[{task_id}] Temporal query + memory hits -> task_type_hint=writing")
 
         try:
             steps = await self.planner.plan(task, task_context=task_context, user_context=user_context, task_type_hint=task_type_hint)
@@ -402,7 +414,7 @@ class CoreLoop:
                     ))
                 )
                 if _soft_webfetch:
-                    _log.warning(f"[{task_id}] web_fetch soft-fail at step {step.id} — continuing with previous output")
+                    _log.warning(f"[{task_id}] web_fetch soft-fail at step {step.id} -- continuing with previous output")
                     step_outputs[step.id] = last_output  # pass prior output downstream
                     continue
 
