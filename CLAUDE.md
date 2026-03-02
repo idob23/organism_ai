@@ -100,10 +100,20 @@ Code passed to Docker via temp file + volume mount (/sandbox/code.py), NOT via -
 memory_edges table: temporal|causal|entity|procedural edges between tasks.
 Edges inferred async by CausalAnalyzer (fire-and-forget after task completion).
 
+### Temporal Fact Tracking (Q-5.1)
+UserProfile and KnowledgeRule have valid_from/valid_until columns.
+Facts are archived on update (old row gets valid_until, new row created).
+/history command shows fact change timeline.
+
 ### Adaptive Search Policy (Q-5.5)
 Intent classified by Russian keyword regex (no LLM cost): factual|temporal|causal|entity|procedural.
 Each intent activates different memory sources with different weights.
 Graceful degradation: if graph empty, falls back to pure vector search.
+
+### Intent-aware fast path skip
+In CoreLoop.run(), before _is_writing_task() check: if SearchPolicy classifies
+intent as temporal/causal/entity AND memory_context is non-empty, skip writing
+fast path so the planner can answer from memory instead of generating new content.
 
 ## File Structure
 ```
@@ -114,6 +124,7 @@ organism_ai/
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
+│   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
 │   ├── commands/      # handler.py — /remember /forget /profile /style /stats /improve /prompts
 │   ├── channels/      # telegram.py, base.py
 │   ├── llm/           # base.py (TemperatureLocked), claude.py
@@ -139,12 +150,35 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Success Rate: ~95%+ (was 90.6% before Quality Plan)
-- Average Quality Score: ~0.82+
+- Benchmark: 14/14 tasks, 100% success rate (was 90.6% before Quality Plan)
+- Average Quality Score: 0.78
+- Cache hit rate: 36% (5/14 on full benchmark)
 - All 5 Quality Plan sprints complete (Q-1.1 through Q-5.5)
-- Stage 6 (commercialization) in progress
+- Sprint 6 (Orchestration Upgrade) in progress
 
 ## Development Roadmap — Quality Plan ✅ COMPLETE
+
+### Sprint 6 (Orchestration Upgrade) — NEXT
+- Q-6.1: State machine — replace sequential loop with graph-based control, conditional edges, parallel execution
+- Q-6.2: Proactive scheduler — cron-triggered tasks, configurable per-artel schedules for reports, alerts, monitoring
+- Q-6.3: Human-in-the-loop — confirm_with_user sends to Telegram, waits for approval before critical actions
+- Q-6.4: Configurable personality — PERSONALITY.md per artel: communication style, terminology, escalation rules
+- Q-6.5: Gateway abstraction — channel-agnostic gateway for Telegram, CLI, future web UI via single interface
+
+### Sprint 7 (Self-Improvement 2.0)
+- Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence}
+- Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC
+- Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts
+- Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle
+- Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others
+
+### Sprint 8 (Integration — MCP + 1C)
+- Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers
+- Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first
+- Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case
+- Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems
+- Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration
+
 ### Sprint 5 ✅ (Memory Enhancement — Graph + Temporal) — COMPLETE
 - Q-5.1: Temporal fact tracking — valid_from/valid_until in user_profile and knowledge_rules ✅
 - Q-5.2: Memory edges table — memory_edges with temporal|causal|entity|procedural edges ✅
