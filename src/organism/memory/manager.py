@@ -1,9 +1,11 @@
-﻿import hashlib
+﻿import asyncio
+import hashlib
 import uuid
 from .longterm import LongTermMemory
 from .working import WorkingMemory
 from .user_facts import UserFactsExtractor
 from .graph import MemoryGraph
+from .causal_analyzer import CausalAnalyzer
 from .database import init_db, AgentReflection, AsyncSessionLocal
 from src.organism.llm.base import LLMProvider
 
@@ -57,6 +59,15 @@ class MemoryManager:
             self.working.last_task_id = task_id
         except Exception:
             pass
+        # Q-5.3: infer causal/entity/procedural edges in background (non-blocking)
+        if self.llm:
+            try:
+                analyzer = CausalAnalyzer(self.graph, self.longterm)
+                asyncio.create_task(
+                    self._safe_analyze(analyzer, task_id, task, tools_used)
+                )
+            except Exception:
+                pass
         # Extract personal facts from the user's original task text (not from LLM output)
         if self.llm:
             try:
@@ -79,6 +90,19 @@ class MemoryManager:
                 insight=insight,
             ))
             await session.commit()
+
+    async def _safe_analyze(
+        self,
+        analyzer: CausalAnalyzer,
+        task_id: str,
+        task: str,
+        tools_used: list[str],
+    ) -> None:
+        """Background wrapper for CausalAnalyzer — swallows all exceptions."""
+        try:
+            await analyzer.analyze_task(task_id, task, tools_used, self.llm)
+        except Exception:
+            pass
 
     async def get_stats(self) -> dict:
         return await self.longterm.get_stats()

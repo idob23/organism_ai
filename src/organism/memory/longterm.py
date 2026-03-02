@@ -26,6 +26,7 @@ def _enrich_for_embedding(task: str, tools_used: list[str] = None, outcome: str 
 
 def _to_dict(m: TaskMemory) -> dict:
     return {
+        "id": m.id,  # Q-5.3: included for CausalAnalyzer edge creation
         "task": m.task,
         "result": m.result,
         "tools_used": m.tools_used.split(",") if m.tools_used else [],

@@ -1,0 +1,8 @@
+Given two completed tasks, determine their relationship.
+Task A: {task_a}
+Tools A: {tools_a}
+Task B: {task_b}
+Tools B: {tools_b}
+
+Respond with JSON only, no explanation:
+{"entity_overlap": ["list of shared entities or empty"], "causal": true or false, "causal_direction": "a_to_b" or "b_to_a" or "none"}
