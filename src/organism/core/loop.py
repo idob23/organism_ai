@@ -362,9 +362,11 @@ class CoreLoop:
                 print(f"  Plan invalid: {validation_error}")
                 print("  Re-planning with generic prompt...")
             try:
-                steps = await self.planner._fast_plan(task)
+                avail = self.registry.list_all()
+                replan_hint = f"\nIMPORTANT: Only use these tools: {avail}. Do NOT use any other tools."
+                steps = await self.planner._fast_plan(task + replan_hint)
                 if not steps:
-                    steps = await self.planner._react_plan(task)
+                    steps = await self.planner._react_plan(task + replan_hint)
                 validation_error = self._validate_plan(steps)
                 if validation_error:
                     return TaskResult(task_id=task_id, task=task, success=False, output="",

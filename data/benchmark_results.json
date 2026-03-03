@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-03T19:41:43",
+  "timestamp": "2026-03-03T23:01:07",
   "mode": "full",
   "results": [
     {
@@ -7,10 +7,12 @@
       "type": "code",
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
-      "quality_score": 0.95,
-      "duration": 3.36,
-      "tools_used": [],
-      "cache_hit": true,
+      "quality_score": 0.9,
+      "duration": 31.67,
+      "tools_used": [
+        "text_writer"
+      ],
+      "cache_hit": false,
       "error": ""
     },
     {
@@ -18,10 +20,12 @@
       "type": "csv",
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
-      "quality_score": 0.95,
-      "duration": 1.52,
-      "tools_used": [],
-      "cache_hit": true,
+      "quality_score": 0.85,
+      "duration": 18.1,
+      "tools_used": [
+        "text_writer"
+      ],
+      "cache_hit": false,
       "error": ""
     },
     {
@@ -29,10 +33,12 @@
       "type": "writing",
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
-      "quality_score": 0.8,
-      "duration": 1.23,
-      "tools_used": [],
-      "cache_hit": true,
+      "quality_score": 0.0,
+      "duration": 13.64,
+      "tools_used": [
+        "text_writer"
+      ],
+      "cache_hit": false,
       "error": ""
     },
     {
@@ -40,8 +46,8 @@
       "type": "mixed",
       "task": "найди актуальные экологические требования к золотодобыче в России и напиши краткое резюме для руководителя артели",
       "success": true,
-      "quality_score": 0.6167,
-      "duration": 105.8,
+      "quality_score": 0.65,
+      "duration": 87.08,
       "tools_used": [
         "text_writer",
         "web_search"
@@ -54,10 +60,12 @@
       "type": "presentation",
       "task": "создай презентацию из 5 слайдов о технологии россыпной золотодобычи: введение, оборудование, технология, показатели, выв",
       "success": true,
-      "quality_score": 0.8,
-      "duration": 1.63,
-      "tools_used": [],
-      "cache_hit": true,
+      "quality_score": 0.85,
+      "duration": 28.99,
+      "tools_used": [
+        "pptx_creator"
+      ],
+      "cache_hit": false,
       "error": ""
     },
     {
@@ -65,8 +73,8 @@
       "type": "research",
       "task": "найди текущую цену золота на мировом рынке в долларах и рублях за грамм",
       "success": true,
-      "quality_score": 0.6333,
-      "duration": 27.21,
+      "quality_score": 0.6,
+      "duration": 18.25,
       "tools_used": [
         "web_fetch",
         "web_search"
@@ -79,10 +87,10 @@
       "type": "analysis",
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
-      "quality_score": 1.0,
-      "duration": 13.79,
+      "quality_score": 0.95,
+      "duration": 28.05,
       "tools_used": [
-        "code_executor"
+        "text_writer"
       ],
       "cache_hit": false,
       "error": ""
@@ -93,18 +101,20 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.95,
-      "duration": 1.64,
-      "tools_used": [],
-      "cache_hit": true,
+      "duration": 39.2,
+      "tools_used": [
+        "text_writer"
+      ],
+      "cache_hit": false,
       "error": ""
     },
     {
       "id": 9,
       "type": "multi-agent",
       "task": "найди актуальные цены на дизельное топливо в России и рассчитай стоимость топлива для золотодобывающего сезона: расход 2",
-      "success": true,
-      "quality_score": 0.75,
-      "duration": 239.22,
+      "success": false,
+      "quality_score": 0.0,
+      "duration": 3.06,
       "tools_used": [
         "multi-agent"
       ],
@@ -117,7 +127,7 @@
       "task": "/stats",
       "success": true,
       "quality_score": 1.0,
-      "duration": 0.01,
+      "duration": 0.0,
       "tools_used": [],
       "cache_hit": false,
       "error": ""
@@ -126,24 +136,21 @@
       "id": 11,
       "type": "temporal-query",
       "task": "когда последний раз делали отчёт по расходу ГСМ и какой был результат",
-      "success": true,
-      "quality_score": 0.4,
-      "duration": 17.85,
-      "tools_used": [
-        "file_manager"
-      ],
+      "success": false,
+      "quality_score": 0.0,
+      "duration": 13.47,
+      "tools_used": [],
       "cache_hit": false,
-      "error": ""
+      "error": "Step 1 failed: Code exited with code 1"
     },
     {
       "id": 12,
       "type": "entity-query",
       "task": "покажи все задачи связанные с КамАЗ-65115 и его обслуживанием",
       "success": true,
-      "quality_score": 0.5667,
-      "duration": 25.14,
+      "quality_score": 0.7,
+      "duration": 12.76,
       "tools_used": [
-        "web_fetch",
         "web_search"
       ],
       "cache_hit": false,
@@ -154,10 +161,10 @@
       "type": "template-reuse",
       "task": "создай CSV таблицу расходов на ГСМ за август 2025: КамАЗ-65115 900л, Экскаватор PC-300 1100л, Бульдозер Т-170 1050л",
       "success": true,
-      "quality_score": 0.75,
-      "duration": 14.2,
+      "quality_score": 0.7,
+      "duration": 11.13,
       "tools_used": [
-        "code_executor"
+        "file_manager"
       ],
       "cache_hit": false,
       "error": ""
@@ -166,23 +173,82 @@
       "id": 14,
       "type": "causal-query",
       "task": "почему расход топлива на бульдозер выше нормы и что можно сделать для снижения",
-      "success": true,
-      "quality_score": 0.7167,
-      "duration": 23.22,
+      "success": false,
+      "quality_score": 0.0,
+      "duration": 34.67,
       "tools_used": [
         "web_search"
       ],
+      "cache_hit": false,
+      "error": "Step 3 failed: Output is completely irrelevant to the task. The step was to obtain detailed information about fuel consumption norms and monitoring for bulldozers, but the output contains only fragmen"
+    },
+    {
+      "id": 15,
+      "type": "orchestrator-sm",
+      "task": "найди среднюю цену дизеля в России и напиши краткую справку для директора",
+      "success": true,
+      "quality_score": 0.75,
+      "duration": 61.3,
+      "tools_used": [
+        "multi-agent"
+      ],
+      "cache_hit": false,
+      "error": ""
+    },
+    {
+      "id": 16,
+      "type": "cmd-schedule",
+      "task": "/schedule",
+      "success": true,
+      "quality_score": 1.0,
+      "duration": 0.0,
+      "tools_used": [],
+      "cache_hit": false,
+      "error": ""
+    },
+    {
+      "id": 17,
+      "type": "cmd-personality",
+      "task": "/personality",
+      "success": true,
+      "quality_score": 1.0,
+      "duration": 0.0,
+      "tools_used": [],
+      "cache_hit": false,
+      "error": ""
+    },
+    {
+      "id": 18,
+      "type": "gateway-write",
+      "task": "напиши памятку для мастера смены по приёмке топлива: проверка объёма, оформление накладной, контроль качества",
+      "success": true,
+      "quality_score": 0.0,
+      "duration": 31.96,
+      "tools_used": [
+        "text_writer"
+      ],
+      "cache_hit": false,
+      "error": ""
+    },
+    {
+      "id": 19,
+      "type": "cmd-help",
+      "task": "/help",
+      "success": true,
+      "quality_score": 1.0,
+      "duration": 0.0,
+      "tools_used": [],
       "cache_hit": false,
       "error": ""
     }
   ],
   "summary": {
-    "total": 14,
-    "successful": 14,
-    "success_rate": 100.0,
-    "avg_quality": 0.7774,
-    "avg_duration": 33.99,
-    "cache_hits": 5,
-    "cache_hit_rate": 35.7
+    "total": 19,
+    "successful": 16,
+    "success_rate": 84.2,
+    "avg_quality": 0.85,
+    "avg_duration": 22.81,
+    "cache_hits": 0,
+    "cache_hit_rate": 0.0
   }
 }

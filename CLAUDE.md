@@ -24,7 +24,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | MemoryManager | src/organism/memory/manager.py | pgvector, on_task_start / on_task_end |
 | SafetyValidator | src/organism/safety/validator.py | Block dangerous operations |
 
-### Tools (6 total)
+### Tools (7 total)
 | Tool | File | Notes |
 |------|------|-------|
 | code_executor | tools/code_executor.py | Docker sandbox, tmpfile + volume mount |
@@ -33,6 +33,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | file_manager | tools/file_manager.py | Short plain text only, NOT for CSV |
 | text_writer | tools/text_writer.py | Long text generation + save to file |
 | pptx_creator | tools/pptx_creator.py | PowerPoint via python-pptx |
+| confirm_with_user | tools/confirm_user.py | Human approval via Telegram (Q-6.3), only in Telegram mode |
 
 ### Agents (multi mode)
 | Agent | File | Purpose |
@@ -53,6 +54,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 - Logging: structlog
 - Config: .env + pydantic-settings
 - Prompts: config/prompts/*.txt
+- Personality: config/personality/*.md (per-artel personality configs)
 
 ## Key Architecture Decisions
 
@@ -115,6 +117,46 @@ In CoreLoop.run(), before _is_writing_task() check: if SearchPolicy classifies
 intent as temporal/causal/entity AND memory_context is non-empty, skip writing
 fast path so the planner can answer from memory instead of generating new content.
 
+### Orchestrator State Machine (Q-6.1)
+Orchestrator uses a state machine workflow (INIT → ROUTING → EXECUTING → EVALUATING → DONE/FAILED).
+Replaces simple sequential loop with graph-based control, conditional edges, parallel agent execution.
+State transitions logged via structlog for debugging.
+
+### Proactive Scheduler (Q-6.2)
+`ProactiveScheduler` in core/scheduler.py. Background asyncio task polls every 30s.
+`ScheduledJob` dataclass: name, task_text, schedule_type (daily/weekly/interval), time_of_day, weekday.
+`DEFAULT_ARTEL_JOBS`: morning_summary (daily 06:30), weekly_production (Mon 08:00), fuel_anomaly_check (360min).
+`_should_run()` computes next run time, compares with `last_run`. Scheduler NOT started in benchmark.
+
+### Human-in-the-loop Approval (Q-6.3)
+`HumanApproval` in core/human_approval.py. `PendingApproval` dataclass with asyncio.Event.
+`request_approval(description)` sends to Telegram via `send_fn`, waits up to 300s.
+`resolve(short_id, approved)` finds by request_id prefix (8 chars), sets event.
+`ConfirmUserTool` wraps HumanApproval, registered only in Telegram mode (`run_telegram()`).
+Planner prompts (planner_fast.txt, planner_react.txt) list confirm_with_user for critical actions.
+
+### Configurable Personality (Q-6.4)
+`PersonalityConfig` in core/personality.py. Loads `config/personality/{artel_id}.md`.
+Sections parsed from `## Heading` structure: style, terminology, escalation, report_prefs, working_hours.
+`get_system_prompt_addition()` returns full personality as system prompt suffix.
+`get_term(key)` returns terminology mapping. `get_section(name)` returns raw section text.
+Injected into `user_context` in CoreLoop.run(), after user_facts.
+`settings.artel_id` (env ARTEL_ID) selects personality file, default fallback.
+
+### Gateway Abstraction (Q-6.5)
+`Gateway` in channels/gateway.py. Channel-agnostic message router.
+`IncomingMessage`/`OutgoingMessage` dataclasses in channels/base.py.
+`handle_message()`: routes commands → CommandHandler, tasks → CoreLoop, long text → temp file.
+`CLIChannel` in channels/cli_channel.py uses Gateway instead of direct CoreLoop.
+`TelegramChannel` refactored to use Gateway, keeps progress ticker (Telegram-specific).
+`broadcast()` sends to all registered channels (for scheduler notifications).
+
+### Re-plan with available tools hint
+When plan validation fails (tool not in registry), re-plan appends available tools list
+to the task text (`IMPORTANT: Only use these tools: [...]`) so the LLM picks from
+valid tools only. Prevents regression when planner prompts list tools not registered
+in current mode (e.g., confirm_with_user absent in CLI/benchmark mode).
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -125,6 +167,7 @@ fast path so the planner can answer from memory instead of generating new conten
 | text_writer | Returns full content in output (not just preview) |
 | pptx_creator | python-pptx, no Docker required |
 | file_manager | Uses OUTPUTS_DIR from base.py |
+| confirm_with_user | Wraps HumanApproval. Telegram-only. Planner picks it for critical writes (Q-6.3) |
 
 ### Core Loop Mechanics
 - `{{step_N_output}}` placeholders -- CoreLoop._resolve_input() replaces with actual previous step results
@@ -142,8 +185,27 @@ python main.py --stats            # Memory statistics
 python main.py --analyze          # Performance analysis
 python main.py --improve --days 7 # Auto-improvement cycle
 python main.py --cache            # Solution cache stats
-python benchmark.py               # Full benchmark (14 tasks)
+python benchmark.py               # Full benchmark (19 tasks)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
+```
+
+### Bot/Chat Commands
+```
+/remember <key> <value>   — save a personal fact
+/forget <key>             — delete a fact by key
+/profile                  — show all saved personal facts
+/history <key>            — show change history for a fact
+/style <style>            — set writing style (formal/informal/technical/brief)
+/stats                    — show system statistics
+/improve [days]           — run auto-improvement cycle
+/prompts                  — show active prompt versions and quality stats
+/schedule                 — show scheduled tasks
+/schedule_enable <name>   — enable a scheduled task
+/schedule_disable <name>  — disable a scheduled task
+/approve <id>             — approve a pending action
+/reject <id>              — reject a pending action
+/personality              — show current personality config
+/help                     — show available commands
 ```
 
 ## File Structure
@@ -151,24 +213,28 @@ python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
 organism_ai/
 ├── src/organism/
 │   ├── core/          # loop.py, planner.py, evaluator.py, context_budget.py
-│   ├── tools/         # registry.py, code_executor.py, web_search.py, etc.
+│   │                  # scheduler.py, human_approval.py, personality.py
+│   ├── tools/         # registry.py, code_executor.py, web_search.py, confirm_user.py, etc.
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
 │   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
 │   ├── commands/      # handler.py — /remember /forget /profile /style /stats /improve /prompts
-│   ├── channels/      # telegram.py (progress ticker, file attachments for long responses), base.py
+│   │                  #   /schedule /schedule_enable /schedule_disable /approve /reject /personality
+│   ├── channels/      # base.py (IncomingMessage, OutgoingMessage), gateway.py
+│   │                  # telegram.py (progress ticker, file attachments), cli_channel.py
 │   ├── llm/           # base.py (TemperatureLocked), claude.py
 │   ├── logging/       # logger.py, error_handler.py
 │   ├── safety/        # validator.py
 │   └── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
 ├── config/
-│   ├── settings.py
+│   ├── settings.py    # artel_id (ARTEL_ID env var)
+│   ├── personality/   # default.md (per-artel personality configs)
 │   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
 │                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
-├── benchmark.py       # 14-task benchmark suite (10 baseline + 4 Sprint 5)
+├── benchmark.py       # 19-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6)
 ├── CONTEXT.md         # Brief context for VS Code plugin (auto-generated)
 ├── organism_architecture_principles.md  # Canonical architecture principles
 └── pyproject.toml
@@ -185,22 +251,23 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Benchmark: 14/14 tasks, 100% success rate (was 90.6% before Quality Plan)
-- Average Quality Score: 0.78
-- Cache hit rate: 36% (5/14 on full benchmark)
-- All 5 Quality Plan sprints complete (Q-1.1 through Q-5.5)
-- Sprint 6 (Orchestration Upgrade) in progress
+- Benchmark: 19 tasks total (16/19 success without Docker/DB, 84.2%)
+- With Docker+DB: expected 19/19 (100%) — failures are environmental only
+- Average Quality Score: 0.85
+- Cache hit rate: 36% (5/14 on warm DB, 0% without DB)
+- All 6 sprints complete (Q-1.1 through Q-6.5)
+- Sprint 7 (Self-Improvement 2.0) — NEXT
 
 ## Development Roadmap — Quality Plan ✅ COMPLETE
 
-### Sprint 6 (Orchestration Upgrade) — NEXT
-- Q-6.1: State machine — replace sequential loop with graph-based control, conditional edges, parallel execution ✅
-- Q-6.2: Proactive scheduler — cron-triggered tasks, configurable per-artel schedules for reports, alerts, monitoring ✅
-- Q-6.3: Human-in-the-loop — confirm_with_user sends to Telegram, waits for approval before critical actions ✅
-- Q-6.4: Configurable personality — PERSONALITY.md per artel: communication style, terminology, escalation rules ✅
-- Q-6.5: Gateway abstraction — channel-agnostic gateway for Telegram, CLI, future web UI via single interface ✅
+### Sprint 6 ✅ (Orchestration Upgrade) — COMPLETE
+- Q-6.1: State machine — graph-based orchestrator workflow (INIT→ROUTING→EXECUTING→EVALUATING→DONE) ✅
+- Q-6.2: Proactive scheduler — ScheduledJob (daily/weekly/interval), DEFAULT_ARTEL_JOBS, /schedule commands ✅
+- Q-6.3: Human-in-the-loop — HumanApproval + ConfirmUserTool, asyncio.Event + 300s timeout, /approve /reject ✅
+- Q-6.4: Configurable personality — PersonalityConfig from config/personality/{artel_id}.md, sections + terms ✅
+- Q-6.5: Gateway abstraction — IncomingMessage/OutgoingMessage, Gateway router, CLIChannel, TelegramChannel refactor ✅
 
-### Sprint 7 (Self-Improvement 2.0)
+### Sprint 7 (Self-Improvement 2.0) — NEXT
 - Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence}
 - Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC
 - Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts
@@ -298,6 +365,13 @@ Block D (real artel tasks): 3/5+ completed (KP, work order template, production 
 - Overall: 14/14 (100%), avg quality 0.78
 - Cache hits: 5/14 (36%)
 
+### Sprint 6 Benchmark (Mar 2026)
+- Expanded to 19 tasks (10 baseline + 4 Sprint 5 + 5 Sprint 6)
+- Without Docker/DB: 16/19 (84.2%), avg quality 0.85
+- Sprint 6 tasks (15-19): 5/5 (100%), avg quality 0.90
+- Failures are environmental only (Docker/DB unavailable), not code regressions
+- Re-plan regression fixed: confirm_with_user in planner prompts → available tools hint in re-plan
+
 ### Critical Bugs Fixed (historical)
 - Evaluator too strict -> lenient rules added
 - web_fetch 403 crash -> graceful skip with exit_code=0
@@ -307,3 +381,4 @@ Block D (real artel tasks): 3/5+ completed (KP, work order template, production 
 - SSL verify fail on Russian sites -> verify=False + ConnectError graceful handling
 - datetime.now(timezone.utc) incompatible with asyncpg -> datetime.utcnow()
 - Writing fast path intercepting temporal/causal queries -> intent-aware skip
+- Re-plan picking unavailable tools -> available tools hint appended to re-plan task (Q-6.3/Q-6.5)

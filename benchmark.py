@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 14 task types and reports a formatted summary.
+Measures quality across 19 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
 Tasks 11-14: Sprint 5 coverage (temporal-query, entity-query, template-reuse,
              causal-query) — require a warm DB with prior memory/graph data.
+Tasks 15-19: Sprint 6 coverage (orchestrator-sm, cmd-schedule, cmd-personality,
+             gateway-write, cmd-help)
 
 Usage:
-    python benchmark.py           # run all 14 tasks
+    python benchmark.py           # run all 19 tasks
     python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
 """
 import argparse
@@ -232,6 +234,54 @@ TASKS = [
             "\u0434\u043b\u044f \u0441\u043d\u0438\u0436\u0435\u043d\u0438\u044f"
         ),
     },
+    # ── Sprint 6 tasks (Q-6.1 through Q-6.5) ─────────────────────────────────
+    {
+        "id": 15,
+        "type": "orchestrator-sm",
+        # Orchestrator state-machine (Q-6.1): multi-agent task to verify routing
+        "task": (
+            "\u043d\u0430\u0439\u0434\u0438 \u0441\u0440\u0435\u0434\u043d\u044e\u044e "
+            "\u0446\u0435\u043d\u0443 \u0434\u0438\u0437\u0435\u043b\u044f \u0432 "
+            "\u0420\u043e\u0441\u0441\u0438\u0438 \u0438 \u043d\u0430\u043f\u0438\u0448\u0438 "
+            "\u043a\u0440\u0430\u0442\u043a\u0443\u044e \u0441\u043f\u0440\u0430\u0432\u043a\u0443 "
+            "\u0434\u043b\u044f \u0434\u0438\u0440\u0435\u043a\u0442\u043e\u0440\u0430"
+        ),
+        "mode": "orchestrator",
+    },
+    {
+        "id": 16,
+        "type": "cmd-schedule",
+        # /schedule command (Q-6.2): list scheduled tasks
+        "task": "/schedule",
+        "mode": "command",
+    },
+    {
+        "id": 17,
+        "type": "cmd-personality",
+        # /personality command (Q-6.4): show current personality config
+        "task": "/personality",
+        "mode": "command",
+    },
+    {
+        "id": 18,
+        "type": "gateway-write",
+        # Gateway writing regression (Q-6.5): writing task must still work through CoreLoop
+        "task": (
+            "\u043d\u0430\u043f\u0438\u0448\u0438 \u043f\u0430\u043c\u044f\u0442\u043a\u0443 "
+            "\u0434\u043b\u044f \u043c\u0430\u0441\u0442\u0435\u0440\u0430 \u0441\u043c\u0435\u043d\u044b "
+            "\u043f\u043e \u043f\u0440\u0438\u0451\u043c\u043a\u0435 \u0442\u043e\u043f\u043b\u0438\u0432\u0430: "
+            "\u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043e\u0431\u044a\u0451\u043c\u0430, "
+            "\u043e\u0444\u043e\u0440\u043c\u043b\u0435\u043d\u0438\u0435 \u043d\u0430\u043a\u043b\u0430\u0434\u043d\u043e\u0439, "
+            "\u043a\u043e\u043d\u0442\u0440\u043e\u043b\u044c \u043a\u0430\u0447\u0435\u0441\u0442\u0432\u0430"
+        ),
+    },
+    {
+        "id": 19,
+        "type": "cmd-help",
+        # /help command: verifies Sprint 6 commands appear in help text
+        "task": "/help",
+        "mode": "command",
+    },
 ]
 
 # Task IDs included in --quick mode
@@ -258,7 +308,10 @@ class BenchmarkResult:
 
 def build_registry() -> ToolRegistry:
     registry = ToolRegistry()
-    registry.register(CodeExecutorTool())
+    try:
+        registry.register(CodeExecutorTool())
+    except Exception:
+        print("  [warn] Docker unavailable — code_executor skipped")
     registry.register(PptxCreatorTool())
     registry.register(TextWriterTool())
     registry.register(WebFetchTool())
@@ -345,10 +398,11 @@ async def run_orchestrator_task(
 
 
 async def run_command_task(
-    task_def: dict, memory: MemoryManager | None
+    task_def: dict, memory: MemoryManager | None,
+    scheduler=None, personality=None,
 ) -> BenchmarkResult:
     """Run a slash command through CommandHandler."""
-    handler = CommandHandler()
+    handler = CommandHandler(scheduler=scheduler, personality=personality)
     task_text = task_def["task"]
     t0 = time.time()
     try:
@@ -509,11 +563,31 @@ async def run_benchmark(quick: bool) -> None:
     # Build shared resources — same pattern as main.py
     llm = ClaudeProvider()
     registry = build_registry()
-    memory = MemoryManager() if settings.database_url else None
-    if memory:
-        await memory.initialize()
+    memory = None
+    if settings.database_url:
+        try:
+            memory = MemoryManager()
+            await memory.initialize()
+        except Exception:
+            print("  [warn] Database unavailable — running without memory")
+            memory = None
 
-    loop = CoreLoop(llm, registry, memory=memory)
+    personality = None
+    try:
+        from src.organism.core.personality import PersonalityConfig
+        p = PersonalityConfig(artel_id=settings.artel_id)
+        p.load()
+        personality = p
+    except Exception:
+        pass
+
+    loop = CoreLoop(llm, registry, memory=memory, personality=personality)
+
+    # Scheduler for /schedule command tests (not started — just provides job list)
+    from src.organism.core.scheduler import ProactiveScheduler, DEFAULT_ARTEL_JOBS
+    scheduler = ProactiveScheduler(task_runner=loop.run)
+    for job in DEFAULT_ARTEL_JOBS:
+        scheduler.add_job(job)
 
     results: list[BenchmarkResult] = []
 
@@ -525,7 +599,7 @@ async def run_benchmark(quick: bool) -> None:
         if task_mode == "orchestrator":
             bm = await run_orchestrator_task(task_def, llm, registry, memory)
         elif task_mode == "command":
-            bm = await run_command_task(task_def, memory)
+            bm = await run_command_task(task_def, memory, scheduler=scheduler, personality=personality)
         else:
             bm = await run_loop_task(task_def, loop)
 
@@ -545,7 +619,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python benchmark.py            # full suite (10 tasks)\n"
+            "  python benchmark.py            # full suite (19 tasks)\n"
             "  python benchmark.py --quick    # fast check (5 tasks, no web/multi-agent)\n"
         ),
     )
