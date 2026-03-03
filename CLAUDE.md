@@ -194,8 +194,8 @@ organism_ai/
 ## Development Roadmap — Quality Plan ✅ COMPLETE
 
 ### Sprint 6 (Orchestration Upgrade) — NEXT
-- Q-6.1: State machine — replace sequential loop with graph-based control, conditional edges, parallel execution
-- Q-6.2: Proactive scheduler — cron-triggered tasks, configurable per-artel schedules for reports, alerts, monitoring
+- Q-6.1: State machine — replace sequential loop with graph-based control, conditional edges, parallel execution ✅
+- Q-6.2: Proactive scheduler — cron-triggered tasks, configurable per-artel schedules for reports, alerts, monitoring ✅
 - Q-6.3: Human-in-the-loop — confirm_with_user sends to Telegram, waits for approval before critical actions
 - Q-6.4: Configurable personality — PERSONALITY.md per artel: communication style, terminology, escalation rules
 - Q-6.5: Gateway abstraction — channel-agnostic gateway for Telegram, CLI, future web UI via single interface
