@@ -7,6 +7,7 @@ AVAILABLE TOOLS:
 - web_fetch: fetch URL. input: {"url": "https://...", "max_chars": 3000}
 - file_manager: read/write SHORT plain text files only (under 30 lines, NO CSV/tables). input: {"action": "write", "path": "file.txt", "content": "short content"}
 - pptx_creator: PowerPoint. input: {"filename": "x.pptx", "topic": "...", "slides": [{"title": "...", "content": "brief"}]}
+- confirm_with_user: ask user for approval before critical operations (writing to 1C, sending documents, deleting data). input: {"description": "what will be done"}
 
 RULES:
 - For writing articles, proposals, reports  text_writer
@@ -16,6 +17,8 @@ RULES:
 - code_executor: write actual working Python code, not a comment stub
 - All print() statements must be explicit in the code
 - NEVER use web_fetch on: g2.com, statista.com, forbes.com
+- Before writing to external systems (1C, email, file deletion) — ALWAYS use confirm_with_user first
+- If confirm_with_user returns rejected — STOP, do not proceed with the operation
 - Maximum 3 steps
 
 Example for calculation:

@@ -130,10 +130,30 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
 async def run_telegram() -> None:
     from src.organism.channels.telegram import TelegramChannel
     from src.organism.core.scheduler import ProactiveScheduler, DEFAULT_ARTEL_JOBS
+    from src.organism.core.human_approval import HumanApproval
+    from src.organism.tools.confirm_user import ConfirmUserTool
     if not settings.telegram_bot_token:
         print("Error: TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
     registry = build_registry()
+
+    # --- Human-in-the-loop approval ---
+    async def _send_approval(message: str) -> None:
+        """Send approval request to allowed Telegram users."""
+        from aiogram import Bot
+        bot = Bot(token=settings.telegram_bot_token)
+        try:
+            for uid in (settings.allowed_user_ids or []):
+                try:
+                    await bot.send_message(uid, message)
+                except Exception:
+                    pass
+        finally:
+            await bot.session.close()
+
+    approval = HumanApproval(send_fn=_send_approval)
+    registry.register(ConfirmUserTool(approval=approval))
+
     loop = build_loop(registry)
 
     # --- Proactive scheduler ---
@@ -158,7 +178,7 @@ async def run_telegram() -> None:
         scheduler.add_job(job)
     scheduler.start()
 
-    channel = TelegramChannel(loop, scheduler=scheduler)
+    channel = TelegramChannel(loop, scheduler=scheduler, approval=approval)
     print("Organism AI Telegram bot starting...")
     try:
         await channel.start()

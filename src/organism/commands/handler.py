@@ -21,14 +21,17 @@ HELP_TEXT = (
     "  /schedule                \u2014 show scheduled tasks\n"
     "  /schedule_enable <name>  \u2014 enable a scheduled task\n"
     "  /schedule_disable <name> \u2014 disable a scheduled task\n"
+    "  /approve <id>            \u2014 approve a pending action\n"
+    "  /reject <id>             \u2014 reject a pending action\n"
     "  /help                    \u2014 show this help\n"
 )
 
 
 class CommandHandler:
 
-    def __init__(self, scheduler=None) -> None:
+    def __init__(self, scheduler=None, approval=None) -> None:
         self.scheduler = scheduler
+        self.approval = approval
 
     def is_command(self, text: str) -> bool:
         return text.strip().startswith("/")
@@ -47,6 +50,12 @@ class CommandHandler:
             return self._handle_schedule_toggle(parts, enable=True)
         elif cmd == "/schedule_disable":
             return self._handle_schedule_toggle(parts, enable=False)
+
+        # Approval commands — no memory required
+        if cmd == "/approve":
+            return self._handle_approval(parts, approved=True)
+        elif cmd == "/reject":
+            return self._handle_approval(parts, approved=False)
 
         if memory is None:
             return "Memory not available (DATABASE_URL not configured)."
@@ -235,6 +244,16 @@ class CommandHandler:
         else:
             self.scheduler.disable_job(name)
             return f"Disabled: {name}"
+
+    def _handle_approval(self, parts: list[str], approved: bool) -> str:
+        """Resolve a pending approval: /approve <id> or /reject <id>."""
+        if self.approval is None:
+            return "Approval system not available (only in Telegram mode)."
+        if len(parts) < 2:
+            cmd = "/approve" if approved else "/reject"
+            return f"Usage: {cmd} <id>"
+        short_id = parts[1].strip()
+        return self.approval.resolve(short_id, approved)
 
     async def _handle_prompts(self, memory: "MemoryManager") -> str:
         """Show active prompt versions and their quality stats."""
