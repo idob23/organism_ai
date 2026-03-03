@@ -12,8 +12,9 @@ from config.settings import settings
 
 class TelegramChannel(BaseChannel):
 
-    def __init__(self, loop: CoreLoop) -> None:
+    def __init__(self, loop: CoreLoop, scheduler=None) -> None:
         self.loop = loop
+        self.scheduler = scheduler
         self.bot = Bot(token=settings.telegram_bot_token)
         self.dp = Dispatcher()
         self._setup_handlers()
@@ -35,7 +36,7 @@ class TelegramChannel(BaseChannel):
     def _setup_handlers(self) -> None:
         allowed = settings.allowed_user_ids
         from src.organism.commands.handler import CommandHandler
-        cmd_handler = CommandHandler()
+        cmd_handler = CommandHandler(scheduler=self.scheduler)
 
         @self.dp.message(CommandStart())
         async def cmd_start(message: Message) -> None:

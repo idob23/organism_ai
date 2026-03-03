@@ -10,19 +10,25 @@ VALID_STYLES = {"formal", "informal", "technical", "brief"}
 
 HELP_TEXT = (
     "Available commands:\n"
-    "  /remember <key> <value>  — save a personal fact\n"
-    "  /forget <key>            — delete a fact by key\n"
-    "  /profile                 — show all saved personal facts\n"
-    "  /history <key>           — show change history for a fact\n"
-    "  /style <style>           — set writing style (formal/informal/technical/brief)\n"
-    "  /stats                   — show system statistics\n"
-    "  /improve [days]          — run auto-improvement cycle (default: last 7 days)\n"
-    "  /prompts                 — show active prompt versions and quality stats\n"
-    "  /help                    — show this help\n"
+    "  /remember <key> <value>  \u2014 save a personal fact\n"
+    "  /forget <key>            \u2014 delete a fact by key\n"
+    "  /profile                 \u2014 show all saved personal facts\n"
+    "  /history <key>           \u2014 show change history for a fact\n"
+    "  /style <style>           \u2014 set writing style (formal/informal/technical/brief)\n"
+    "  /stats                   \u2014 show system statistics\n"
+    "  /improve [days]          \u2014 run auto-improvement cycle (default: last 7 days)\n"
+    "  /prompts                 \u2014 show active prompt versions and quality stats\n"
+    "  /schedule                \u2014 show scheduled tasks\n"
+    "  /schedule_enable <name>  \u2014 enable a scheduled task\n"
+    "  /schedule_disable <name> \u2014 disable a scheduled task\n"
+    "  /help                    \u2014 show this help\n"
 )
 
 
 class CommandHandler:
+
+    def __init__(self, scheduler=None) -> None:
+        self.scheduler = scheduler
 
     def is_command(self, text: str) -> bool:
         return text.strip().startswith("/")
@@ -33,6 +39,14 @@ class CommandHandler:
 
         if cmd == "/help":
             return HELP_TEXT
+
+        # Schedule commands — no memory required
+        if cmd == "/schedule":
+            return self._handle_schedule()
+        elif cmd == "/schedule_enable":
+            return self._handle_schedule_toggle(parts, enable=True)
+        elif cmd == "/schedule_disable":
+            return self._handle_schedule_toggle(parts, enable=False)
 
         if memory is None:
             return "Memory not available (DATABASE_URL not configured)."
@@ -180,6 +194,47 @@ class CommandHandler:
         if summary["rules_saved"] == 0:
             lines.append("  (not enough repeating failure patterns yet)")
         return "\n".join(lines)
+
+    def _handle_schedule(self) -> str:
+        """Show all scheduled tasks: /schedule."""
+        if self.scheduler is None:
+            return "Scheduler not available (only in Telegram mode)."
+        jobs = self.scheduler.list_jobs()
+        if not jobs:
+            return "No scheduled tasks."
+        lines = ["Scheduled tasks:"]
+        for j in jobs:
+            status = "ON" if j.enabled else "OFF"
+            if j.schedule_type == "daily":
+                sched = f"daily {j.time_of_day.strftime('%H:%M')}" if j.time_of_day else "daily"
+            elif j.schedule_type == "weekly":
+                days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                day = days[j.weekday] if j.weekday is not None else "?"
+                t = j.time_of_day.strftime("%H:%M") if j.time_of_day else ""
+                sched = f"weekly {day} {t}".strip()
+            else:
+                sched = f"every {j.interval_minutes}min" if j.interval_minutes else "interval"
+            last = j.last_run.strftime("%Y-%m-%d %H:%M") if j.last_run else "never"
+            lines.append(f"  [{status}] {j.name} — {sched} (last: {last})")
+        return "\n".join(lines)
+
+    def _handle_schedule_toggle(self, parts: list[str], enable: bool) -> str:
+        """Enable or disable a scheduled task."""
+        if self.scheduler is None:
+            return "Scheduler not available (only in Telegram mode)."
+        if len(parts) < 2:
+            cmd = "/schedule_enable" if enable else "/schedule_disable"
+            return f"Usage: {cmd} <name>"
+        name = parts[1].strip()
+        if name not in self.scheduler.jobs:
+            available = ", ".join(self.scheduler.jobs.keys()) if self.scheduler.jobs else "none"
+            return f"Job not found: {name}\nAvailable: {available}"
+        if enable:
+            self.scheduler.enable_job(name)
+            return f"Enabled: {name}"
+        else:
+            self.scheduler.disable_job(name)
+            return f"Disabled: {name}"
 
     async def _handle_prompts(self, memory: "MemoryManager") -> str:
         """Show active prompt versions and their quality stats."""

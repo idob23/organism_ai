@@ -129,14 +129,41 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
 
 async def run_telegram() -> None:
     from src.organism.channels.telegram import TelegramChannel
+    from src.organism.core.scheduler import ProactiveScheduler, DEFAULT_ARTEL_JOBS
     if not settings.telegram_bot_token:
         print("Error: TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
     registry = build_registry()
     loop = build_loop(registry)
-    channel = TelegramChannel(loop)
+
+    # --- Proactive scheduler ---
+    async def _notify(artel_id: str, message: str) -> None:
+        """Send scheduled task result to allowed Telegram users."""
+        from aiogram import Bot
+        bot = Bot(token=settings.telegram_bot_token)
+        try:
+            for uid in (settings.allowed_user_ids or []):
+                try:
+                    await bot.send_message(uid, message)
+                except Exception:
+                    pass
+        finally:
+            await bot.session.close()
+
+    scheduler = ProactiveScheduler(
+        task_runner=loop.run,
+        notify=_notify if settings.allowed_user_ids else None,
+    )
+    for job in DEFAULT_ARTEL_JOBS:
+        scheduler.add_job(job)
+    scheduler.start()
+
+    channel = TelegramChannel(loop, scheduler=scheduler)
     print("Organism AI Telegram bot starting...")
-    await channel.start()
+    try:
+        await channel.start()
+    finally:
+        scheduler.stop()
 
 
 async def run_stats() -> None:
