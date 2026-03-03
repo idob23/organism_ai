@@ -19,12 +19,13 @@ class PersonalityConfig:
 
     def __init__(self, artel_id: str = "default") -> None:
         self.artel_id = artel_id
+        self.raw_content: str = ""
+        self.sections: dict[str, str] = {}
         self.style: dict[str, str] = {}
         self.terminology: dict[str, str] = {}
         self.escalation: list[str] = []
         self.report_prefs: dict[str, str] = {}
         self.working_hours: dict[str, str] = {}
-        self.raw_content: str = ""
 
     def load(self, path: str | None = None) -> None:
         """Load personality from markdown file.
@@ -63,12 +64,19 @@ class PersonalityConfig:
     def _parse_sections(self, content: str) -> None:
         """Parse markdown into sections by ## headings."""
         current_section = ""
+        section_lines: dict[str, list[str]] = {}
         for line in content.splitlines():
             stripped = line.strip()
             if stripped.startswith("## "):
                 current_section = stripped[3:].strip().lower()
+                section_lines.setdefault(current_section, [])
                 continue
-            if not stripped or stripped.startswith("# "):
+            if stripped.startswith("# "):
+                continue
+            if current_section and stripped:
+                section_lines.setdefault(current_section, []).append(stripped)
+
+            if not stripped:
                 continue
 
             if stripped.startswith("- "):
@@ -95,6 +103,8 @@ class PersonalityConfig:
                 if v:
                     self.working_hours[k.strip().lower()] = v.strip()
 
+        self.sections = {k: "\n".join(v) for k, v in section_lines.items()}
+
     def get_system_prompt_addition(self) -> str:
         """Return string to inject into LLM system prompt."""
         if not self.raw_content:
@@ -106,6 +116,10 @@ class PersonalityConfig:
             " ---\n"
             f"{self.raw_content}\n"
         )
+
+    def get_section(self, name: str) -> str:
+        """Return a parsed section by name, or empty string."""
+        return self.sections.get(name.lower(), "")
 
     def get_term(self, key: str) -> str:
         """Look up a terminology entry. Returns key itself if not found."""

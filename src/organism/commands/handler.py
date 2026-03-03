@@ -266,25 +266,15 @@ class CommandHandler:
         if self.personality is None:
             return "Personality not configured."
         p = self.personality
-        lines = [f"Personality: {p.artel_id}"]
-        if p.style:
-            lines.append("  Style:")
-            for k, v in p.style.items():
-                lines.append(f"    {k}: {v}")
-        if p.terminology:
-            lines.append("  Terminology:")
-            for k, v in p.terminology.items():
-                lines.append(f"    {k}: {v}")
-        if p.escalation:
-            lines.append(f"  Escalation rules: {len(p.escalation)}")
-        if p.report_prefs:
-            lines.append(f"  Report preferences: {len(p.report_prefs)}")
-        if p.working_hours:
-            lines.append("  Working hours:")
-            for k, v in p.working_hours.items():
-                lines.append(f"    {k}: {v}")
         if not p.raw_content:
-            lines.append("  (no personality file loaded)")
+            return f"Personality: {p.artel_id}\n  (no personality file loaded)"
+        lines = [f"Personality: {p.artel_id}"]
+        for name, content in p.sections.items():
+            preview = content[:200]
+            if len(content) > 200:
+                preview += "..."
+            lines.append(f"  [{name}]")
+            lines.append(f"    {preview}")
         return "\n".join(lines)
 
     async def _handle_prompts(self, memory: "MemoryManager") -> str:
