@@ -60,32 +60,71 @@ class BaseAgent(ABC):
         """Execute a task."""
 
     async def _reflect(self, task: str, result: AgentResult) -> dict | None:
-        """Call Haiku to self-evaluate the completed task.
+        """Call Haiku for structured self-evaluation (Q-7.1).
 
-        Returns {"score": int(1-5), "insight": str} or None on failure.
+        Returns dict with keys: score, insight, failure_type, root_cause,
+        corrective_action, confidence.  Falls back gracefully if Haiku
+        returns the old {score, insight} format.
         """
+        error_text = (result.error[:200] if result.error else "none")
         prompt = (
             f"Task: {task[:300]}\n"
             f"Status: {'SUCCESS' if result.success else 'FAILURE'}\n"
-            f"Output: {result.output[:300]}\n\n"
-            "Rate 1-5 how well you completed this task. "
-            "What could be improved? "
-            'Respond JSON: {"score": 1-5, "insight": "one sentence"}'
+            f"Output: {result.output[:300]}\n"
+            f"Error: {error_text}\n\n"
+            "Analyze this task execution. Respond with ONLY a JSON object:\n"
+            "{\n"
+            '  "score": <1-5 quality rating>,\n'
+            '  "failure_type": "<tool_error|plan_error|llm_error|timeout|validation|none>",\n'
+            '  "root_cause": "<one sentence: what specifically went wrong, or none if success>",\n'
+            '  "corrective_action": "<one sentence: specific actionable rule for next time>",\n'
+            '  "confidence": <0.0-1.0 how confident you are in this analysis>\n'
+            "}\n"
+            "Return ONLY the JSON, no explanation."
         )
         try:
             resp = await self.llm.complete(
                 messages=[Message(role="user", content=prompt)],
                 model_tier="fast",
-                max_tokens=80,
+                max_tokens=200,
             )
             raw = resp.content.strip()
             match = re.search(r"\{[\s\S]*\}", raw)
-            if match:
-                data = json.loads(match.group(0))
-                score = int(data.get("score", 0))
-                insight = str(data.get("insight", "")).strip()
-                if 1 <= score <= 5 and insight:
-                    return {"score": score, "insight": insight}
+            if not match:
+                return None
+            data = json.loads(match.group(0))
+            score = int(data.get("score", 0))
+            if not (1 <= score <= 5):
+                return None
+
+            # Structured format (Q-7.1)
+            if "failure_type" in data or "corrective_action" in data:
+                failure_type = str(data.get("failure_type", "unknown")).strip()
+                root_cause = str(data.get("root_cause", "")).strip()
+                corrective_action = str(data.get("corrective_action", "")).strip()
+                confidence = float(data.get("confidence", 0.5))
+                confidence = max(0.0, min(1.0, confidence))
+                return {
+                    "score": score,
+                    "insight": corrective_action or root_cause,
+                    "failure_type": failure_type,
+                    "root_cause": root_cause,
+                    "corrective_action": corrective_action,
+                    "confidence": confidence,
+                }
+
+            # Fallback: old {score, insight} format — fill defaults
+            insight = str(data.get("insight", "")).strip()
+            if not insight:
+                return None
+            return {
+                "score": score,
+                "insight": insight,
+                "failure_type": "unknown",
+                "root_cause": insight,
+                "corrective_action": insight,
+                "confidence": 0.5,
+            }
         except Exception:
             pass
         return None
@@ -96,12 +135,18 @@ class BaseAgent(ABC):
         if not reflection:
             return
         _log.info(
-            f"[{result.agent}] Reflection score={reflection['score']}: {reflection['insight']}"
+            f"[{result.agent}] Reflection score={reflection['score']}"
+            f" type={reflection.get('failure_type', '?')}:"
+            f" {reflection.get('corrective_action', reflection.get('insight', ''))[:80]}"
         )
         if self.memory:
             try:
                 await self.memory.save_reflection(
-                    self.name, task, reflection["score"], reflection["insight"]
+                    self.name, task, reflection["score"], reflection.get("insight", ""),
+                    failure_type=reflection.get("failure_type"),
+                    root_cause=reflection.get("root_cause"),
+                    corrective_action=reflection.get("corrective_action"),
+                    reflection_confidence=reflection.get("confidence"),
                 )
             except Exception:
                 pass

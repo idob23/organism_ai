@@ -59,6 +59,11 @@ class AgentReflection(Base):
     score = Column(Integer, nullable=False)   # 1-5
     insight = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    # Q-7.1: structured reflection fields
+    failure_type = Column(String, nullable=True)      # tool_error|plan_error|llm_error|timeout|validation|unknown|none
+    root_cause = Column(Text, nullable=True)
+    corrective_action = Column(Text, nullable=True)
+    reflection_confidence = Column(Float, nullable=True)  # 0.0-1.0
 
 
 class KnowledgeRule(Base):
@@ -182,3 +187,15 @@ async def init_db() -> None:
             """))
         except Exception:
             pass
+        # Q-7.1: Structured reflection columns — idempotent migration.
+        _migrations_71 = [
+            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS failure_type VARCHAR",
+            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS root_cause TEXT",
+            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS corrective_action TEXT",
+            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS reflection_confidence FLOAT",
+        ]
+        for ddl in _migrations_71:
+            try:
+                await conn.execute(text(ddl))
+            except Exception:
+                pass

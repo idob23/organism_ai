@@ -168,7 +168,11 @@ class MemoryManager:
                 pass
 
     async def save_reflection(
-        self, agent_name: str, task: str, score: int, insight: str
+        self, agent_name: str, task: str, score: int, insight: str,
+        failure_type: str | None = None,
+        root_cause: str | None = None,
+        corrective_action: str | None = None,
+        reflection_confidence: float | None = None,
     ) -> None:
         await self.initialize()
         task_hash = hashlib.sha256(task.strip().lower().encode()).hexdigest()[:16]
@@ -179,6 +183,10 @@ class MemoryManager:
                 task_hash=task_hash,
                 score=score,
                 insight=insight,
+                failure_type=failure_type,
+                root_cause=root_cause,
+                corrective_action=corrective_action,
+                reflection_confidence=reflection_confidence,
             ))
             await session.commit()
 

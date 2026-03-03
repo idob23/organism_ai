@@ -157,6 +157,13 @@ to the task text (`IMPORTANT: Only use these tools: [...]`) so the LLM picks fro
 valid tools only. Prevents regression when planner prompts list tools not registered
 in current mode (e.g., confirm_with_user absent in CLI/benchmark mode).
 
+### Structured Reflections (Q-7.1)
+Agent `_reflect()` in base.py returns structured JSON: {score, failure_type, root_cause,
+corrective_action, confidence} instead of just {score, insight}. Haiku prompt asks for
+tool_error|plan_error|llm_error|timeout|validation|none classification. `AgentReflection`
+model has 4 new nullable columns. Graceful fallback: if Haiku returns old {score, insight}
+format, fills failure_type="unknown", confidence=0.5. max_tokens=200 (was 80).
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -268,7 +275,7 @@ organism_ai/
 - Q-6.5: Gateway abstraction — IncomingMessage/OutgoingMessage, Gateway router, CLIChannel, TelegramChannel refactor ✅
 
 ### Sprint 7 (Self-Improvement 2.0) — NEXT
-- Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence}
+- Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence} \u2705
 - Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC
 - Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts
 - Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle
