@@ -115,6 +115,37 @@ In CoreLoop.run(), before _is_writing_task() check: if SearchPolicy classifies
 intent as temporal/causal/entity AND memory_context is non-empty, skip writing
 fast path so the planner can answer from memory instead of generating new content.
 
+## Tool Implementation Details
+
+| Tool | Key Detail |
+|---|---|
+| code_executor | Docker sandbox. Code passed via tmpfile + volume mount (NOT -c argument). Solves long code truncation |
+| web_search | Tavily API |
+| web_fetch | Blocks: g2.com, statista.com, forbes.com, gartner.com. 403/404 -> exit_code=0, graceful skip. verify=False for Russian sites |
+| text_writer | Returns full content in output (not just preview) |
+| pptx_creator | python-pptx, no Docker required |
+| file_manager | Uses OUTPUTS_DIR from base.py |
+
+### Core Loop Mechanics
+- `{{step_N_output}}` placeholders -- CoreLoop._resolve_input() replaces with actual previous step results
+- WRITE_KEYWORDS via unicode escapes (avoid Windows cp1251 issues)
+- Intent-aware fast path skip: temporal/causal/entity intents with memory context bypass writing fast path
+- Planner: max_tokens=4096, JSON parsed from "Thought + JSON" format
+- Evaluator: lenient mode -- doesn't fail on 403 responses, old data, or empty output
+
+## CLI Commands
+```
+python main.py --task "..."       # Single task
+python main.py --multi --task "..." # Multi-agent orchestrator
+python main.py --telegram         # Telegram bot mode
+python main.py --stats            # Memory statistics
+python main.py --analyze          # Performance analysis
+python main.py --improve --days 7 # Auto-improvement cycle
+python main.py --cache            # Solution cache stats
+python benchmark.py               # Full benchmark (14 tasks)
+python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
+```
+
 ## File Structure
 ```
 organism_ai/
@@ -126,7 +157,7 @@ organism_ai/
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
 │   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
 │   ├── commands/      # handler.py — /remember /forget /profile /style /stats /improve /prompts
-│   ├── channels/      # telegram.py, base.py
+│   ├── channels/      # telegram.py (progress ticker, file attachments for long responses), base.py
 │   ├── llm/           # base.py (TemperatureLocked), claude.py
 │   ├── logging/       # logger.py, error_handler.py
 │   ├── safety/        # validator.py
@@ -134,8 +165,12 @@ organism_ai/
 ├── config/
 │   ├── settings.py
 │   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
+│                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
+├── benchmark.py       # 14-task benchmark suite (10 baseline + 4 Sprint 5)
+├── CONTEXT.md         # Brief context for VS Code plugin (auto-generated)
+├── organism_architecture_principles.md  # Canonical architecture principles
 └── pyproject.toml
 ```
 
@@ -179,6 +214,22 @@ organism_ai/
 - Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems
 - Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration
 
+### Future Priorities (Beyond Sprint 8)
+
+**High Priority**
+- Computer vision — YOLO: counting bucket turns (excavator productivity), truck trip counter, ore level in sluice box
+- Voice input — Telegram voice -> Whisper API -> text -> CoreLoop (for workers in gloves)
+- Web dashboard for director — FastAPI + React, real-time metrics (production, fuel, equipment downtime)
+
+**Medium Priority**
+- Role-based access control — Director (unlimited), Foreman (50 tasks/day), Worker (15 tasks/day)
+- Multi-tenancy — data isolation per client, separate DB schemas
+- Billing — API usage tracking per client
+
+**Low Priority**
+- Junior developer hire — from first client revenue, takes routine maintenance
+- Second client — use first artel as case study
+
 ### Sprint 5 ✅ (Memory Enhancement — Graph + Temporal) — COMPLETE
 - Q-5.1: Temporal fact tracking — valid_from/valid_until in user_profile and knowledge_rules ✅
 - Q-5.2: Memory edges table — memory_edges with temporal|causal|entity|procedural edges ✅
@@ -218,3 +269,41 @@ organism_ai/
 Organism AI is the foundation for a one-person + AI-agents unicorn company.
 All architectural decisions should consider scaling to an autonomous AI team
 that could eventually replace entire departments while maintaining one human as architect.
+
+## Business Context
+
+Target client: gold mining artel, ~100 people, Russia (remote settlement).
+IT infrastructure: 1C (Accounting + Warehouse + Payroll), 2-3 in-house 1C developers.
+Pain points: manual document workflow, duplicate nomenclature in 1C, manual fuel tracking, Rosnedra reporting.
+Contact: owner's son, ~40 years old, technically literate.
+
+### Pricing Model
+- Monthly: 300,000 RUB/month (includes ~25K RUB for Claude API)
+- Season bonus: tied to measurable results (fuel savings, production volume)
+- Onboarding (first 2 months): included
+- Server (one-time): 70-100K RUB (client purchases)
+
+### Commercial Proposal
+See KP_Organism_AI_Artel.md in project knowledge.
+
+## Testing History
+
+### Pre-Quality Plan (Feb 2026)
+Blocks A-D passed: 17/17 tasks (basic tools, multi-step chains, multi-agent, edge cases).
+Block D (real artel tasks): 3/5+ completed (KP, work order template, production plan).
+
+### Quality Plan Benchmark (Mar 2026)
+- Baseline 10 tasks: 10/10 (100%), avg quality 0.848
+- Sprint 5 tasks (11-14): 4/4 (100%), avg quality 0.55 (cold graph, expected)
+- Overall: 14/14 (100%), avg quality 0.78
+- Cache hits: 5/14 (36%)
+
+### Critical Bugs Fixed (historical)
+- Evaluator too strict -> lenient rules added
+- web_fetch 403 crash -> graceful skip with exit_code=0
+- code_executor -c argument truncation -> tmpfile + volume mount
+- Planner control chars in JSON -> sanitize before parsing
+- Telegram long messages cut off -> file attachment for >800 chars
+- SSL verify fail on Russian sites -> verify=False + ConnectError graceful handling
+- datetime.now(timezone.utc) incompatible with asyncpg -> datetime.utcnow()
+- Writing fast path intercepting temporal/causal queries -> intent-aware skip
