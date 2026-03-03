@@ -198,7 +198,7 @@ organism_ai/
 - Q-6.2: Proactive scheduler — cron-triggered tasks, configurable per-artel schedules for reports, alerts, monitoring ✅
 - Q-6.3: Human-in-the-loop — confirm_with_user sends to Telegram, waits for approval before critical actions ✅
 - Q-6.4: Configurable personality — PERSONALITY.md per artel: communication style, terminology, escalation rules ✅
-- Q-6.5: Gateway abstraction — channel-agnostic gateway for Telegram, CLI, future web UI via single interface
+- Q-6.5: Gateway abstraction — channel-agnostic gateway for Telegram, CLI, future web UI via single interface ✅
 
 ### Sprint 7 (Self-Improvement 2.0)
 - Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence}

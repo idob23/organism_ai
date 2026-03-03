@@ -1,21 +1,17 @@
-﻿import asyncio
+import asyncio
 import os
-import tempfile
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, FSInputFile
 from aiogram.filters import CommandStart, Command
 
-from src.organism.core.loop import CoreLoop
-from src.organism.channels.base import BaseChannel
+from src.organism.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
 from config.settings import settings
 
 
 class TelegramChannel(BaseChannel):
 
-    def __init__(self, loop: CoreLoop, scheduler=None, approval=None) -> None:
-        self.loop = loop
-        self.scheduler = scheduler
-        self.approval = approval
+    def __init__(self, gateway) -> None:
+        self.gateway = gateway
         self.bot = Bot(token=settings.telegram_bot_token)
         self.dp = Dispatcher()
         self._setup_handlers()
@@ -23,25 +19,22 @@ class TelegramChannel(BaseChannel):
     @staticmethod
     async def _tick_progress(msg: Message, preview: str) -> None:
         """Edit status message every 5s with elapsed time while task runs."""
-        icons = ["⏳", "🔄"]
+        icons = ["\u23f3", "\U0001f504"]
         elapsed = 0
         while True:
             await asyncio.sleep(5)
             elapsed += 5
             icon = icons[(elapsed // 5) % 2]
             try:
-                await msg.edit_text(f"{icon} Выполняю... {elapsed}с\n{preview}")
+                # "\u0412\u044b\u043f\u043e\u043b\u043d\u044f\u044e"
+                await msg.edit_text(
+                    f"{icon} \u0412\u044b\u043f\u043e\u043b\u043d\u044f\u044e... {elapsed}\u0441\n{preview}"
+                )
             except Exception:
                 pass  # ignore FloodWait / MessageNotModified
 
     def _setup_handlers(self) -> None:
         allowed = settings.allowed_user_ids
-        from src.organism.commands.handler import CommandHandler
-        cmd_handler = CommandHandler(
-            scheduler=self.scheduler,
-            approval=self.approval,
-            personality=getattr(self.loop, "personality", None),
-        )
 
         @self.dp.message(CommandStart())
         async def cmd_start(message: Message) -> None:
@@ -49,8 +42,11 @@ class TelegramChannel(BaseChannel):
                 await message.answer("Access denied.")
                 return
             await message.answer(
-                "Organism AI готов к работе.\n"
-                "Отправь мне задачу на естественном языке."
+                "Organism AI \u0433\u043e\u0442\u043e\u0432 \u043a \u0440\u0430\u0431\u043e\u0442\u0435.\n"
+                "\u041e\u0442\u043f\u0440\u0430\u0432\u044c \u043c\u043d\u0435 "
+                "\u0437\u0430\u0434\u0430\u0447\u0443 \u043d\u0430 "
+                "\u0435\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u043e\u043c "
+                "\u044f\u0437\u044b\u043a\u0435."
             )
 
         @self.dp.message(Command("status"))
@@ -69,52 +65,115 @@ class TelegramChannel(BaseChannel):
             if not task:
                 return
 
-            # Handle slash commands before processing as a task
-            if cmd_handler.is_command(task):
-                result_text = await cmd_handler.handle(task, self.loop.memory)
-                await message.answer(result_text)
+            incoming = IncomingMessage(
+                text=task,
+                user_id=str(message.from_user.id),
+                channel="telegram",
+                metadata={"chat_id": message.chat.id},
+            )
+
+            # Commands — no progress ticker needed
+            if self.gateway.cmd_handler.is_command(task):
+                response = await self.gateway.handle_message(incoming)
+                await message.answer(response.text)
                 return
 
-            # Notify user that work has started
+            # Regular task — with progress ticker
             preview = task[:60] + ("..." if len(task) > 60 else "")
-            status_msg = await message.answer(f"⏳ Принял задачу:\n{preview}\n\nВыполняю...")
+            # "\u23f3 \u041f\u0440\u0438\u043d\u044f\u043b \u0437\u0430\u0434\u0430\u0447\u0443"
+            status_msg = await message.answer(
+                f"\u23f3 \u041f\u0440\u0438\u043d\u044f\u043b "
+                f"\u0437\u0430\u0434\u0430\u0447\u0443:\n{preview}\n\n"
+                f"\u0412\u044b\u043f\u043e\u043b\u043d\u044f\u044e..."
+            )
             ticker = asyncio.create_task(self._tick_progress(status_msg, preview))
 
             try:
                 try:
-                    result = await self.loop.run(task, verbose=False)
+                    response = await self.gateway.handle_message(incoming)
                 finally:
                     ticker.cancel()
 
-                if result.success:
-                    steps_info = f"Шагов: {len(result.steps)} | Время: {result.duration:.1f}s"
-                    raw = result.answer if result.answer and not result.answer.startswith("Saved to") else result.output
-                    lines = [line for line in raw.splitlines() if not line.startswith("Saved to")]
-                    clean_output = "\n".join(lines).strip()
+                duration = response.metadata.get("duration", 0)
+                steps = response.metadata.get("steps", 0)
+                # "\u0428\u0430\u0433\u043e\u0432" / "\u0412\u0440\u0435\u043c\u044f"
+                steps_info = (
+                    f"\u0428\u0430\u0433\u043e\u0432: {steps} | "
+                    f"\u0412\u0440\u0435\u043c\u044f: {duration:.1f}s"
+                )
 
-                    if len(clean_output) > 800:
-                        short_preview = clean_output[:500] + "..."
-                        await status_msg.edit_text(f"✅ Готово\n{steps_info}\n\n{short_preview}\n\n📎 Полный текст во вложении:")
-                        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as f:
-                            f.write(clean_output)
-                            tmp_path = f.name
+                if response.is_file:
+                    # File response — send preview + attachment
+                    file_path = response.text
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            full_text = f.read()
+                        short_preview = full_text[:500] + "..."
+                        await status_msg.edit_text(
+                            f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
+                            f"{short_preview}\n\n"
+                            f"\U0001f4ce \u041f\u043e\u043b\u043d\u044b\u0439 "
+                            f"\u0442\u0435\u043a\u0441\u0442 \u0432\u043e "
+                            f"\u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0438:"
+                        )
                         try:
-                            await message.answer_document(FSInputFile(tmp_path, filename="result.md"))
+                            await message.answer_document(
+                                FSInputFile(file_path, filename="result.md"),
+                            )
                         finally:
-                            os.unlink(tmp_path)
-                    else:
-                        await status_msg.edit_text(f"✅ Готово\n{steps_info}\n\n{clean_output}")
-                else:
-                    err = result.error or "неизвестная ошибка"
+                            os.unlink(file_path)
+                    except Exception:
+                        await status_msg.edit_text(
+                            f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
+                        )
+                elif response.text.startswith("Error:"):
+                    err = response.text[7:]  # strip "Error: "
                     if "Traceback" in err or "File \"/" in err:
                         err = err.splitlines()[-1]
-                    await status_msg.edit_text(f"❌ Не удалось выполнить\n\n{err[:300]}\n\nПопробуйте переформулировать задачу.")
+                    await status_msg.edit_text(
+                        f"\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c "
+                        f"\u0432\u044b\u043f\u043e\u043b\u043d\u0438\u0442\u044c\n\n"
+                        f"{err[:300]}\n\n"
+                        f"\u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 "
+                        f"\u043f\u0435\u0440\u0435\u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c "
+                        f"\u0437\u0430\u0434\u0430\u0447\u0443."
+                    )
+                else:
+                    await status_msg.edit_text(
+                        f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
+                        f"{response.text}"
+                    )
 
             except Exception:
-                await status_msg.edit_text("⚠️ Внутренняя ошибка. Попробуйте ещё раз.")
+                await status_msg.edit_text(
+                    "\u26a0\ufe0f \u0412\u043d\u0443\u0442\u0440\u0435\u043d\u043d\u044f\u044f "
+                    "\u043e\u0448\u0438\u0431\u043a\u0430. "
+                    "\u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 "
+                    "\u0435\u0449\u0451 \u0440\u0430\u0437."
+                )
 
     async def start(self) -> None:
         await self.dp.start_polling(self.bot)
 
     async def stop(self) -> None:
         await self.bot.session.close()
+
+    async def send(self, message: OutgoingMessage) -> None:
+        """Send outgoing message via Telegram bot."""
+        chat_id = message.metadata.get("chat_id")
+        if not chat_id:
+            # Fallback: send to first allowed user
+            uids = settings.allowed_user_ids
+            if uids:
+                chat_id = uids[0]
+            else:
+                return
+        try:
+            if message.is_file:
+                await self.bot.send_document(
+                    chat_id, FSInputFile(message.text, filename="result.md"),
+                )
+            else:
+                await self.bot.send_message(chat_id, message.text)
+        except Exception:
+            pass

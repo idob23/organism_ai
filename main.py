@@ -80,8 +80,8 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
 
 
 async def run_interactive(use_orchestrator: bool = False) -> None:
-    from src.organism.commands.handler import CommandHandler
-    handler = CommandHandler()
+    from src.organism.channels.gateway import Gateway
+    from src.organism.channels.cli_channel import CLIChannel
 
     if use_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
@@ -91,6 +91,9 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
         if memory:
             await memory.initialize()
         orch = Orchestrator(llm, registry, memory=memory)
+        # Orchestrator mode — still direct (no Gateway wrapper yet)
+        from src.organism.commands.handler import CommandHandler
+        handler = CommandHandler()
         print("Organism AI [Multi-Agent]  interactive mode. Type 'exit' to quit.\n")
         while True:
             try:
@@ -112,31 +115,15 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
                 print("\nInterrupted.")
     else:
         loop = build_loop()
-        print("Organism AI  interactive mode. Type 'exit' to quit.\n")
-        while True:
-            try:
-                task = input("Task> ").strip()
-            except (EOFError, KeyboardInterrupt):
-                print("\nBye.")
-                break
-            if not task:
-                continue
-            if task.lower() in ("exit", "quit", "q"):
-                print("Bye.")
-                break
-            if handler.is_command(task):
-                print(await handler.handle(task, loop.memory))
-                continue
-            try:
-                result = await loop.run(task)
-                if not result.success:
-                    print(f"Failed: {result.error}")
-            except KeyboardInterrupt:
-                print("\nInterrupted.")
+        gateway = Gateway(loop)
+        channel = CLIChannel(gateway)
+        gateway.register_channel("cli", channel)
+        await channel.start()
 
 
 async def run_telegram() -> None:
     from src.organism.channels.telegram import TelegramChannel
+    from src.organism.channels.gateway import Gateway
     from src.organism.core.scheduler import ProactiveScheduler, DEFAULT_ARTEL_JOBS
     from src.organism.core.human_approval import HumanApproval
     from src.organism.tools.confirm_user import ConfirmUserTool
@@ -186,7 +173,9 @@ async def run_telegram() -> None:
         scheduler.add_job(job)
     scheduler.start()
 
-    channel = TelegramChannel(loop, scheduler=scheduler, approval=approval)
+    gateway = Gateway(loop, scheduler=scheduler, approval=approval)
+    channel = TelegramChannel(gateway)
+    gateway.register_channel("telegram", channel)
     print("Organism AI Telegram bot starting...")
     try:
         await channel.start()
