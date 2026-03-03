@@ -23,15 +23,17 @@ HELP_TEXT = (
     "  /schedule_disable <name> \u2014 disable a scheduled task\n"
     "  /approve <id>            \u2014 approve a pending action\n"
     "  /reject <id>             \u2014 reject a pending action\n"
+    "  /personality             \u2014 show current personality config\n"
     "  /help                    \u2014 show this help\n"
 )
 
 
 class CommandHandler:
 
-    def __init__(self, scheduler=None, approval=None) -> None:
+    def __init__(self, scheduler=None, approval=None, personality=None) -> None:
         self.scheduler = scheduler
         self.approval = approval
+        self.personality = personality
 
     def is_command(self, text: str) -> bool:
         return text.strip().startswith("/")
@@ -56,6 +58,10 @@ class CommandHandler:
             return self._handle_approval(parts, approved=True)
         elif cmd == "/reject":
             return self._handle_approval(parts, approved=False)
+
+        # Personality — no memory required
+        if cmd == "/personality":
+            return self._handle_personality()
 
         if memory is None:
             return "Memory not available (DATABASE_URL not configured)."
@@ -254,6 +260,32 @@ class CommandHandler:
             return f"Usage: {cmd} <id>"
         short_id = parts[1].strip()
         return self.approval.resolve(short_id, approved)
+
+    def _handle_personality(self) -> str:
+        """Show current personality configuration."""
+        if self.personality is None:
+            return "Personality not configured."
+        p = self.personality
+        lines = [f"Personality: {p.artel_id}"]
+        if p.style:
+            lines.append("  Style:")
+            for k, v in p.style.items():
+                lines.append(f"    {k}: {v}")
+        if p.terminology:
+            lines.append("  Terminology:")
+            for k, v in p.terminology.items():
+                lines.append(f"    {k}: {v}")
+        if p.escalation:
+            lines.append(f"  Escalation rules: {len(p.escalation)}")
+        if p.report_prefs:
+            lines.append(f"  Report preferences: {len(p.report_prefs)}")
+        if p.working_hours:
+            lines.append("  Working hours:")
+            for k, v in p.working_hours.items():
+                lines.append(f"    {k}: {v}")
+        if not p.raw_content:
+            lines.append("  (no personality file loaded)")
+        return "\n".join(lines)
 
     async def _handle_prompts(self, memory: "MemoryManager") -> str:
         """Show active prompt versions and their quality stats."""

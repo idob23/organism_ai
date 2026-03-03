@@ -30,11 +30,19 @@ def build_registry() -> ToolRegistry:
     return registry
 
 
-def build_loop(registry: ToolRegistry | None = None) -> CoreLoop:
+def _load_personality():
+    from src.organism.core.personality import PersonalityConfig
+    p = PersonalityConfig(artel_id=settings.artel_id)
+    p.load()
+    return p
+
+
+def build_loop(registry: ToolRegistry | None = None, personality=None) -> CoreLoop:
     llm = ClaudeProvider()
     reg = registry or build_registry()
     memory = MemoryManager() if settings.database_url else None
-    return CoreLoop(llm, reg, memory=memory)
+    p = personality if personality is not None else _load_personality()
+    return CoreLoop(llm, reg, memory=memory, personality=p)
 
 
 async def run_single(task: str, use_orchestrator: bool = False) -> None:

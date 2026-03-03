@@ -101,7 +101,7 @@ class CoreLoop:
     MAX_RETRIES = 3
     MAX_PLAN_STEPS = 5
 
-    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None) -> None:
+    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None) -> None:
         self.llm = llm
         self.registry = registry
         self.planner = Planner(llm)
@@ -112,6 +112,7 @@ class CoreLoop:
         self.cache = SolutionCache()
         self.knowledge_base = KnowledgeBase()
         self.context_budget = ContextBudget()
+        self.personality = personality
         if memory is not None and memory.llm is None:
             memory.llm = llm
         self.memory = memory
@@ -226,6 +227,11 @@ class CoreLoop:
                     print(f"User context: {user_context}")
             except Exception:
                 pass
+
+        if self.personality:
+            personality_addition = self.personality.get_system_prompt_addition()
+            if personality_addition:
+                user_context = user_context + personality_addition
 
         # L1 Solution Cache — check before planning/fast-path
         cache_hash: str | None = None

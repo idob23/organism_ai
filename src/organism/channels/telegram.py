@@ -37,7 +37,11 @@ class TelegramChannel(BaseChannel):
     def _setup_handlers(self) -> None:
         allowed = settings.allowed_user_ids
         from src.organism.commands.handler import CommandHandler
-        cmd_handler = CommandHandler(scheduler=self.scheduler, approval=self.approval)
+        cmd_handler = CommandHandler(
+            scheduler=self.scheduler,
+            approval=self.approval,
+            personality=getattr(self.loop, "personality", None),
+        )
 
         @self.dp.message(CommandStart())
         async def cmd_start(message: Message) -> None:
