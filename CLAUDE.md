@@ -164,6 +164,17 @@ tool_error|plan_error|llm_error|timeout|validation|none classification. `AgentRe
 model has 4 new nullable columns. Graceful fallback: if Haiku returns old {score, insight}
 format, fills failure_type="unknown", confidence=0.5. max_tokens=200 (was 80).
 
+### Benchmark-Driven Prompt Optimization (Q-7.2)
+`BenchmarkPromptOptimizer` in self_improvement/benchmark_optimizer.py. Pipeline:
+1. Read current prompt (PVC or file fallback)
+2. Run --quick benchmark (5 tasks) for baseline score
+3. Haiku generates MAX_VARIANTS=3 mutated prompt versions
+4. Each variant: deploy via PVC -> quick benchmark -> record score
+5. If best > baseline + MIN_IMPROVEMENT (0.03) -> keep deployed; else restore original
+Evaluator.evaluate() now uses PVC-managed prompt (`get_active("evaluator")`) with
+file-based EVALUATOR_PROMPT as fallback. OPTIMIZABLE_PROMPTS dict expandable for
+planner_fast/react. CLI: `python main.py --optimize-prompts`.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -191,6 +202,7 @@ python main.py --telegram         # Telegram bot mode
 python main.py --stats            # Memory statistics
 python main.py --analyze          # Performance analysis
 python main.py --improve --days 7 # Auto-improvement cycle
+python main.py --optimize-prompts # Benchmark-driven prompt optimization
 python main.py --cache            # Solution cache stats
 python benchmark.py               # Full benchmark (19 tasks)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
@@ -276,7 +288,7 @@ organism_ai/
 
 ### Sprint 7 (Self-Improvement 2.0) — NEXT
 - Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence} \u2705
-- Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC
+- Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC \u2705
 - Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts
 - Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle
 - Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others

@@ -222,6 +222,31 @@ async def run_improve(days: int = 7) -> None:
         print("  (not enough repeating failure patterns yet)")
 
 
+async def run_optimize_prompts() -> None:
+    from src.organism.self_improvement.prompt_versioning import PromptVersionControl
+    from src.organism.self_improvement.benchmark_optimizer import BenchmarkPromptOptimizer
+
+    llm = ClaudeProvider()
+    pvc = PromptVersionControl()
+    optimizer = BenchmarkPromptOptimizer(llm, pvc)
+
+    print("\nOrganism AI \u2014 Prompt Optimization")
+    print("=" * 50)
+    results = await optimizer.optimize_all()
+
+    for r in results:
+        status = "DEPLOYED" if r.deployed else "NO CHANGE"
+        print(f"\n  {r.prompt_name}:")
+        print(f"    Baseline:     {r.baseline_score:.4f}")
+        print(f"    Best variant: {r.best_variant_score:.4f}")
+        print(f"    Improvement:  {r.improvement:+.4f}")
+        print(f"    Status:       {status}")
+        print(f"    Variants:     {r.variants_tested}")
+        print(f"    Duration:     {r.duration:.1f}s")
+
+    print("\nDone.\n")
+
+
 async def run_cache_stats() -> None:
     from src.organism.self_improvement.solution_cache import SolutionCacheManager
     cache = SolutionCacheManager()
@@ -244,6 +269,8 @@ def main() -> None:
     parser.add_argument("--improve", action="store_true", help="Run auto-improvement cycle (failures → rules)")
     parser.add_argument("--days", type=int, default=7, help="Days window for --improve (default: 7)")
     parser.add_argument("--multi", action="store_true", help="Use multi-agent orchestrator")
+    parser.add_argument("--optimize-prompts", action="store_true",
+                        help="Run benchmark-driven prompt optimization cycle")
     args = parser.parse_args()
 
     try:
@@ -255,6 +282,8 @@ def main() -> None:
             asyncio.run(run_cache_stats())
         elif args.improve:
             asyncio.run(run_improve(days=args.days))
+        elif args.optimize_prompts:
+            asyncio.run(run_optimize_prompts())
         elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:

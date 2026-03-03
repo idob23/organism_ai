@@ -69,9 +69,19 @@ class Evaluator:
             f"Stderr: {result.error[:300] if result.error else '(none)'}"
         )
 
+        # Q-7.2: Use PVC-managed prompt if available
+        eval_prompt = EVALUATOR_PROMPT
+        if self.pvc:
+            try:
+                pvc_content = await self.pvc.get_active(_PROMPT_NAME)
+                if pvc_content:
+                    eval_prompt = pvc_content
+            except Exception:
+                pass  # fallback to file-based prompt
+
         response = await self.llm.complete(
             messages=[Message(role="user", content=prompt)],
-            system=EVALUATOR_PROMPT,
+            system=eval_prompt,
             model_tier="fast",
         )
 
