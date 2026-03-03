@@ -94,6 +94,20 @@ class ProceduralTemplate(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class FewShotExample(Base):
+    __tablename__ = "few_shot_examples"
+
+    id = Column(String, primary_key=True)                    # uuid
+    task_type = Column(String, nullable=False, index=True)   # writing/code/research/data/presentation/mixed
+    task_text = Column(Text, nullable=False)                  # original user task (truncated to 300 chars)
+    plan_json = Column(Text, nullable=False)                  # JSON: [{"tool": "...", "description": "..."}]
+    quality_score = Column(Float, nullable=False)
+    tools_used = Column(Text, nullable=False)                 # comma-separated: "code_executor,web_search"
+    embedding = Column(Vector(1536), nullable=True)           # for semantic similarity search
+    usage_count = Column(Integer, default=0)                  # how many times injected as few-shot
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class MemoryEdge(Base):
     __tablename__ = "memory_edges"
     __table_args__ = (
@@ -195,6 +209,15 @@ async def init_db() -> None:
             "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS reflection_confidence FLOAT",
         ]
         for ddl in _migrations_71:
+            try:
+                await conn.execute(text(ddl))
+            except Exception:
+                pass
+        # Q-7.3: Few-shot examples — idempotent migration for future column additions.
+        _migrations_73 = [
+            "ALTER TABLE few_shot_examples ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0",
+        ]
+        for ddl in _migrations_73:
             try:
                 await conn.execute(text(ddl))
             except Exception:

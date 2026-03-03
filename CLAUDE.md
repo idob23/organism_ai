@@ -175,6 +175,14 @@ Evaluator.evaluate() now uses PVC-managed prompt (`get_active("evaluator")`) wit
 file-based EVALUATOR_PROMPT as fallback. OPTIMIZABLE_PROMPTS dict expandable for
 planner_fast/react. CLI: `python main.py --optimize-prompts`.
 
+### Few-Shot Example Curation (Q-7.3)
+`FewShotStore` in memory/few_shot_store.py. `FewShotExample` table: task_text, task_type,
+plan_json, quality_score, tools_used, embedding(1536), usage_count. Save: quality >= 0.75,
+dedup by task prefix + type, MAX_EXAMPLES=100 FIFO. Get: vector cosine distance search
+(pgvector `<=>`), fallback to quality-ordered if no embedding. TOP_K=3. Injected into
+`user_context` in CoreLoop.run() (before cache check, after personality). Saved after
+on_task_end for both planned tasks and writing fast path.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -289,7 +297,7 @@ organism_ai/
 ### Sprint 7 (Self-Improvement 2.0) — NEXT
 - Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence} \u2705
 - Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC \u2705
-- Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts
+- Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts \u2705
 - Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle
 - Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others
 

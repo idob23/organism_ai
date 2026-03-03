@@ -233,6 +233,18 @@ class CoreLoop:
             if personality_addition:
                 user_context = user_context + personality_addition
 
+        # Q-7.3: Inject few-shot examples into planner context
+        if self.memory:
+            try:
+                _fs_examples = await self.memory.few_shot.get_examples(task)
+                _fs_section = self.memory.few_shot.format_for_prompt(_fs_examples)
+                if _fs_section:
+                    user_context = user_context + "\n" + _fs_section if user_context else _fs_section
+                    if verbose:
+                        print(f"Few-shot: {len(_fs_examples)} examples injected")
+            except Exception:
+                pass
+
         # L1 Solution Cache — check before planning/fast-path
         cache_hash: str | None = None
         canonical_task: str | None = None
@@ -276,6 +288,15 @@ class CoreLoop:
                     if self.memory and result.success:
                         try:
                             await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"], quality_score=0.8)
+                        except Exception:
+                            pass
+                        # Q-7.3: Save as few-shot example
+                        try:
+                            await self.memory.few_shot.save_example(
+                                task_text=task, task_type="writing",
+                                plan_steps=[{"tool": "text_writer", "description": "Write and save text"}],
+                                quality_score=0.8, tools_used=["text_writer"],
+                            )
                         except Exception:
                             pass
                         if cache_hash and canonical_task:
@@ -449,6 +470,18 @@ class CoreLoop:
                 await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used, quality_score=avg_quality)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory save failed", e)
+            # Q-7.3: Save as few-shot example if high quality
+            try:
+                _plan_dicts = [{"tool": s.tool, "description": s.description} for s in steps]
+                await self.memory.few_shot.save_example(
+                    task_text=task,
+                    task_type=task_type_hint or "mixed",
+                    plan_steps=_plan_dicts,
+                    quality_score=avg_quality,
+                    tools_used=tools_used,
+                )
+            except Exception:
+                pass
             if cache_hash and canonical_task and avg_quality >= self.cache.MIN_QUALITY:
                 try:
                     await self.cache.put(cache_hash, canonical_task, task, last_output, avg_quality)
