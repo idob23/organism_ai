@@ -149,6 +149,9 @@ class CoreLoop:
             if step.tool == "pptx_creator" and "topic" not in inp:
                 return f"Step {step.id}: pptx_creator requires 'topic' in input"
 
+            # MCP tools (mcp_*): input validation skipped — schema is dynamic.
+            # Known-tool checks above won't match mcp_ prefix, so they pass through.
+
             for dep in step.depends_on:
                 if dep not in step_ids:
                     return f"Step {step.id}: depends_on references non-existent step {dep}"

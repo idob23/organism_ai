@@ -7,7 +7,7 @@ Think step by step before planning:
 
 Output your brief reasoning (2-3 sentences), then ONLY a JSON array.
 
-TOOLS: text_writer (write+save long text), code_executor (python), web_search, web_fetch, file_manager (short plain text only, NO CSV), pptx_creator, confirm_with_user (ask user approval before critical actions)
+TOOLS: text_writer (write+save long text), code_executor (python), web_search, web_fetch, file_manager (short plain text only, NO CSV), pptx_creator, confirm_with_user (ask user approval before critical actions), [MCP tools] (external systems like 1C/databases, names start with "mcp_")
 
 For writing tasks  text_writer. For CSV/data tables  code_executor (use csv module, open('file.csv','w')). For code/calculations  code_executor. For presentations  pptx_creator.
 text_writer accepts detailed prompts and saves to file automatically.

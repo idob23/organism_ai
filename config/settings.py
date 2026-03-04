@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     tavily_api_key: str = Field("", alias="TAVILY_API_KEY")
     database_url: str = Field("", alias="DATABASE_URL")
     artel_id: str = Field("default", alias="ARTEL_ID")
+    # MCP server connections (JSON: [{"name": "...", "url": "...", "api_key": "..."}])
+    mcp_servers: str = Field("", alias="MCP_SERVERS")
 
     @property
     def allowed_user_ids(self) -> list[int]:

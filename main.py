@@ -27,7 +27,35 @@ def build_registry() -> ToolRegistry:
         registry.register(WebSearchTool())
     if settings.telegram_bot_token:
         registry.register(TelegramSenderTool(settings.telegram_bot_token))
+    # Q-8.1: queue MCP servers for async connection (build_registry is sync)
+    if settings.mcp_servers:
+        try:
+            import json as _json
+            from src.organism.tools.mcp_client import MCPServerConfig
+            servers = _json.loads(settings.mcp_servers)
+            registry._pending_mcp = [
+                MCPServerConfig(
+                    name=srv.get("name", "unknown"),
+                    url=srv.get("url", ""),
+                    api_key=srv.get("api_key", ""),
+                    enabled=srv.get("enabled", True),
+                )
+                for srv in servers
+            ]
+        except Exception:
+            pass
     return registry
+
+
+async def _connect_mcp(registry: ToolRegistry) -> None:
+    """Connect pending MCP servers queued by build_registry()."""
+    for config in getattr(registry, "_pending_mcp", []):
+        try:
+            count = await registry.register_mcp_server(config)
+            if count > 0:
+                print(f"  MCP '{config.name}': {count} tools registered")
+        except Exception:
+            pass
 
 
 def _load_personality():
@@ -57,6 +85,7 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
         from src.organism.agents.orchestrator import Orchestrator
         llm = ClaudeProvider()
         registry = build_registry()
+        await _connect_mcp(registry)
         memory = MemoryManager() if settings.database_url else None
         if memory:
             await memory.initialize()
@@ -64,6 +93,7 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
         result = await orch.run(task)
     else:
         loop = build_loop()
+        await _connect_mcp(loop.registry)
         result = await loop.run(task)
 
     # Drain background tasks (CausalAnalyzer, TemplateExtractor) before exit
@@ -87,6 +117,7 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
         from src.organism.agents.orchestrator import Orchestrator
         llm = ClaudeProvider()
         registry = build_registry()
+        await _connect_mcp(registry)
         memory = MemoryManager() if settings.database_url else None
         if memory:
             await memory.initialize()
@@ -115,6 +146,7 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
                 print("\nInterrupted.")
     else:
         loop = build_loop()
+        await _connect_mcp(loop.registry)
         gateway = Gateway(loop)
         channel = CLIChannel(gateway)
         gateway.register_channel("cli", channel)
@@ -131,6 +163,7 @@ async def run_telegram() -> None:
         print("Error: TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
     registry = build_registry()
+    await _connect_mcp(registry)
 
     # --- Human-in-the-loop approval ---
     async def _send_approval(message: str) -> None:

@@ -629,6 +629,14 @@ async def run_benchmark(quick: bool) -> None:
     # Build shared resources — same pattern as main.py
     llm = ClaudeProvider()
     registry = build_registry()
+    # Q-8.1: connect pending MCP servers
+    for mcp_config in getattr(registry, "_pending_mcp", []):
+        try:
+            count = await registry.register_mcp_server(mcp_config)
+            if count > 0:
+                print(f"  MCP '{mcp_config.name}': {count} tools registered")
+        except Exception:
+            pass
     memory = None
     if settings.database_url:
         try:

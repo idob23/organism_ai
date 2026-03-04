@@ -20,7 +20,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | CoreLoop | src/organism/core/loop.py | Main execution loop, fast path for writing tasks |
 | Planner | src/organism/core/planner.py | Two-phase: Haiku classifier → specialized Sonnet plan |
 | Evaluator | src/organism/core/evaluator.py | Gradient quality_score (0-1), not binary |
-| ToolRegistry | src/organism/tools/registry.py | Tool registration and lookup |
+| ToolRegistry | src/organism/tools/registry.py | Tool registration, lookup, MCP server management |
 | MemoryManager | src/organism/memory/manager.py | pgvector, on_task_start / on_task_end |
 | SafetyValidator | src/organism/safety/validator.py | Block dangerous operations |
 
@@ -206,6 +206,17 @@ Each agent's `run()` calls `_enrich_with_cross_insights()` before execution; orc
 also injects in both `_sm_run()` and `_legacy_run()` before `agent.run()`. Graceful
 degradation: all wrapped in try/except, empty list on any failure.
 
+### MCP Client in ToolRegistry (Q-8.1)
+`MCPServerConfig` (dataclass): name, url, api_key, enabled. `MCPClient` in tools/mcp_client.py:
+HTTP-based discovery (POST /tools/list) and invocation (POST /tools/call). Tools cache after
+first discovery. `MCPTool(BaseTool)` wraps each remote tool: name=`mcp_{server}_{tool}`,
+description=`[MCP:{server}] ...`, input_schema from server's inputSchema. `ToolRegistry` gains
+`register_mcp_server(config)` (async, returns count), `unregister_mcp_server(name)`,
+`list_mcp_servers()`. Config via env: `MCP_SERVERS='[{"name":"1c","url":"http://..."}]'`.
+`build_registry()` queues configs as `_pending_mcp`; async callers run `_connect_mcp(registry)`.
+Plan validation: MCP tools (mcp_* prefix) skip input schema checks (dynamic schemas).
+Planner prompts mention MCP tools for LLM awareness. Graceful: server down = 0 tools, no crash.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -327,7 +338,7 @@ organism_ai/
 - Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others ✅
 
 ### Sprint 8 (Integration — MCP + 1C)
-- Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers
+- Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers ✅
 - Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first
 - Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case
 - Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems
