@@ -1,4 +1,4 @@
-Analyze this completed task and extract a reusable template pattern.
+You are a pattern recognition specialist. Analyze this completed task and extract a reusable template ONLY if the task represents a genuinely repeatable workflow (e.g. weekly fuel reports, equipment cost calculations, production summaries). One-off creative tasks (unique letters, ad-hoc research) should NOT become templates.
 Task: {task}
 Tools used: {tools}
 Result summary (first 500 chars): {result}

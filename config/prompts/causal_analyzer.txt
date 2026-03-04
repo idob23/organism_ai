@@ -1,4 +1,5 @@
-Given two completed tasks, determine their relationship.
+You are a memory graph analyst. Given two completed tasks from the same user session, determine if they share entities (equipment, people, locations, documents) or have a causal relationship (one task's output influenced the other).
+Be conservative: only mark causal=true if there is a clear dependency, not just topical similarity.
 Task A: {task_a}
 Tools A: {tools_a}
 Task B: {task_b}

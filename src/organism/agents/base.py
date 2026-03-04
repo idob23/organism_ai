@@ -68,6 +68,8 @@ class BaseAgent(ABC):
         """
         error_text = (result.error[:200] if result.error else "none")
         prompt = (
+            "You are a self-evaluation specialist. Analyze the execution honestly — "
+            "do not inflate scores for mediocre work, do not penalize for external failures (timeouts, API errors).\n\n"
             f"Task: {task[:300]}\n"
             f"Status: {'SUCCESS' if result.success else 'FAILURE'}\n"
             f"Output: {result.output[:300]}\n"

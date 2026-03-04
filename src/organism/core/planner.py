@@ -20,7 +20,7 @@ FAST_PROMPT = Path("config/prompts/planner_fast.txt").read_text(encoding="utf-8"
 REACT_PROMPT = Path("config/prompts/planner_react.txt").read_text(encoding="utf-8")
 
 # ---- Phase 1: Task classifier prompt (Haiku, ~100 tokens) ----
-CLASSIFIER_PROMPT = """Classify the user task. Respond with ONLY a JSON object, no explanation.
+CLASSIFIER_PROMPT = """You are a task classifier for an autonomous AI executor. Classify the user task by its primary output type. Respond with ONLY a JSON object, no explanation.
 
 {
   "type": "writing" | "code" | "research" | "data" | "presentation" | "mixed",
@@ -39,7 +39,7 @@ Available tools: text_writer, code_executor, web_search, web_fetch, file_manager
 
 # ---- Phase 2: Specialized planner prompts ----
 
-PLAN_WRITING = """You are a task planner. Return ONLY a JSON array.
+PLAN_WRITING = """You are a document planner. Choose the most efficient tool for the requested text output. Return ONLY a JSON array.
 
 AVAILABLE TOOLS:
 - text_writer: write long text and save to file. input: {"prompt": "detailed instructions", "filename": "file.md"}
@@ -53,7 +53,7 @@ RULES:
 Example:
 [{"id":1,"tool":"text_writer","description":"Write report","input":{"prompt":"Write a professional report about...","filename":"report.md"},"depends_on":[]}]"""
 
-PLAN_CODE = """You are a task planner. Return ONLY a JSON array.
+PLAN_CODE = """You are a computation planner. Write minimal, working Python code that produces clearly labeled output. Return ONLY a JSON array.
 
 AVAILABLE TOOLS:
 - code_executor: run Python code in Docker sandbox. input: {"code": "python code here", "domains": []}
@@ -72,7 +72,7 @@ Example for CSV:
 Example for calculation:
 [{"id":1,"tool":"code_executor","description":"Calculate plan","input":{"code":"total=300*1000\\ndaily=total/150\\nprint(f'Daily plan: {daily:.1f} g')","domains":[]},"depends_on":[]}]"""
 
-PLAN_RESEARCH = """You are a task planner. Return ONLY a JSON array.
+PLAN_RESEARCH = """You are a research planner. Find the most authoritative source with minimum search steps. Return ONLY a JSON array.
 
 AVAILABLE TOOLS:
 - web_search: search internet for information. input: {"query": "search query", "max_results": 5}
@@ -87,7 +87,7 @@ RULES:
 Example:
 [{"id":1,"tool":"web_search","description":"Search for AI news","input":{"query":"AI news today 2026","max_results":5},"depends_on":[]}]"""
 
-PLAN_PRESENTATION = """You are a task planner. Return ONLY a JSON array.
+PLAN_PRESENTATION = """You are a presentation planner. Structure slides for clarity and business impact. Return ONLY a JSON array.
 
 AVAILABLE TOOLS:
 - pptx_creator: create PowerPoint presentation. input: {"filename": "name.pptx", "topic": "topic", "slides": [{"title": "...", "content": "brief key points"}]}
@@ -100,7 +100,7 @@ RULES:
 Example:
 [{"id":1,"tool":"pptx_creator","description":"Create presentation","input":{"filename":"report.pptx","topic":"Monthly report","slides":[{"title":"Overview","content":"Key metrics and results"}]},"depends_on":[]}]"""
 
-PLAN_MIXED = """You are a task planner. Return ONLY a JSON array.
+PLAN_MIXED = """You are a multi-step task planner. Coordinate multiple tools with clear data flow between steps. Return ONLY a JSON array.
 
 AVAILABLE TOOLS:
 - web_search: search internet. input: {"query": "...", "max_results": 5}
