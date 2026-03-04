@@ -137,6 +137,21 @@ class PromptVersion(Base):
     is_active = Column(Boolean, default=False, nullable=False)
 
 
+class PromptPopulationMember(Base):
+    __tablename__ = "prompt_population"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    prompt_name = Column(String, nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    generation = Column(Integer, default=0)
+    fitness = Column(Float, default=0.0)
+    eval_count = Column(Integer, default=0)
+    parent_id = Column(Integer, nullable=True)
+    mutation_type = Column(String, nullable=True)  # rephrase|restructure|specialize
+    is_active = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 engine = create_async_engine(settings.database_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -218,6 +233,17 @@ async def init_db() -> None:
             "ALTER TABLE few_shot_examples ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0",
         ]
         for ddl in _migrations_73:
+            try:
+                await conn.execute(text(ddl))
+            except Exception:
+                pass
+        # Q-7.4: Prompt population — idempotent migration.
+        _migrations_74 = [
+            "ALTER TABLE prompt_population ADD COLUMN IF NOT EXISTS parent_id INTEGER",
+            "ALTER TABLE prompt_population ADD COLUMN IF NOT EXISTS mutation_type VARCHAR",
+            "ALTER TABLE prompt_population ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE",
+        ]
+        for ddl in _migrations_74:
             try:
                 await conn.execute(text(ddl))
             except Exception:

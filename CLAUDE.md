@@ -183,6 +183,18 @@ dedup by task prefix + type, MAX_EXAMPLES=100 FIFO. Get: vector cosine distance 
 `user_context` in CoreLoop.run() (before cache check, after personality). Saved after
 on_task_end for both planned tasks and writing fast path.
 
+### Evolutionary Prompt Search (Q-7.4)
+`PromptPopulationMember` table in database.py: prompt_name, content, generation, fitness,
+eval_count, parent_id, mutation_type, is_active. `EvolutionaryPromptSearch` in
+self_improvement/evolutionary_search.py. Constants: POPULATION_SIZE=5, MIN_POPULATION=3,
+ELITE_COUNT=2, MUTATION_TYPES=[rephrase, restructure, specialize].
+Cycle: `seed_population()` creates MIN_POPULATION members (1 original + mutations);
+`evolve()` evaluates all via quick benchmark, keeps top ELITE_COUNT, culls rest,
+mutates children from elites, deploys best via PVC. `evolve_all()` iterates OPTIMIZABLE_PROMPTS.
+CLI: `--evolve-prompts` flag. Scheduler: `weekly_prompt_evolution` job (Sunday 3AM, disabled by
+default). Internal tasks use `__internal__:evolve_prompts` prefix, handled by
+`ProactiveScheduler._run_internal()` bypassing CoreLoop.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -211,6 +223,7 @@ python main.py --stats            # Memory statistics
 python main.py --analyze          # Performance analysis
 python main.py --improve --days 7 # Auto-improvement cycle
 python main.py --optimize-prompts # Benchmark-driven prompt optimization
+python main.py --evolve-prompts  # Evolutionary prompt search cycle
 python main.py --cache            # Solution cache stats
 python benchmark.py               # Full benchmark (19 tasks)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
@@ -254,6 +267,7 @@ organism_ai/
 │   ├── logging/       # logger.py, error_handler.py
 │   ├── safety/        # validator.py
 │   └── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
+│                          # benchmark_optimizer.py, evolutionary_search.py
 ├── config/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
 │   ├── personality/   # default.md (per-artel personality configs)
@@ -298,7 +312,7 @@ organism_ai/
 - Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence} \u2705
 - Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC \u2705
 - Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts \u2705
-- Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle
+- Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle ✅
 - Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others
 
 ### Sprint 8 (Integration — MCP + 1C)

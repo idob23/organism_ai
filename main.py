@@ -247,6 +247,30 @@ async def run_optimize_prompts() -> None:
     print("\nDone.\n")
 
 
+async def run_evolve_prompts() -> None:
+    from src.organism.self_improvement.prompt_versioning import PromptVersionControl
+    from src.organism.self_improvement.evolutionary_search import EvolutionaryPromptSearch
+
+    llm = ClaudeProvider()
+    pvc = PromptVersionControl()
+    evo = EvolutionaryPromptSearch(llm, pvc)
+
+    print("\nOrganism AI \u2014 Evolutionary Prompt Search")
+    print("=" * 50)
+    results = await evo.evolve_all()
+
+    for r in results:
+        status = "DEPLOYED" if r.deployed else "NO CHANGE"
+        print(f"\n  {r.prompt_name}:")
+        print(f"    Generation:      {r.generation}")
+        print(f"    Population:      {r.population_size}")
+        print(f"    Best fitness:    {r.best_fitness:.4f}")
+        print(f"    Status:          {status}")
+        print(f"    Duration:        {r.duration:.1f}s")
+
+    print("\nDone.\n")
+
+
 async def run_cache_stats() -> None:
     from src.organism.self_improvement.solution_cache import SolutionCacheManager
     cache = SolutionCacheManager()
@@ -271,6 +295,8 @@ def main() -> None:
     parser.add_argument("--multi", action="store_true", help="Use multi-agent orchestrator")
     parser.add_argument("--optimize-prompts", action="store_true",
                         help="Run benchmark-driven prompt optimization cycle")
+    parser.add_argument("--evolve-prompts", action="store_true",
+                        help="Run evolutionary prompt search cycle")
     args = parser.parse_args()
 
     try:
@@ -284,6 +310,8 @@ def main() -> None:
             asyncio.run(run_improve(days=args.days))
         elif args.optimize_prompts:
             asyncio.run(run_optimize_prompts())
+        elif args.evolve_prompts:
+            asyncio.run(run_evolve_prompts())
         elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, time as dt_time
 from typing import Any, Awaitable, Callable
 
-from src.organism.logging.error_handler import get_logger
+from src.organism.logging.error_handler import get_logger, log_exception
 
 _log = get_logger("core.scheduler")
 
@@ -97,6 +97,14 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         schedule_type="interval",
         interval_minutes=360,  # every 6 hours
     ),
+    ScheduledJob(
+        name="weekly_prompt_evolution",
+        task_text="__internal__:evolve_prompts",
+        schedule_type="weekly",
+        time_of_day=dt_time(3, 0),
+        weekday=6,  # Sunday
+        enabled=False,  # user enables via /schedule_enable
+    ),
 ]
 
 
@@ -149,6 +157,29 @@ class ProactiveScheduler:
             self._task = None
         _log.info("scheduler.stopped")
 
+    async def _run_internal(self, task_text: str) -> None:
+        """Handle __internal__:* tasks that don't go through CoreLoop."""
+        command = task_text.split(":", 1)[1].strip() if ":" in task_text else ""
+        if command == "evolve_prompts":
+            try:
+                from src.organism.llm.claude import ClaudeProvider
+                from src.organism.self_improvement.prompt_versioning import PromptVersionControl
+                from src.organism.self_improvement.evolutionary_search import EvolutionaryPromptSearch
+
+                llm = ClaudeProvider()
+                pvc = PromptVersionControl()
+                evo = EvolutionaryPromptSearch(llm, pvc)
+                results = await evo.evolve_all()
+                for r in results:
+                    _log.info(
+                        "scheduler.evolve_result: %s gen=%d fitness=%.4f deployed=%s",
+                        r.prompt_name, r.generation, r.best_fitness, r.deployed,
+                    )
+            except Exception as exc:
+                log_exception(_log, "Internal task evolve_prompts failed", exc)
+        else:
+            _log.warning("scheduler.unknown_internal: %s", command)
+
     async def _loop(self) -> None:
         """Main scheduler loop — checks every 30 seconds."""
         while self._running:
@@ -161,13 +192,17 @@ class ProactiveScheduler:
                 job.last_run = now
                 try:
                     _log.info("scheduler.run_job: %s", job.name)
-                    result = await self.task_runner(job.task_text)
-                    if result.success and self.notify:
-                        output = result.output or ""
-                        await self.notify(
-                            job.artel_id,
-                            f"[{job.name}] {output[:500]}",
-                        )
+                    # Internal tasks bypass CoreLoop
+                    if job.task_text.startswith("__internal__:"):
+                        await self._run_internal(job.task_text)
+                    else:
+                        result = await self.task_runner(job.task_text)
+                        if result.success and self.notify:
+                            output = result.output or ""
+                            await self.notify(
+                                job.artel_id,
+                                f"[{job.name}] {output[:500]}",
+                            )
                 except Exception as exc:
                     _log.error(
                         "scheduler.job_error: %s — %s: %s",
