@@ -239,6 +239,15 @@ Real workflow: fetch entities via MCP tools first, then pass to duplicate_finder
 Registered in build_registry() (main.py + benchmark.py). Plan validation: skips input
 checks (entities can be empty). Planner prompts updated with duplicate_finder tool.
 
+### Organism AI as MCP Server (Q-8.4)
+`OrganismMCPServer` in src/organism/mcp_serve/server.py. Exposes 4 tools via standard MCP
+protocol: execute_task (delegate task to CoreLoop or Orchestrator), get_stats (system
+statistics via CommandHandler), search_knowledge (semantic search via memory.longterm),
+list_capabilities (available tools, agents, MCP servers). `create_organism_app()` returns
+aiohttp Application. CLI: `python main.py --serve-mcp --mcp-port 8091`. Output capped at
+3000 chars per response. Listens on 0.0.0.0 for network access. No auth (post-MVP).
+Connect from other AI: `MCP_SERVERS='[{"name":"organism","url":"http://localhost:8091"}]'`.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -269,7 +278,8 @@ python main.py --improve --days 7 # Auto-improvement cycle
 python main.py --optimize-prompts # Benchmark-driven prompt optimization
 python main.py --evolve-prompts  # Evolutionary prompt search cycle
 python main.py --cache            # Solution cache stats
-python benchmark.py               # Full benchmark (24 tasks)
+python benchmark.py               # Full benchmark (25 tasks)
+python main.py --serve-mcp       # Start as MCP server (port 8091)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
 ```
 
@@ -313,6 +323,7 @@ organism_ai/
 │   └── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
 │                          # benchmark_optimizer.py, evolutionary_search.py
 │   mcp_1c/            # server.py — MCP server for 1C integration (demo + live modes)
+│   mcp_serve/         # server.py — Organism AI as MCP server (Q-8.4)
 ├── config/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
 │   ├── personality/   # default.md (per-artel personality configs)
@@ -320,7 +331,7 @@ organism_ai/
 │                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
-├── benchmark.py       # 24-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7 + 1 Sprint 8)
+├── benchmark.py       # 25-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7 + 2 Sprint 8)
 ├── CONTEXT.md         # Brief context for VS Code plugin (auto-generated)
 ├── organism_architecture_principles.md  # Canonical architecture principles
 └── pyproject.toml
@@ -337,7 +348,7 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Benchmark: 24 tasks total (21/24 success without Docker/DB, ~88%)
+- Benchmark: 25 tasks total (22/25 success without Docker/DB, ~88%)
 - With Docker+DB: expected 19/19 (100%) — failures are environmental only
 - Average Quality Score: 0.85
 - Cache hit rate: 36% (5/14 on warm DB, 0% without DB)
@@ -364,7 +375,7 @@ organism_ai/
 - Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers ✅
 - Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first ✅
 - Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case ✅
-- Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems
+- Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems ✅
 - Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration
 
 ### Future Priorities (Beyond Sprint 8)

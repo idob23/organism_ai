@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 24 task types and reports a formatted summary.
+Measures quality across 25 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
@@ -11,10 +11,10 @@ Tasks 15-19: Sprint 6 coverage (orchestrator-sm, cmd-schedule, cmd-personality,
              gateway-write, cmd-help)
 Tasks 20-23: Sprint 7 coverage (cross-agent, structured reflections, few-shot,
              evolutionary)
-Tasks 24:    Sprint 8 coverage (duplicate-search via semantic similarity)
+Tasks 24-25: Sprint 8 coverage (duplicate-search, mcp-serve infra)
 
 Usage:
-    python benchmark.py           # run all 24 tasks
+    python benchmark.py           # run all 25 tasks
     python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
 """
 import argparse
@@ -352,7 +352,7 @@ TASKS = [
     # ── Sprint 8 tasks (Q-8.1 through Q-8.5) ─────────────────────────────────
     {
         "id": 24,
-        "type": "duplicate-search",
+        "type": "dupl-search",
         # "проверь на дубликаты список контрагентов: ООО Топливный Снаб, Топливный снаб ООО, ИП Петров С.В., Петров Сергей ИП, АО Дальзолото"
         "task": (
             "\u043f\u0440\u043e\u0432\u0435\u0440\u044c \u043d\u0430 "
@@ -365,6 +365,13 @@ TASKS = [
             "\u041f\u0435\u0442\u0440\u043e\u0432 \u0421\u0435\u0440\u0433\u0435\u0439 \u0418\u041f, "
             "\u0410\u041e \u0414\u0430\u043b\u044c\u0437\u043e\u043b\u043e\u0442\u043e"
         ),
+    },
+    {
+        "id": 25,
+        "type": "cmd-mcp-serve",
+        # Tests MCP serve infrastructure exists: /help should mention --serve-mcp
+        "task": "/help",
+        "mode": "command",
     },
 ]
 
@@ -713,7 +720,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python benchmark.py            # full suite (24 tasks)\n"
+            "  python benchmark.py            # full suite (25 tasks)\n"
             "  python benchmark.py --quick    # fast check (5 tasks, no web/multi-agent)\n"
         ),
     )

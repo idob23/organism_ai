@@ -318,6 +318,45 @@ async def run_cache_stats() -> None:
         print(f"  [{p['hits']} hits] {p['pattern'][:80]}")
 
 
+async def run_mcp_server(port: int) -> None:
+    import aiohttp.web
+    from src.organism.mcp_serve.server import create_organism_app
+
+    registry = build_registry()
+    await _connect_mcp(registry)
+
+    memory = None
+    if settings.database_url:
+        try:
+            memory = MemoryManager()
+            await memory.initialize()
+        except Exception:
+            print("  [warn] Database unavailable \u2014 running without memory")
+
+    personality = _load_personality()
+    llm = ClaudeProvider()
+    loop = CoreLoop(llm, registry, memory=memory, personality=personality)
+
+    app = create_organism_app(loop, memory, registry)
+    print(f"\nOrganism AI MCP Server starting on port {port}")
+    print(f"  Tools exposed: execute_task, get_stats, search_knowledge, list_capabilities")
+    print(f"  Connect via: MCP_SERVERS='[{{\"name\":\"organism\",\"url\":\"http://localhost:{port}\"}}]'\n")
+
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    # Keep running until interrupted
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    finally:
+        await runner.cleanup()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Organism AI")
     parser.add_argument("--task", "-t", type=str, help="Task to execute")
@@ -332,6 +371,10 @@ def main() -> None:
                         help="Run benchmark-driven prompt optimization cycle")
     parser.add_argument("--evolve-prompts", action="store_true",
                         help="Run evolutionary prompt search cycle")
+    parser.add_argument("--serve-mcp", action="store_true",
+                        help="Start Organism AI as MCP server")
+    parser.add_argument("--mcp-port", type=int, default=8091,
+                        help="Port for MCP server (default: 8091)")
     args = parser.parse_args()
 
     try:
@@ -347,6 +390,8 @@ def main() -> None:
             asyncio.run(run_optimize_prompts())
         elif args.evolve_prompts:
             asyncio.run(run_evolve_prompts())
+        elif args.serve_mcp:
+            asyncio.run(run_mcp_server(args.mcp_port))
         elif args.telegram:
             asyncio.run(run_telegram())
         elif args.task:
