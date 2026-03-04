@@ -217,6 +217,16 @@ description=`[MCP:{server}] ...`, input_schema from server's inputSchema. `ToolR
 Plan validation: MCP tools (mcp_* prefix) skip input schema checks (dynamic schemas).
 Planner prompts mention MCP tools for LLM awareness. Graceful: server down = 0 tools, no crash.
 
+### MCP Server for 1C (Q-8.2)
+`MCP1CServer` in src/organism/mcp_1c/server.py. Standard MCP protocol (POST /tools/list,
+POST /tools/call). 5 read-only tools: search_counterparties, get_fuel_consumption,
+get_equipment_registry, get_production_data, get_spare_parts_requests. Two modes:
+`DemoDataProvider` returns realistic hardcoded artel data (gold mining context);
+`LiveDataProvider` skeleton for real 1C OData integration. All Russian strings as unicode
+escapes. `create_app(mode, odata_url, odata_user, odata_password)` factory returns aiohttp
+Application. CLI: `python -m src.organism.mcp_1c.server --port 8090 --mode demo`.
+Connect from Organism AI via MCP_SERVERS env: `[{"name":"1c","url":"http://localhost:8090"}]`.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -290,6 +300,7 @@ organism_ai/
 │   ├── safety/        # validator.py
 │   └── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
 │                          # benchmark_optimizer.py, evolutionary_search.py
+│   mcp_1c/            # server.py — MCP server for 1C integration (demo + live modes)
 ├── config/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
 │   ├── personality/   # default.md (per-artel personality configs)
@@ -339,7 +350,7 @@ organism_ai/
 
 ### Sprint 8 (Integration — MCP + 1C)
 - Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers ✅
-- Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first
+- Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first ✅
 - Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case
 - Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems
 - Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration
