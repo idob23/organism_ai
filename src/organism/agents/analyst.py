@@ -39,6 +39,8 @@ class AnalystAgent(BaseAgent):
 
     async def run(self, task: str) -> AgentResult:
         start = time.time()
-        result = await self._run_impl(task, start)
+        # Q-7.5: cross-agent knowledge sharing
+        effective_task = await self._enrich_with_cross_insights(task)
+        result = await self._run_impl(effective_task, start)
         await self._save_reflection(task, result)
         return result

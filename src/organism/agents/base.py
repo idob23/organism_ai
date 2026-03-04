@@ -152,3 +152,37 @@ class BaseAgent(ABC):
                 )
             except Exception:
                 pass
+
+    def _format_cross_insights(self, insights: list[dict]) -> str:
+        """Format cross-agent insights as context for the current agent (Q-7.5)."""
+        if not insights:
+            return ""
+        lines = ["[Insights from other agents:]"]
+        for ins in insights:
+            agent = ins.get("agent", "?")
+            action = ins.get("corrective_action", "")
+            insight = ins.get("insight", "")
+            ftype = ins.get("failure_type", "")
+            # Prefer corrective_action (more actionable), fallback to insight
+            text = action if action else insight
+            if not text:
+                continue
+            prefix = f"[{agent}]"
+            if ftype and ftype != "none" and ftype != "unknown":
+                prefix = f"[{agent}/{ftype}]"
+            lines.append(f"  {prefix} {text[:150]}")
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    async def _enrich_with_cross_insights(self, task: str) -> str:
+        """Q-7.5: Fetch and prepend cross-agent insights to the task text."""
+        if not self.memory:
+            return task
+        try:
+            insights = await self.memory.get_cross_agent_insights(self.name, task)
+            cross_context = self._format_cross_insights(insights)
+            if cross_context:
+                _log.info(f"[{self.name}] Cross-agent insights: {len(insights)} items")
+                return f"{task}\n\n{cross_context}"
+        except Exception:
+            pass
+        return task

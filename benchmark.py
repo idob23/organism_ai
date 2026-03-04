@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 19 task types and reports a formatted summary.
+Measures quality across 23 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
@@ -9,9 +9,11 @@ Tasks 11-14: Sprint 5 coverage (temporal-query, entity-query, template-reuse,
              causal-query) — require a warm DB with prior memory/graph data.
 Tasks 15-19: Sprint 6 coverage (orchestrator-sm, cmd-schedule, cmd-personality,
              gateway-write, cmd-help)
+Tasks 20-23: Sprint 7 coverage (cross-agent, structured reflections, few-shot,
+             evolutionary)
 
 Usage:
-    python benchmark.py           # run all 19 tasks
+    python benchmark.py           # run all 23 tasks
     python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
 """
 import argparse
@@ -279,6 +281,70 @@ TASKS = [
         "id": 19,
         "type": "cmd-help",
         # /help command: verifies Sprint 6 commands appear in help text
+        "task": "/help",
+        "mode": "command",
+    },
+    # ── Sprint 7 tasks (Q-7.1 through Q-7.5) ─────────────────────────────────
+    {
+        "id": 20,
+        "type": "orchestrator-ka",
+        # Multi-agent task that benefits from cross-agent knowledge (Q-7.5):
+        # "\u043d\u0430\u0439\u0434\u0438 \u0442\u0435\u043a\u0443\u0449\u0443\u044e \u0446\u0435\u043d\u0443 \u0437\u043e\u043b\u043e\u0442\u0430 \u0438 \u0441\u043e\u0441\u0442\u0430\u0432\u044c \u043a\u0440\u0430\u0442\u043a\u0438\u0439 \u0430\u043d\u0430\u043b\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u043e\u0442\u0447\u0451\u0442"
+        "task": (
+            "\u043d\u0430\u0439\u0434\u0438 "
+            "\u0442\u0435\u043a\u0443\u0449\u0443\u044e "
+            "\u0446\u0435\u043d\u0443 "
+            "\u0437\u043e\u043b\u043e\u0442\u0430 "
+            "\u0438 "
+            "\u0441\u043e\u0441\u0442\u0430\u0432\u044c "
+            "\u043a\u0440\u0430\u0442\u043a\u0438\u0439 "
+            "\u0430\u043d\u0430\u043b\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 "
+            "\u043e\u0442\u0447\u0451\u0442"
+        ),
+        "mode": "orchestrator",
+    },
+    {
+        "id": 21,
+        "type": "reflect-struct",
+        # Tests structured reflections (Q-7.1): run a code task, verify reflection is saved
+        # "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c \u0440\u0435\u043c\u043e\u043d\u0442\u0430 \u0431\u0443\u043b\u044c\u0434\u043e\u0437\u0435\u0440\u0430: \u0437\u0430\u043f\u0447\u0430\u0441\u0442\u0438 150000 \u0440\u0443\u0431, \u0440\u0430\u0431\u043e\u0442\u0430 80000 \u0440\u0443\u0431, \u043f\u0440\u043e\u0441\u0442\u043e\u0439 3 \u0434\u043d\u044f * 50000 \u0440\u0443\u0431/\u0434\u0435\u043d\u044c"
+        "task": (
+            "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 "
+            "\u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c "
+            "\u0440\u0435\u043c\u043e\u043d\u0442\u0430 "
+            "\u0431\u0443\u043b\u044c\u0434\u043e\u0437\u0435\u0440\u0430: "
+            "\u0437\u0430\u043f\u0447\u0430\u0441\u0442\u0438 150000 "
+            "\u0440\u0443\u0431, "
+            "\u0440\u0430\u0431\u043e\u0442\u0430 80000 "
+            "\u0440\u0443\u0431, "
+            "\u043f\u0440\u043e\u0441\u0442\u043e\u0439 3 "
+            "\u0434\u043d\u044f * 50000 "
+            "\u0440\u0443\u0431/\u0434\u0435\u043d\u044c"
+        ),
+    },
+    {
+        "id": 22,
+        "type": "few-shot",
+        # Tests few-shot curation (Q-7.3): task similar to #7 — should benefit from few-shot examples
+        # "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 \u0440\u0435\u043d\u0442\u0430\u0431\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u0443\u0447\u0430\u0441\u0442\u043a\u0430: \u0432\u044b\u0440\u0443\u0447\u043a\u0430 20 \u043c\u043b\u043d, \u0437\u0430\u0440\u043f\u043b\u0430\u0442\u0430 4 \u043c\u043b\u043d, \u0442\u043e\u043f\u043b\u0438\u0432\u043e 3 \u043c\u043b\u043d, \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 5 \u043c\u043b\u043d"
+        "task": (
+            "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 "
+            "\u0440\u0435\u043d\u0442\u0430\u0431\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c "
+            "\u0443\u0447\u0430\u0441\u0442\u043a\u0430: "
+            "\u0432\u044b\u0440\u0443\u0447\u043a\u0430 20 "
+            "\u043c\u043b\u043d, "
+            "\u0437\u0430\u0440\u043f\u043b\u0430\u0442\u0430 4 "
+            "\u043c\u043b\u043d, "
+            "\u0442\u043e\u043f\u043b\u0438\u0432\u043e 3 "
+            "\u043c\u043b\u043d, "
+            "\u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 5 "
+            "\u043c\u043b\u043d"
+        ),
+    },
+    {
+        "id": 23,
+        "type": "cmd-evolve",
+        # Tests evolutionary infra exists (Q-7.4): --evolve-prompts flag parse
         "task": "/help",
         "mode": "command",
     },
@@ -619,7 +685,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python benchmark.py            # full suite (19 tasks)\n"
+            "  python benchmark.py            # full suite (23 tasks)\n"
             "  python benchmark.py --quick    # fast check (5 tasks, no web/multi-agent)\n"
         ),
     )

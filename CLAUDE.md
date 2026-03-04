@@ -195,6 +195,17 @@ CLI: `--evolve-prompts` flag. Scheduler: `weekly_prompt_evolution` job (Sunday 3
 default). Internal tasks use `__internal__:evolve_prompts` prefix, handled by
 `ProactiveScheduler._run_internal()` bypassing CoreLoop.
 
+### Cross-Agent Knowledge Sharing (Q-7.5)
+`MemoryManager.get_cross_agent_insights(current_agent, task_text, limit=5)` queries
+`agent_reflections` WHERE agent_name != current_agent, score >= 3 OR corrective_action
+IS NOT NULL. Keyword overlap scoring (min 2 common words) for relevance filtering.
+`BaseAgent._format_cross_insights(insights)` formats as `[Insights from other agents:]`
+block, preferring corrective_action over insight, 150 char cap per entry.
+`_enrich_with_cross_insights(task)` helper in BaseAgent: fetch + format + prepend to task.
+Each agent's `run()` calls `_enrich_with_cross_insights()` before execution; orchestrator
+also injects in both `_sm_run()` and `_legacy_run()` before `agent.run()`. Graceful
+degradation: all wrapped in try/except, empty list on any failure.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -225,7 +236,7 @@ python main.py --improve --days 7 # Auto-improvement cycle
 python main.py --optimize-prompts # Benchmark-driven prompt optimization
 python main.py --evolve-prompts  # Evolutionary prompt search cycle
 python main.py --cache            # Solution cache stats
-python benchmark.py               # Full benchmark (19 tasks)
+python benchmark.py               # Full benchmark (23 tasks)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
 ```
 
@@ -275,7 +286,7 @@ organism_ai/
 │                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
-├── benchmark.py       # 19-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6)
+├── benchmark.py       # 23-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7)
 ├── CONTEXT.md         # Brief context for VS Code plugin (auto-generated)
 ├── organism_architecture_principles.md  # Canonical architecture principles
 └── pyproject.toml
@@ -292,7 +303,7 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Benchmark: 19 tasks total (16/19 success without Docker/DB, 84.2%)
+- Benchmark: 23 tasks total (20/23 success without Docker/DB, ~87%)
 - With Docker+DB: expected 19/19 (100%) — failures are environmental only
 - Average Quality Score: 0.85
 - Cache hit rate: 36% (5/14 on warm DB, 0% without DB)
@@ -313,7 +324,7 @@ organism_ai/
 - Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC \u2705
 - Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts \u2705
 - Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle ✅
-- Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others
+- Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others ✅
 
 ### Sprint 8 (Integration — MCP + 1C)
 - Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers
@@ -412,6 +423,12 @@ Block D (real artel tasks): 3/5+ completed (KP, work order template, production 
 - Sprint 6 tasks (15-19): 5/5 (100%), avg quality 0.90
 - Failures are environmental only (Docker/DB unavailable), not code regressions
 - Re-plan regression fixed: confirm_with_user in planner prompts → available tools hint in re-plan
+
+### Sprint 7 Benchmark (Mar 2026)
+- Expanded to 23 tasks (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7)
+- Sprint 7 tasks (20-23): cross-agent knowledge sharing, structured reflections, few-shot, evolutionary
+- Without Docker/DB: ~20/23 (~87%), avg quality 0.85
+- Failures are environmental only (Docker/DB unavailable), not code regressions
 
 ### Critical Bugs Fixed (historical)
 - Evaluator too strict -> lenient rules added

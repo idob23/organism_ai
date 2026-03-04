@@ -242,6 +242,19 @@ class Orchestrator:
                 state.context["plan_index"] = idx + 1
                 return result, self._next_condition(plan, idx)
 
+            # Q-7.5: Cross-agent insights for this specific agent
+            if self.memory:
+                try:
+                    insights = await self.memory.get_cross_agent_insights(agent_name, agent_task)
+                    if insights:
+                        cross_ctx = agent._format_cross_insights(insights)
+                        if cross_ctx:
+                            agent_task = f"{agent_task}\n\n{cross_ctx}"
+                            if verbose:
+                                print(f"  [cross-agent] {len(insights)} insights injected for {agent_name}")
+                except Exception:
+                    pass
+
             result = await agent.run(agent_task)
             agent_results.append(result)
 
@@ -389,6 +402,17 @@ class Orchestrator:
                     error=f"Unknown agent: {agent_name}",
                 ))
                 continue
+
+            # Q-7.5: Cross-agent insights
+            if self.memory:
+                try:
+                    insights = await self.memory.get_cross_agent_insights(agent_name, agent_task)
+                    if insights:
+                        cross_ctx = agent._format_cross_insights(insights)
+                        if cross_ctx:
+                            agent_task = f"{agent_task}\n\n{cross_ctx}"
+                except Exception:
+                    pass
 
             result = await agent.run(agent_task)
             agent_results.append(result)

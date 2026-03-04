@@ -38,10 +38,13 @@ class CoderAgent(BaseAgent):
                 success=True, duration=time.time() - start,
             )
 
+        # Q-7.5: cross-agent knowledge sharing
+        effective_task = await self._enrich_with_cross_insights(task)
+
         llm = TemperatureLocked(self.llm, self.temperature)
         loop = CoreLoop(llm, self.registry)
         loop.MAX_RETRIES = self.max_iterations
-        loop_result = await loop.run(task, verbose=False)
+        loop_result = await loop.run(effective_task, verbose=False)
 
         result = AgentResult(
             agent=self.name, task=task,

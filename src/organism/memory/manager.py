@@ -10,7 +10,7 @@ from .templates import TemplateExtractor
 from .search_policy import SearchPolicy
 from .few_shot_store import FewShotStore
 from .database import init_db, AgentReflection, TaskMemory, AsyncSessionLocal
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from src.organism.llm.base import LLMProvider
 
 
@@ -191,6 +191,65 @@ class MemoryManager:
                 reflection_confidence=reflection_confidence,
             ))
             await session.commit()
+
+    async def get_cross_agent_insights(
+        self, current_agent: str, task_text: str, limit: int = 5
+    ) -> list[dict]:
+        """Fetch relevant reflections from OTHER agents for context sharing (Q-7.5).
+
+        Strategy:
+        1. Query agent_reflections WHERE agent_name != current_agent
+        2. Filter by: score >= 3 OR corrective_action IS NOT NULL
+        3. Simple keyword overlap with task_text for relevance
+        4. Order by reflection_confidence DESC, score DESC
+        5. Return top-N as dicts
+        """
+        try:
+            async with AsyncSessionLocal() as session:
+                stmt = (
+                    select(AgentReflection)
+                    .where(AgentReflection.agent_name != current_agent)
+                    .where(
+                        or_(
+                            AgentReflection.score >= 3,
+                            AgentReflection.corrective_action.isnot(None),
+                        )
+                    )
+                    .order_by(AgentReflection.created_at.desc())
+                    .limit(50)
+                )
+                result = await session.execute(stmt)
+                reflections = result.scalars().all()
+
+            if not reflections:
+                return []
+
+            # Keyword overlap scoring
+            task_words = set(task_text.lower().split())
+            scored: list[tuple[int, AgentReflection]] = []
+            for r in reflections:
+                ref_text = f"{r.insight or ''} {r.corrective_action or ''} {r.root_cause or ''}"
+                ref_words = set(ref_text.lower().split())
+                overlap = len(task_words & ref_words)
+                if overlap >= 2:
+                    scored.append((overlap, r))
+
+            scored.sort(
+                key=lambda x: (x[0], x[1].reflection_confidence or 0), reverse=True
+            )
+
+            return [
+                {
+                    "agent": r.agent_name,
+                    "insight": r.insight or "",
+                    "corrective_action": r.corrective_action or "",
+                    "failure_type": r.failure_type or "",
+                    "score": r.score,
+                }
+                for _, r in scored[:limit]
+            ]
+        except Exception:
+            return []
 
     async def _safe_analyze(
         self,
