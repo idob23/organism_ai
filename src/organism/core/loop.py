@@ -153,6 +153,11 @@ class CoreLoop:
                 # entities can be empty (will return error asking for data)
                 continue
 
+            if step.tool == "delegate_to_agent":
+                if "peer_name" not in inp or "task" not in inp:
+                    return f"Step {step.id}: delegate_to_agent requires 'peer_name' and 'task'"
+                continue
+
             # MCP tools (mcp_*): input validation skipped — schema is dynamic.
             # Known-tool checks above won't match mcp_ prefix, so they pass through.
 

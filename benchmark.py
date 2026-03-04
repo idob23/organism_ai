@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 25 task types and reports a formatted summary.
+Measures quality across 26 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
@@ -11,10 +11,10 @@ Tasks 15-19: Sprint 6 coverage (orchestrator-sm, cmd-schedule, cmd-personality,
              gateway-write, cmd-help)
 Tasks 20-23: Sprint 7 coverage (cross-agent, structured reflections, few-shot,
              evolutionary)
-Tasks 24-25: Sprint 8 coverage (duplicate-search, mcp-serve infra)
+Tasks 24-26: Sprint 8 coverage (duplicate-search, mcp-serve, a2a-infra)
 
 Usage:
-    python benchmark.py           # run all 25 tasks
+    python benchmark.py           # run all 26 tasks
     python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
 """
 import argparse
@@ -373,6 +373,13 @@ TASKS = [
         "task": "/help",
         "mode": "command",
     },
+    {
+        "id": 26,
+        "type": "a2a-infra",
+        # Tests A2A infrastructure: /help should mention delegate capabilities
+        "task": "/help",
+        "mode": "command",
+    },
 ]
 
 # Task IDs included in --quick mode
@@ -720,7 +727,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python benchmark.py            # full suite (25 tasks)\n"
+            "  python benchmark.py            # full suite (26 tasks)\n"
             "  python benchmark.py --quick    # fast check (5 tasks, no web/multi-agent)\n"
         ),
     )

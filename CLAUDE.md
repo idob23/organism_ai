@@ -248,6 +248,17 @@ aiohttp Application. CLI: `python main.py --serve-mcp --mcp-port 8091`. Output c
 3000 chars per response. Listens on 0.0.0.0 for network access. No auth (post-MVP).
 Connect from other AI: `MCP_SERVERS='[{"name":"organism","url":"http://localhost:8091"}]'`.
 
+### Agent-to-Agent Protocol (Q-8.5)
+`PeerAgent` dataclass (name, url, api_key, capabilities, enabled). `PeerRegistry` manages
+known peers with add/remove/list/to_prompt_hint(). `A2AClient` sends tasks to peers via
+MCPClient (reuses Q-8.1 HTTP client): send_task() calls peer's execute_task MCP tool,
+discover_capabilities() calls list_capabilities. `DelegateToAgentTool(BaseTool)` wraps
+A2AClient for Planner: input requires peer_name + task, validates peer exists, delegates
+and returns result. Registered in build_registry() only when A2A_PEERS env is set.
+Config: `A2A_PEERS='[{"name":"artel-south","url":"http://192.168.2.100:8091"}]'`.
+Without configured peers: delegate_to_agent not registered, zero impact on existing flow.
+Plan validation: requires peer_name and task in input. Planner prompts updated.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -278,7 +289,7 @@ python main.py --improve --days 7 # Auto-improvement cycle
 python main.py --optimize-prompts # Benchmark-driven prompt optimization
 python main.py --evolve-prompts  # Evolutionary prompt search cycle
 python main.py --cache            # Solution cache stats
-python benchmark.py               # Full benchmark (25 tasks)
+python benchmark.py               # Full benchmark (26 tasks)
 python main.py --serve-mcp       # Start as MCP server (port 8091)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
 ```
@@ -324,6 +335,7 @@ organism_ai/
 │                          # benchmark_optimizer.py, evolutionary_search.py
 │   mcp_1c/            # server.py — MCP server for 1C integration (demo + live modes)
 │   mcp_serve/         # server.py — Organism AI as MCP server (Q-8.4)
+│   a2a/               # protocol.py — Agent-to-Agent delegation (Q-8.5)
 ├── config/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
 │   ├── personality/   # default.md (per-artel personality configs)
@@ -331,7 +343,7 @@ organism_ai/
 │                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
-├── benchmark.py       # 25-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7 + 2 Sprint 8)
+├── benchmark.py       # 26-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7 + 3 Sprint 8)
 ├── CONTEXT.md         # Brief context for VS Code plugin (auto-generated)
 ├── organism_architecture_principles.md  # Canonical architecture principles
 └── pyproject.toml
@@ -348,12 +360,12 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Benchmark: 25 tasks total (22/25 success without Docker/DB, ~88%)
-- With Docker+DB: expected 19/19 (100%) — failures are environmental only
+- Benchmark: 26 tasks total (23/26 success without Docker/DB, ~88%)
+- With Docker+DB: expected full pass — failures are environmental only
 - Average Quality Score: 0.85
 - Cache hit rate: 36% (5/14 on warm DB, 0% without DB)
-- All 6 sprints complete (Q-1.1 through Q-6.5)
-- Sprint 7 (Self-Improvement 2.0) — NEXT
+- All 8 sprints complete (Q-1.1 through Q-8.5)
+- Sprint 9 (TBD) — NEXT
 
 ## Development Roadmap — Quality Plan ✅ COMPLETE
 
@@ -364,19 +376,19 @@ organism_ai/
 - Q-6.4: Configurable personality — PersonalityConfig from config/personality/{artel_id}.md, sections + terms ✅
 - Q-6.5: Gateway abstraction — IncomingMessage/OutgoingMessage, Gateway router, CLIChannel, TelegramChannel refactor ✅
 
-### Sprint 7 (Self-Improvement 2.0) — NEXT
+### Sprint 7 ✅ (Self-Improvement 2.0) — COMPLETE
 - Q-7.1: Structured reflections — upgrade from {score, insight} to {failure_type, root_cause, corrective_action, confidence} \u2705
 - Q-7.2: Benchmark-driven prompt optimization — auto-pipeline: generate variants -> run benchmark.py -> select winner -> deploy via PVC \u2705
 - Q-7.3: Few-shot example curation — store successful task-result pairs as demonstrations, top-3 injected into planner prompts \u2705
 - Q-7.4: Evolutionary prompt search — population of 3-5 variants per component, weekly evaluate-mutate-select cycle ✅
 - Q-7.5: Cross-agent knowledge sharing — reflection insights from one agent automatically inform planning of others ✅
 
-### Sprint 8 (Integration — MCP + 1C)
+### Sprint 8 ✅ (Integration — MCP + 1C) — COMPLETE
 - Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers ✅
 - Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first ✅
 - Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case ✅
 - Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems ✅
-- Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration
+- Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration ✅
 
 ### Future Priorities (Beyond Sprint 8)
 

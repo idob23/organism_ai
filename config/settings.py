@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     artel_id: str = Field("default", alias="ARTEL_ID")
     # MCP server connections (JSON: [{"name": "...", "url": "...", "api_key": "..."}])
     mcp_servers: str = Field("", alias="MCP_SERVERS")
+    # A2A peer agents (JSON: [{"name": "...", "url": "...", "api_key": "..."}])
+    a2a_peers: str = Field("", alias="A2A_PEERS")
 
     @property
     def allowed_user_ids(self) -> list[int]:

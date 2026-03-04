@@ -46,6 +46,23 @@ def build_registry() -> ToolRegistry:
             ]
         except Exception:
             pass
+    # Q-8.5: Register A2A peer agents
+    if settings.a2a_peers:
+        try:
+            import json as _json2
+            from src.organism.a2a.protocol import PeerAgent, PeerRegistry, DelegateToAgentTool
+            peers_data = _json2.loads(settings.a2a_peers)
+            peer_reg = PeerRegistry()
+            for p in peers_data:
+                peer_reg.add_peer(PeerAgent(
+                    name=p.get("name", "unknown"),
+                    url=p.get("url", ""),
+                    api_key=p.get("api_key", ""),
+                ))
+            if peer_reg.list_peers():
+                registry.register(DelegateToAgentTool(peer_reg))
+        except Exception:
+            pass
     return registry
 
 
