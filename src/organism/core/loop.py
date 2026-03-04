@@ -149,6 +149,10 @@ class CoreLoop:
             if step.tool == "pptx_creator" and "topic" not in inp:
                 return f"Step {step.id}: pptx_creator requires 'topic' in input"
 
+            if step.tool == "duplicate_finder":
+                # entities can be empty (will return error asking for data)
+                continue
+
             # MCP tools (mcp_*): input validation skipped — schema is dynamic.
             # Known-tool checks above won't match mcp_ prefix, so they pass through.
 

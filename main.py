@@ -23,6 +23,8 @@ def build_registry() -> ToolRegistry:
     registry.register(TextWriterTool())
     registry.register(WebFetchTool())
     registry.register(FileManagerTool())
+    from src.organism.tools.duplicate_finder import DuplicateFinderTool
+    registry.register(DuplicateFinderTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
     if settings.telegram_bot_token:

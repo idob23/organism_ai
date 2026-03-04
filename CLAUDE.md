@@ -24,7 +24,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | MemoryManager | src/organism/memory/manager.py | pgvector, on_task_start / on_task_end |
 | SafetyValidator | src/organism/safety/validator.py | Block dangerous operations |
 
-### Tools (7 total)
+### Tools (8 total)
 | Tool | File | Notes |
 |------|------|-------|
 | code_executor | tools/code_executor.py | Docker sandbox, tmpfile + volume mount |
@@ -34,6 +34,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | text_writer | tools/text_writer.py | Long text generation + save to file |
 | pptx_creator | tools/pptx_creator.py | PowerPoint via python-pptx |
 | confirm_with_user | tools/confirm_user.py | Human approval via Telegram (Q-6.3), only in Telegram mode |
+| duplicate_finder | tools/duplicate_finder.py | Semantic duplicate search in 1C entities via embeddings (Q-8.3) |
 
 ### Agents (multi mode)
 | Agent | File | Purpose |
@@ -227,6 +228,17 @@ escapes. `create_app(mode, odata_url, odata_user, odata_password)` factory retur
 Application. CLI: `python -m src.organism.mcp_1c.server --port 8090 --mode demo`.
 Connect from Organism AI via MCP_SERVERS env: `[{"name":"1c","url":"http://localhost:8090"}]`.
 
+### Duplicate Search Service (Q-8.3)
+`DuplicateFinderTool` in tools/duplicate_finder.py. Local tool (not MCP) that finds
+duplicate entries in 1C directories using semantic similarity. Strategy: accept list of
+entity names → compute embeddings (OpenAI text-embedding-3-small via get_embedding()) →
+pairwise cosine similarity via numpy matrix multiplication → union-find grouping of
+connected duplicates. SIMILARITY_THRESHOLD=0.85, MAX_ENTITIES=200 safety cap. Input:
+entities (list[str]), entity_type (counterparties|equipment|nomenclature), threshold (float).
+Real workflow: fetch entities via MCP tools first, then pass to duplicate_finder.
+Registered in build_registry() (main.py + benchmark.py). Plan validation: skips input
+checks (entities can be empty). Planner prompts updated with duplicate_finder tool.
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -257,7 +269,7 @@ python main.py --improve --days 7 # Auto-improvement cycle
 python main.py --optimize-prompts # Benchmark-driven prompt optimization
 python main.py --evolve-prompts  # Evolutionary prompt search cycle
 python main.py --cache            # Solution cache stats
-python benchmark.py               # Full benchmark (23 tasks)
+python benchmark.py               # Full benchmark (24 tasks)
 python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
 ```
 
@@ -308,7 +320,7 @@ organism_ai/
 │                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry: --task, --multi, --stats, --improve, --days
-├── benchmark.py       # 23-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7)
+├── benchmark.py       # 24-task benchmark suite (10 baseline + 4 Sprint 5 + 5 Sprint 6 + 4 Sprint 7 + 1 Sprint 8)
 ├── CONTEXT.md         # Brief context for VS Code plugin (auto-generated)
 ├── organism_architecture_principles.md  # Canonical architecture principles
 └── pyproject.toml
@@ -325,7 +337,7 @@ organism_ai/
 - git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
 
 ## Current Metrics (March 2026)
-- Benchmark: 23 tasks total (20/23 success without Docker/DB, ~87%)
+- Benchmark: 24 tasks total (21/24 success without Docker/DB, ~88%)
 - With Docker+DB: expected 19/19 (100%) — failures are environmental only
 - Average Quality Score: 0.85
 - Cache hit rate: 36% (5/14 on warm DB, 0% without DB)
@@ -351,7 +363,7 @@ organism_ai/
 ### Sprint 8 (Integration — MCP + 1C)
 - Q-8.1: MCP client in ToolRegistry — discover and invoke tools from external MCP servers ✅
 - Q-8.2: MCP server for 1C — read operations: search counterparties, fuel data, equipment registry. Read-only first ✅
-- Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case
+- Q-8.3: Duplicate search service — semantic search across 1C entities via MCP. Key artel use case ✅
 - Q-8.4: Organism AI as MCP server — expose task execution capabilities for other AI systems
 - Q-8.5: Agent-to-Agent protocol — prepare architecture for multi-system collaboration
 
