@@ -1,4 +1,5 @@
-﻿import time
+﻿import asyncio
+import time
 import uuid
 import re
 from dataclasses import dataclass, field
@@ -319,6 +320,15 @@ class CoreLoop:
                     return result
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Writing fast path failed", e)
+                # MON-1: Capture to ErrorLog for Telegram monitoring
+                try:
+                    from src.organism.monitoring.error_notifier import capture_error
+                    asyncio.ensure_future(capture_error(
+                        component="core.loop.writing", message=f"Writing fast path failed: {e}",
+                        exception=e, task_id=task_id, task_text=task[:500],
+                    ))
+                except Exception:
+                    pass
 
         if verbose:
             print("Planning...")
@@ -384,6 +394,15 @@ class CoreLoop:
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
             log_exception(_log, f"[{task_id}] Planning failed", e)
+            # MON-1: Capture to ErrorLog for Telegram monitoring
+            try:
+                from src.organism.monitoring.error_notifier import capture_error
+                asyncio.ensure_future(capture_error(
+                    component="core.loop", message=f"Planning failed: {e}",
+                    exception=e, task_id=task_id, task_text=task[:500],
+                ))
+            except Exception:
+                pass
             return TaskResult(task_id=task_id, task=task, success=False, output="",
                               error=f"Planning failed: {e}", duration=time.time() - start, memory_hits=memory_hits)
 
@@ -543,6 +562,15 @@ class CoreLoop:
                 result = await tool.execute(step_input)
             except Exception as e:
                 error = log_exception(_log, f"[{task_id}] Step {step.id} crashed", e)
+                # MON-1: Capture to ErrorLog for Telegram monitoring
+                try:
+                    from src.organism.monitoring.error_notifier import capture_error
+                    asyncio.ensure_future(capture_error(
+                        component=f"core.loop.{step.tool}", message=f"Step {step.id} crashed: {e}",
+                        exception=e, task_id=task_id, task_text=task[:500],
+                    ))
+                except Exception:
+                    pass
                 return StepLog(step_id=step.id, tool=step.tool, description=step.description,
                                output="", error=error, success=False,
                                duration=time.time() - step_start, attempts=attempt)

@@ -91,6 +91,7 @@ organism_ai/
 │   ├── channels/      # base.py, gateway.py, telegram.py, cli_channel.py
 │   ├── llm/           # base.py (TemperatureLocked), claude.py
 │   ├── logging/       # logger.py, error_handler.py
+│   ├── monitoring/    # error_notifier.py — ErrorNotifier background task, capture_error()
 │   ├── safety/        # validator.py
 │   ├── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
 │   │                     # benchmark_optimizer.py, evolutionary_search.py

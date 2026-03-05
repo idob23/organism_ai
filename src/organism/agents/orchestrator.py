@@ -108,6 +108,17 @@ class Orchestrator:
             result = await self._sm_run(task, verbose)
         except Exception as e:
             log_exception(_log, "StateMachine run failed, falling back to legacy", e)
+            # MON-1: Capture to ErrorLog for Telegram monitoring
+            try:
+                from src.organism.monitoring.error_notifier import capture_error
+                import asyncio
+                asyncio.ensure_future(capture_error(
+                    component="agents.orchestrator",
+                    message=f"StateMachine run failed: {e}",
+                    exception=e, task_text=task[:500],
+                ))
+            except Exception:
+                pass
             if verbose:
                 print("  [WARN] StateMachine error -- falling back to legacy orchestrator")
             result = await self._legacy_run(task, verbose)

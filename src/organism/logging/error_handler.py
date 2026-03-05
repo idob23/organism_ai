@@ -36,3 +36,34 @@ def log_exception(logger: logging.Logger, context: str, exc: Exception) -> str:
 
 def log_warning(logger: logging.Logger, context: str, message: str) -> None:
     logger.warning(f"{context}: {message}")
+
+
+async def log_and_capture(
+    logger: logging.Logger,
+    component: str,
+    context: str,
+    exc: Exception,
+    task_id: str = "",
+    task_text: str = "",
+    level: str = "ERROR",
+) -> str:
+    """Log exception to file AND save to ErrorLog for Telegram monitoring.
+
+    Use instead of log_exception() when you want the error to appear in Telegram.
+    """
+    error_msg = log_exception(logger, context, exc)
+
+    try:
+        from src.organism.monitoring.error_notifier import capture_error
+        await capture_error(
+            component=component,
+            message=f"{context}: {type(exc).__name__}: {exc}",
+            exception=exc,
+            task_id=task_id,
+            task_text=task_text,
+            level=level,
+        )
+    except Exception:
+        pass  # Don't fail if monitoring is unavailable
+
+    return error_msg

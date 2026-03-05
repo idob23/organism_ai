@@ -225,6 +225,17 @@ async def run_telegram() -> None:
         scheduler.add_job(job)
     scheduler.start()
 
+    # MON-1: Start error monitoring
+    error_notifier = None
+    if settings.error_monitor_chat_id:
+        from src.organism.monitoring.error_notifier import ErrorNotifier
+        error_notifier = ErrorNotifier()
+        await error_notifier.start()
+        from src.organism.logging.error_handler import get_logger
+        get_logger("main").info(
+            "Error monitoring active -> chat %s", settings.error_monitor_chat_id
+        )
+
     gateway = Gateway(loop, scheduler=scheduler, approval=approval)
     channel = TelegramChannel(gateway)
     gateway.register_channel("telegram", channel)
@@ -233,6 +244,8 @@ async def run_telegram() -> None:
         await channel.start()
     finally:
         scheduler.stop()
+        if error_notifier:
+            await error_notifier.stop()
 
 
 async def run_stats() -> None:
@@ -392,10 +405,20 @@ def main() -> None:
                         help="Start Organism AI as MCP server")
     parser.add_argument("--mcp-port", type=int, default=8091,
                         help="Port for MCP server (default: 8091)")
+    parser.add_argument("--test-monitor", action="store_true",
+                        help="Send test message to error monitoring Telegram channel")
     args = parser.parse_args()
 
     try:
-        if args.stats:
+        if args.test_monitor:
+            from src.organism.monitoring.error_notifier import ErrorNotifier
+            notifier = ErrorNotifier()
+            if not notifier.is_configured:
+                print("Error: TELEGRAM_BOT_TOKEN and TELEGRAM_ERROR_CHAT_ID must be set")
+                sys.exit(1)
+            success = asyncio.run(notifier.send_test())
+            print("Test message sent!" if success else "Failed to send test message")
+        elif args.stats:
             asyncio.run(run_stats())
         elif args.analyze:
             asyncio.run(run_analyze())

@@ -63,6 +63,18 @@ class Gateway:
             result = await self.loop.run(msg.text, verbose=False)
         except Exception as exc:
             _log.error("gateway.task_error: %s: %s", type(exc).__name__, exc)
+            # MON-1: Capture to ErrorLog for Telegram monitoring
+            try:
+                from src.organism.monitoring.error_notifier import capture_error
+                import asyncio
+                asyncio.ensure_future(capture_error(
+                    component="channels.gateway",
+                    message=f"Task execution error: {type(exc).__name__}: {exc}",
+                    exception=exc,
+                    task_text=msg.text[:500] if msg.text else "",
+                ))
+            except Exception:
+                pass
             return OutgoingMessage(
                 text=f"Error: {type(exc).__name__}: {exc}",
                 user_id=msg.user_id,

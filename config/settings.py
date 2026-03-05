@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     mcp_servers: str = Field("", alias="MCP_SERVERS")
     # A2A peer agents (JSON: [{"name": "...", "url": "...", "api_key": "..."}])
     a2a_peers: str = Field("", alias="A2A_PEERS")
+    # Error monitoring: Telegram chat ID for error notifications (separate from user bot)
+    error_monitor_chat_id: str = Field("", alias="TELEGRAM_ERROR_CHAT_ID")
+    error_monitor_interval: int = Field(60, alias="ERROR_MONITOR_INTERVAL")
 
     @property
     def allowed_user_ids(self) -> list[int]:
