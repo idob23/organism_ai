@@ -49,6 +49,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         ),
         schedule_type="daily",
         time_of_day=dt_time(6, 30),
+        enabled=False,
     ),
     ScheduledJob(
         name="weekly_production",
@@ -71,6 +72,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         schedule_type="weekly",
         time_of_day=dt_time(8, 0),
         weekday=0,  # Monday
+        enabled=False,
     ),
     ScheduledJob(
         name="fuel_anomaly_check",
@@ -96,6 +98,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         ),
         schedule_type="interval",
         interval_minutes=360,  # every 6 hours
+        enabled=False,
     ),
     ScheduledJob(
         name="weekly_prompt_evolution",
@@ -111,7 +114,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         schedule_type="weekly",
         weekday=6,  # Sunday
         time_of_day=dt_time(4, 0),
-        enabled=True,
+        enabled=False,
     ),
 ]
 

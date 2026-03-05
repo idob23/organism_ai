@@ -24,6 +24,7 @@ HELP_TEXT = (
     "  /approve <id>            \u2014 approve a pending action\n"
     "  /reject <id>             \u2014 reject a pending action\n"
     "  /personality             \u2014 show current personality config\n"
+    "  /reset                   \u2014 reset all saved profile data\n"
     "  /cleanup                \u2014 run database cleanup (expired cache, old reflections, old errors)\n"
     "  /help                    \u2014 show this help\n"
 )
@@ -88,6 +89,8 @@ class CommandHandler:
             return await self._handle_improve(parts, memory)
         elif cmd == "/prompts":
             return await self._handle_prompts(memory)
+        elif cmd == "/reset":
+            return await self._handle_reset(memory)
         elif cmd == "/cleanup":
             return await self._handle_cleanup(memory)
         else:
@@ -279,6 +282,21 @@ class CommandHandler:
             lines.append(f"  [{name}]")
             lines.append(f"    {preview}")
         return "\n".join(lines)
+
+    async def _handle_reset(self, memory: "MemoryManager") -> str:
+        """Clear all user profile facts."""
+        from src.organism.memory.database import UserProfile, AsyncSessionLocal
+        from sqlalchemy import delete
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    delete(UserProfile).where(UserProfile.valid_until.is_(None))
+                )
+                count = result.rowcount
+                await session.commit()
+            return f"Profile reset: {count} fact(s) cleared."
+        except Exception as e:
+            return f"Reset error: {e}"
 
     async def _handle_cleanup(self, memory: "MemoryManager") -> str:
         """Run database cleanup functions."""

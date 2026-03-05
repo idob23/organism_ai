@@ -143,6 +143,7 @@ python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
 /approve <id>             — approve a pending action
 /reject <id>              — reject a pending action
 /personality              — show current personality config
+/reset                    — reset all saved profile data
 /cleanup                  — run database cleanup (expired cache, old reflections, old errors)
 /help                     — show available commands
 ```
