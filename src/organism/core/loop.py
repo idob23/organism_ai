@@ -47,6 +47,36 @@ SEARCH_KEYWORDS = [
     "исследуй",  # исследуй
 ]
 
+# FIX-1: Patterns for conversational (non-task) messages
+CHAT_PATTERNS = [
+    "\u043f\u0440\u0438\u0432\u0435\u0442",              # привет
+    "\u0437\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439",  # здравствуй
+    "\u0434\u043e\u0431\u0440\u043e\u0435 \u0443\u0442\u0440\u043e",  # доброе утро
+    "\u0434\u043e\u0431\u0440\u044b\u0439 \u0434\u0435\u043d\u044c",  # добрый день
+    "\u0434\u043e\u0431\u0440\u044b\u0439 \u0432\u0435\u0447\u0435\u0440",  # добрый вечер
+    "\u043a\u0430\u043a \u0434\u0435\u043b\u0430",        # как дела
+    "\u043a\u0442\u043e \u0442\u044b",                    # кто ты
+    "\u0447\u0442\u043e \u0442\u044b \u0443\u043c\u0435\u0435\u0448\u044c",  # что ты умеешь
+    "\u0447\u0442\u043e \u043c\u043e\u0436\u0435\u0448\u044c",  # что можешь
+    "\u043f\u043e\u043c\u043e\u0433\u0438",              # помоги
+    "\u0441\u043f\u0430\u0441\u0438\u0431\u043e",        # спасибо
+    "\u043f\u043e\u043a\u0430",                          # пока
+    "hello", "hi", "hey",
+    "\u043f\u043e\u0447\u0435\u043c\u0443",              # почему
+]
+
+TASK_SIGNALS = [
+    "\u043d\u0430\u043f\u0438\u0448\u0438",              # напиши
+    "\u0441\u043e\u0441\u0442\u0430\u0432\u044c",        # составь
+    "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439",  # рассчитай
+    "\u043d\u0430\u0439\u0434\u0438",                    # найди
+    "\u0441\u043e\u0437\u0434\u0430\u0439",              # создай
+    "\u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c",  # подготовь
+    "\u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439",  # проанализируй
+    "\u0441\u0434\u0435\u043b\u0430\u0439",              # сделай
+    "csv", "xlsx", "pptx",
+]
+
 
 @dataclass
 class StepLog:
@@ -200,6 +230,64 @@ class CoreLoop:
                           steps=[step_log], duration=duration,
                           error=result.error if result.exit_code != 0 else "")
 
+    def _is_conversational(self, task: str) -> bool:
+        """Detect if message is conversational (not a task)."""
+        t = task.lower().strip()
+
+        # Messages with task signals are always tasks
+        if any(s in t for s in TASK_SIGNALS):
+            return False
+
+        # Direct chat pattern match
+        if any(t.startswith(p) or t == p for p in CHAT_PATTERNS):
+            return True
+
+        # Very short messages (< 50 chars) without task keywords are conversational
+        if len(t) < 50 and not t.startswith("/"):
+            return True
+
+        return False
+
+    async def _handle_conversation(self, task_id: str, task: str, user_context: str = "") -> "TaskResult":
+        """Handle conversational messages with a direct LLM response (no planning, no files)."""
+        start = time.time()
+
+        system = (
+            "You are Organism AI, an intelligent assistant. "
+            "Respond naturally and briefly in the same language as the user. "
+            "If the user greets you, greet back and briefly explain what you can do. "
+            "If asked what you can do, list: calculations, reports, web search, "
+            "document generation, data analysis, presentations. "
+            "Keep responses under 300 characters. Be friendly but professional."
+        )
+        if user_context:
+            system += f"\n\nUser context: {user_context}"
+
+        if self.personality:
+            personality_addition = self.personality.get_system_prompt_addition()
+            if personality_addition:
+                system += f"\n\n{personality_addition}"
+
+        try:
+            from src.organism.llm.base import Message as LLMMessage
+            resp = await self.llm.complete(
+                messages=[LLMMessage(role="user", content=task)],
+                system=system,
+                model_tier="fast",
+                max_tokens=300,
+            )
+            answer = resp.content.strip()
+        except Exception:
+            answer = "\u041f\u0440\u0438\u0432\u0435\u0442! \u042f Organism AI. \u041e\u0442\u043f\u0440\u0430\u0432\u044c \u043c\u043d\u0435 \u0437\u0430\u0434\u0430\u0447\u0443 \u0438 \u044f \u043f\u043e\u043c\u043e\u0433\u0443."
+
+        duration = time.time() - start
+        _log.info(f"[{task_id}] Conversational response in {duration:.1f}s")
+        return TaskResult(
+            task_id=task_id, task=task, success=True,
+            output=answer, answer=answer,
+            duration=duration, quality_score=1.0,
+        )
+
     async def run(self, task: str, verbose: bool = True) -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
@@ -212,6 +300,11 @@ class CoreLoop:
         memory_hits = 0
         memory_context = ""
         user_context = ""
+
+        # FIX-1: Detect conversational messages (not tasks) — fast path, skip memory/planning
+        if self._is_conversational(task):
+            return await self._handle_conversation(task_id, task)
+
         if self.memory:
             try:
                 await self.memory.initialize()
