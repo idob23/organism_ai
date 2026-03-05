@@ -1,9 +1,12 @@
-﻿from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import Column, String, Float, Integer, Text, DateTime, Boolean, Index
 from sqlalchemy import func, text
 from pgvector.sqlalchemy import Vector
 from config.settings import settings
+from src.organism.logging.error_handler import get_logger
+
+_log = get_logger("memory.database")
 
 
 class Base(DeclarativeBase):
@@ -152,99 +155,307 @@ class PromptPopulationMember(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class ErrorLog(Base):
+    __tablename__ = "error_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    level = Column(String, nullable=False, default="ERROR")       # ERROR, WARNING, CRITICAL
+    component = Column(String, nullable=False)                     # core.loop, agents.coder, tools.web_fetch, etc.
+    message = Column(Text, nullable=False)                         # Error message
+    traceback = Column(Text, nullable=True)                        # Full traceback
+    task_id = Column(String, nullable=True)                        # Related task_id if available
+    task_text = Column(Text, nullable=True)                        # Task text for context (first 500 chars)
+    artel_id = Column(String, default="default")                   # For multi-tenancy
+    notified = Column(Boolean, default=False)                      # Has this been sent to Telegram?
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class SchemaMigration(Base):
+    __tablename__ = "schema_migrations"
+
+    version = Column(Integer, primary_key=True)       # Migration number (1, 2, 3...)
+    name = Column(String, nullable=False)              # Human-readable name
+    applied_at = Column(DateTime, server_default=func.now())
+
+
 engine = create_async_engine(settings.database_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def init_db() -> None:
+    """Initialize database: create tables, apply pending migrations."""
     async with engine.begin() as conn:
+        # 1. Create all tables (idempotent -- skips existing)
         await conn.run_sync(Base.metadata.create_all)
-        # Q-2.2: GIN index for Russian full-text search (BM25 hybrid search).
-        # Safe to run on existing DBs — IF NOT EXISTS makes it idempotent.
-        # Manual migration SQL (if needed outside init_db):
-        #   CREATE INDEX IF NOT EXISTS idx_task_memories_task_fts
-        #   ON task_memories USING GIN (to_tsvector('russian', task));
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_task_memories_task_fts "
-            "ON task_memories USING GIN (to_tsvector('russian', task))"
-        ))
-        # Q-5.1: Temporal fact tracking — ADD COLUMN IF NOT EXISTS migrations.
-        # Each statement is independent so a single failure does not block others.
-        _migrations_51 = [
-            # user_profile: new columns
-            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
-            " id VARCHAR DEFAULT gen_random_uuid()::text",
-            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
-            " valid_from TIMESTAMP DEFAULT NOW()",
-            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
-            " valid_until TIMESTAMP",
-            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS"
-            " superseded_by VARCHAR",
-            # knowledge_rules: new columns
-            "ALTER TABLE knowledge_rules ADD COLUMN IF NOT EXISTS"
-            " valid_from TIMESTAMP DEFAULT NOW()",
-            "ALTER TABLE knowledge_rules ADD COLUMN IF NOT EXISTS"
-            " valid_until TIMESTAMP",
-        ]
-        for ddl in _migrations_51:
-            try:
-                await conn.execute(text(ddl))
-            except Exception:
-                pass
-        # Migrate user_profile PK from 'key' to 'id' on existing DBs.
-        # On fresh DBs create_all already used 'id' as PK, so the DO block
-        # detects that and skips the constraint change safely.
+
+        # 2. Get applied migration versions
         try:
-            await conn.execute(text(
-                "UPDATE user_profile SET id = gen_random_uuid()::text WHERE id IS NULL"
+            result = await conn.execute(text(
+                "SELECT version FROM schema_migrations ORDER BY version"
             ))
-            await conn.execute(text(
-                "ALTER TABLE user_profile ALTER COLUMN id SET NOT NULL"
-            ))
-            await conn.execute(text("""
-                DO $$ BEGIN
-                    IF EXISTS (
-                        SELECT 1 FROM information_schema.key_column_usage
-                        WHERE table_name = 'user_profile'
-                          AND constraint_name = 'user_profile_pkey'
-                          AND column_name = 'key'
-                    ) THEN
-                        ALTER TABLE user_profile DROP CONSTRAINT user_profile_pkey;
-                        ALTER TABLE user_profile ADD PRIMARY KEY (id);
-                    END IF;
-                END $$
-            """))
+            applied = {row[0] for row in result.fetchall()}
+        except Exception:
+            applied = set()
+
+        # 3. Run pending migrations
+        for version, name, fn in _MIGRATIONS:
+            if version not in applied:
+                _log.info("Applying migration %d: %s", version, name)
+                try:
+                    await fn(conn)
+                    await conn.execute(text(
+                        "INSERT INTO schema_migrations (version, name) VALUES (:v, :n)"
+                    ), {"v": version, "n": name})
+                    _log.info("Migration %d applied successfully", version)
+                except Exception as e:
+                    _log.error("Migration %d failed: %s", version, e)
+                    # Continue to next migration -- don't block
+
+
+# -- Migration functions (each is idempotent) ---------------------
+
+async def _m001_base_indexes(conn) -> None:
+    """Performance indexes for core queries."""
+    stmts = [
+        # task_memories: main search index
+        "CREATE INDEX IF NOT EXISTS ix_tm_created_at ON task_memories (created_at DESC)",
+        # task_memories: filter for search_similar (success + quality + date)
+        "CREATE INDEX IF NOT EXISTS ix_tm_search ON task_memories (success, quality_score, created_at DESC) WHERE success = true",
+        # task_memories: GIN for Russian full-text search (BM25)
+        "CREATE INDEX IF NOT EXISTS idx_task_memories_task_fts ON task_memories USING GIN (to_tsvector('russian', task))",
+        # solution_cache: cleanup by expires_at
+        "CREATE INDEX IF NOT EXISTS ix_sc_expires ON solution_cache (expires_at)",
+        # solution_cache: lookup by hits for stats
+        "CREATE INDEX IF NOT EXISTS ix_sc_hits ON solution_cache (hits DESC)",
+        # agent_reflections: filter by agent_name (cross-agent Q-7.5)
+        "CREATE INDEX IF NOT EXISTS ix_ar_agent ON agent_reflections (agent_name, created_at DESC)",
+        # agent_reflections: score >= 3 for insights
+        "CREATE INDEX IF NOT EXISTS ix_ar_score ON agent_reflections (score DESC, created_at DESC)",
+        # knowledge_rules: active rules lookup
+        "CREATE INDEX IF NOT EXISTS ix_kr_active ON knowledge_rules (valid_until, confidence DESC) WHERE valid_until IS NULL",
+        # user_profile: active facts
+        "CREATE INDEX IF NOT EXISTS ix_up_active ON user_profile (key, valid_until) WHERE valid_until IS NULL",
+        # prompt_versions: active version lookup
+        "CREATE INDEX IF NOT EXISTS ix_pv_active ON prompt_versions (prompt_name, is_active) WHERE is_active = true",
+        # procedural_templates: pattern lookup
+        "CREATE INDEX IF NOT EXISTS ix_pt_quality ON procedural_templates (avg_quality DESC, success_count DESC)",
+        # few_shot_examples: quality lookup
+        """DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'few_shot_examples') THEN
+                EXECUTE 'CREATE INDEX IF NOT EXISTS ix_fse_quality ON few_shot_examples (quality_score DESC)';
+            END IF;
+        END $$""",
+        # prompt_population: active members
+        """DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'prompt_population') THEN
+                EXECUTE 'CREATE INDEX IF NOT EXISTS ix_pp_active ON prompt_population (prompt_name, is_active, fitness DESC)';
+            END IF;
+        END $$""",
+    ]
+    for sql in stmts:
+        try:
+            await conn.execute(text(sql))
         except Exception:
             pass
-        # Q-7.1: Structured reflection columns — idempotent migration.
-        _migrations_71 = [
-            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS failure_type VARCHAR",
-            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS root_cause TEXT",
-            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS corrective_action TEXT",
-            "ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS reflection_confidence FLOAT",
-        ]
-        for ddl in _migrations_71:
-            try:
-                await conn.execute(text(ddl))
-            except Exception:
-                pass
-        # Q-7.3: Few-shot examples — idempotent migration for future column additions.
-        _migrations_73 = [
-            "ALTER TABLE few_shot_examples ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0",
-        ]
-        for ddl in _migrations_73:
-            try:
-                await conn.execute(text(ddl))
-            except Exception:
-                pass
-        # Q-7.4: Prompt population — idempotent migration.
-        _migrations_74 = [
-            "ALTER TABLE prompt_population ADD COLUMN IF NOT EXISTS parent_id INTEGER",
-            "ALTER TABLE prompt_population ADD COLUMN IF NOT EXISTS mutation_type VARCHAR",
-            "ALTER TABLE prompt_population ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE",
-        ]
-        for ddl in _migrations_74:
-            try:
-                await conn.execute(text(ddl))
-            except Exception:
-                pass
+
+
+async def _m002_artel_id(conn) -> None:
+    """Add artel_id column to key tables for multi-tenancy readiness.
+
+    Default='default'. Nullable. Does NOT enforce FK -- artels are configured
+    externally. When multi-tenancy is enabled, queries filter by artel_id.
+    Until then, column exists but is ignored.
+    """
+    tables = [
+        "task_memories",
+        "solution_cache",
+        "agent_reflections",
+        "user_profile",
+        "knowledge_rules",
+        "procedural_templates",
+    ]
+    for table in tables:
+        try:
+            await conn.execute(text(
+                f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS artel_id VARCHAR DEFAULT 'default'"
+            ))
+        except Exception:
+            pass
+
+    # Indexes for artel_id filtering (future multi-tenancy)
+    for table in tables:
+        try:
+            await conn.execute(text(
+                f"CREATE INDEX IF NOT EXISTS ix_{table[:10]}_artel ON {table} (artel_id)"
+            ))
+        except Exception:
+            pass
+
+
+async def _m003_error_log(conn) -> None:
+    """Create error_log table for error monitoring (Telegram notifications).
+
+    create_all() already handles this if ErrorLog model exists,
+    but explicit CREATE IF NOT EXISTS is safer for migration ordering.
+    """
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS error_log (
+            id SERIAL PRIMARY KEY,
+            level VARCHAR NOT NULL DEFAULT 'ERROR',
+            component VARCHAR NOT NULL,
+            message TEXT NOT NULL,
+            traceback TEXT,
+            task_id VARCHAR,
+            task_text TEXT,
+            artel_id VARCHAR DEFAULT 'default',
+            notified BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_el_unnotified ON error_log (notified, created_at DESC) WHERE notified = false"
+    ))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_el_component ON error_log (component, created_at DESC)"
+    ))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_el_level ON error_log (level, created_at DESC)"
+    ))
+
+
+async def _m004_structured_reflections(conn) -> None:
+    """Ensure agent_reflections has Q-7.1 structured columns.
+
+    Sprint 7 added these via _migrations_71, but they may be missing
+    on DBs created before Sprint 7. Idempotent.
+    """
+    cols = [
+        ("failure_type", "VARCHAR"),
+        ("root_cause", "TEXT"),
+        ("corrective_action", "TEXT"),
+        ("reflection_confidence", "FLOAT DEFAULT 0.5"),
+    ]
+    for col_name, col_type in cols:
+        try:
+            await conn.execute(text(
+                f"ALTER TABLE agent_reflections ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+            ))
+        except Exception:
+            pass
+
+
+async def _m005_result_size(conn) -> None:
+    """Add result_hash column for deduplication of large results."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE task_memories ADD COLUMN IF NOT EXISTS result_hash VARCHAR(64)"
+        ))
+    except Exception:
+        pass
+
+
+async def _m006_retention_helpers(conn) -> None:
+    """Create helper functions for data retention/cleanup.
+
+    These are PostgreSQL functions callable via: SELECT cleanup_expired_cache();
+    """
+    # Clean expired solution cache entries
+    await conn.execute(text("""
+        CREATE OR REPLACE FUNCTION cleanup_expired_cache()
+        RETURNS INTEGER AS $$
+        DECLARE deleted INTEGER;
+        BEGIN
+            DELETE FROM solution_cache WHERE expires_at < NOW();
+            GET DIAGNOSTICS deleted = ROW_COUNT;
+            RETURN deleted;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+
+    # Archive old reflections (keep last N per agent)
+    await conn.execute(text("""
+        CREATE OR REPLACE FUNCTION cleanup_old_reflections(keep_count INTEGER DEFAULT 1000)
+        RETURNS INTEGER AS $$
+        DECLARE deleted INTEGER;
+        BEGIN
+            WITH ranked AS (
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY agent_name ORDER BY created_at DESC) as rn
+                FROM agent_reflections
+            )
+            DELETE FROM agent_reflections WHERE id IN (
+                SELECT id FROM ranked WHERE rn > keep_count
+            );
+            GET DIAGNOSTICS deleted = ROW_COUNT;
+            RETURN deleted;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+
+    # Cleanup old error_log entries (keep last N days, only notified)
+    await conn.execute(text("""
+        CREATE OR REPLACE FUNCTION cleanup_old_errors(days INTEGER DEFAULT 30)
+        RETURNS INTEGER AS $$
+        DECLARE deleted INTEGER;
+        BEGIN
+            DELETE FROM error_log WHERE created_at < NOW() - (days || ' days')::INTERVAL AND notified = true;
+            GET DIAGNOSTICS deleted = ROW_COUNT;
+            RETURN deleted;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+
+    # Archive old memory_edges (keep last N)
+    await conn.execute(text("""
+        CREATE OR REPLACE FUNCTION cleanup_old_edges(keep_count INTEGER DEFAULT 5000)
+        RETURNS INTEGER AS $$
+        DECLARE deleted INTEGER;
+        BEGIN
+            WITH ranked AS (
+                SELECT id, ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn
+                FROM memory_edges
+            )
+            DELETE FROM memory_edges WHERE id IN (
+                SELECT id FROM ranked WHERE rn > keep_count
+            );
+            GET DIAGNOSTICS deleted = ROW_COUNT;
+            RETURN deleted;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+
+
+async def _m007_few_shot_indexes(conn) -> None:
+    """Ensure few_shot_examples and prompt_population have proper indexes."""
+    stmts = [
+        # few_shot_examples
+        """DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'few_shot_examples') THEN
+                EXECUTE 'CREATE INDEX IF NOT EXISTS ix_fse_task_type ON few_shot_examples (task_type, quality_score DESC)';
+                EXECUTE 'CREATE INDEX IF NOT EXISTS ix_fse_created ON few_shot_examples (created_at DESC)';
+            END IF;
+        END $$""",
+        # prompt_population
+        """DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'prompt_population') THEN
+                EXECUTE 'CREATE INDEX IF NOT EXISTS ix_pp_generation ON prompt_population (prompt_name, generation DESC)';
+            END IF;
+        END $$""",
+    ]
+    for sql in stmts:
+        try:
+            await conn.execute(text(sql))
+        except Exception:
+            pass
+
+
+# Migration registry -- (version, name, function)
+# APPEND ONLY -- never remove or reorder entries
+_MIGRATIONS = [
+    (1, "base_indexes", _m001_base_indexes),
+    (2, "artel_id", _m002_artel_id),
+    (3, "error_log", _m003_error_log),
+    (4, "structured_reflections", _m004_structured_reflections),
+    (5, "result_size", _m005_result_size),
+    (6, "retention_helpers", _m006_retention_helpers),
+    (7, "few_shot_indexes", _m007_few_shot_indexes),
+]

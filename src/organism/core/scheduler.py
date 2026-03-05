@@ -105,6 +105,14 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         weekday=6,  # Sunday
         enabled=False,  # user enables via /schedule_enable
     ),
+    ScheduledJob(
+        name="db_cleanup",
+        task_text="__internal__:db_cleanup",
+        schedule_type="weekly",
+        weekday=6,  # Sunday
+        time_of_day=dt_time(4, 0),
+        enabled=True,
+    ),
 ]
 
 
@@ -177,6 +185,19 @@ class ProactiveScheduler:
                     )
             except Exception as exc:
                 log_exception(_log, "Internal task evolve_prompts failed", exc)
+        elif command == "db_cleanup":
+            try:
+                from src.organism.memory.database import AsyncSessionLocal
+                from sqlalchemy import text as sa_text
+                async with AsyncSessionLocal() as session:
+                    await session.execute(sa_text("SELECT cleanup_expired_cache()"))
+                    await session.execute(sa_text("SELECT cleanup_old_reflections(1000)"))
+                    await session.execute(sa_text("SELECT cleanup_old_errors(30)"))
+                    await session.execute(sa_text("SELECT cleanup_old_edges(5000)"))
+                    await session.commit()
+                _log.info("Weekly DB cleanup completed")
+            except Exception as e:
+                _log.error("DB cleanup failed: %s", e)
         else:
             _log.warning("scheduler.unknown_internal: %s", command)
 

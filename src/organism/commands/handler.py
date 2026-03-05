@@ -24,6 +24,7 @@ HELP_TEXT = (
     "  /approve <id>            \u2014 approve a pending action\n"
     "  /reject <id>             \u2014 reject a pending action\n"
     "  /personality             \u2014 show current personality config\n"
+    "  /cleanup                \u2014 run database cleanup (expired cache, old reflections, old errors)\n"
     "  /help                    \u2014 show this help\n"
 )
 
@@ -87,6 +88,8 @@ class CommandHandler:
             return await self._handle_improve(parts, memory)
         elif cmd == "/prompts":
             return await self._handle_prompts(memory)
+        elif cmd == "/cleanup":
+            return await self._handle_cleanup(memory)
         else:
             return f"Unknown command: {cmd}\n\n{HELP_TEXT}"
 
@@ -276,6 +279,44 @@ class CommandHandler:
             lines.append(f"  [{name}]")
             lines.append(f"    {preview}")
         return "\n".join(lines)
+
+    async def _handle_cleanup(self, memory: "MemoryManager") -> str:
+        """Run database cleanup functions."""
+        from src.organism.memory.database import AsyncSessionLocal
+        from sqlalchemy import text as sa_text
+        results = []
+        async with AsyncSessionLocal() as session:
+            try:
+                r = await session.execute(sa_text("SELECT cleanup_expired_cache()"))
+                n = r.scalar()
+                results.append(f"Expired cache entries removed: {n}")
+            except Exception as e:
+                results.append(f"Cache cleanup error: {e}")
+
+            try:
+                r = await session.execute(sa_text("SELECT cleanup_old_reflections(1000)"))
+                n = r.scalar()
+                results.append(f"Old reflections removed: {n}")
+            except Exception as e:
+                results.append(f"Reflections cleanup error: {e}")
+
+            try:
+                r = await session.execute(sa_text("SELECT cleanup_old_errors(30)"))
+                n = r.scalar()
+                results.append(f"Old error logs removed: {n}")
+            except Exception as e:
+                results.append(f"Error log cleanup error: {e}")
+
+            try:
+                r = await session.execute(sa_text("SELECT cleanup_old_edges(5000)"))
+                n = r.scalar()
+                results.append(f"Old graph edges removed: {n}")
+            except Exception as e:
+                results.append(f"Edges cleanup error: {e}")
+
+            await session.commit()
+
+        return "Database cleanup:\n" + "\n".join(f"  {r}" for r in results)
 
     async def _handle_prompts(self, memory: "MemoryManager") -> str:
         """Show active prompt versions and their quality stats."""

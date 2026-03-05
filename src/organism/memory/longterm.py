@@ -62,7 +62,7 @@ class LongTermMemory:
             memory = TaskMemory(
                 id=memory_id,
                 task=task,
-                result=result[:2000],
+                result=result[:10000],
                 success=success,
                 duration=duration,
                 steps_count=steps_count,

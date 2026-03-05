@@ -259,6 +259,27 @@ Config: `A2A_PEERS='[{"name":"artel-south","url":"http://192.168.2.100:8091"}]'`
 Without configured peers: delegate_to_agent not registered, zero impact on existing flow.
 Plan validation: requires peer_name and task in input. Planner prompts updated.
 
+### Database Schema v2 (DB-1)
+Comprehensive DB revision: versioned migrations, indexes, multi-tenancy readiness, error_log, retention.
+`SchemaMigration` table tracks applied migrations (version, name, applied_at). `init_db()` runs
+`Base.metadata.create_all` then iterates `_MIGRATIONS` list — skips already-applied versions.
+All old inline migrations (_migrations_51, _migrations_71, _migrations_73, _migrations_74) removed.
+
+7 versioned migrations (append-only, idempotent):
+| # | Name | Purpose |
+|---|------|---------|
+| 1 | base_indexes | 14 performance indexes on task_memories, solution_cache, agent_reflections, etc. |
+| 2 | artel_id | Add artel_id VARCHAR DEFAULT 'default' to 6 core tables + indexes |
+| 3 | error_log | CREATE TABLE error_log (level, component, message, traceback, task_id, notified) + 3 indexes |
+| 4 | structured_reflections | Q-7.1 columns on agent_reflections (failure_type, root_cause, etc.) |
+| 5 | result_size | Add result_hash column to task_memories for dedup |
+| 6 | retention_helpers | 4 PostgreSQL functions: cleanup_expired_cache(), cleanup_old_reflections(N), cleanup_old_errors(N), cleanup_old_edges(N) |
+| 7 | few_shot_indexes | Additional indexes on few_shot_examples and prompt_population |
+
+`ErrorLog` model: level, component, message, traceback, task_id, task_text, artel_id, notified, created_at.
+`notified=false` enables monitoring ("show unnotified errors"). `/cleanup` command and `db_cleanup`
+scheduled job (Sun 04:00) call retention functions. Result truncation in longterm.py: 10000 chars (was 2000).
+
 ## Tool Implementation Details
 
 | Tool | Key Detail |
@@ -310,6 +331,7 @@ python benchmark.py --quick       # Quick check (5 tasks, no web/multi-agent)
 /approve <id>             — approve a pending action
 /reject <id>              — reject a pending action
 /personality              — show current personality config
+/cleanup                  — run database cleanup (expired cache, old reflections, old errors)
 /help                     — show available commands
 ```
 
@@ -325,7 +347,7 @@ organism_ai/
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
 │   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
 │   ├── commands/      # handler.py — /remember /forget /profile /style /stats /improve /prompts
-│   │                  #   /schedule /schedule_enable /schedule_disable /approve /reject /personality
+│   │                  #   /schedule /schedule_enable /schedule_disable /approve /reject /personality /cleanup
 │   ├── channels/      # base.py (IncomingMessage, OutgoingMessage), gateway.py
 │   │                  # telegram.py (progress ticker, file attachments), cli_channel.py
 │   ├── llm/           # base.py (TemperatureLocked), claude.py
