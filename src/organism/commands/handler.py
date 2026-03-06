@@ -26,6 +26,7 @@ HELP_TEXT = (
     "  /personality             \u2014 show current personality config\n"
     "  /reset                   \u2014 reset all saved profile data\n"
     "  /cleanup                \u2014 run database cleanup (expired cache, old reflections, old errors)\n"
+    "  /test_error              \u2014 send a test error to monitoring\n"
     "  /help                    \u2014 show this help\n"
 )
 
@@ -64,6 +65,10 @@ class CommandHandler:
         # Personality — no memory required
         if cmd == "/personality":
             return self._handle_personality()
+
+        # Test error — no memory required
+        if cmd == "/test_error":
+            return await self._handle_test_error()
 
         if memory is None:
             return "Memory not available (DATABASE_URL not configured)."
@@ -282,6 +287,21 @@ class CommandHandler:
             lines.append(f"  [{name}]")
             lines.append(f"    {preview}")
         return "\n".join(lines)
+
+    async def _handle_test_error(self) -> str:
+        """Insert a test error into error_log to verify monitoring pipeline."""
+        try:
+            from src.organism.monitoring.error_notifier import capture_error
+            await capture_error(
+                component="test",
+                message="Test error from /test_error command",
+                task_id="test-000",
+                task_text="Testing error monitoring pipeline",
+                level="WARNING",
+            )
+            return "Test error created. Check your error monitoring channel in ~60 seconds."
+        except Exception as e:
+            return f"Failed to create test error: {e}"
 
     async def _handle_reset(self, memory: "MemoryManager") -> str:
         """Clear all user profile facts."""

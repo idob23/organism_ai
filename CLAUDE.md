@@ -145,6 +145,7 @@ python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
 /personality              — show current personality config
 /reset                    — reset all saved profile data
 /cleanup                  — run database cleanup (expired cache, old reflections, old errors)
+/test_error               — send a test error to monitoring
 /help                     — show available commands
 ```
 
