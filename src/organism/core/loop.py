@@ -350,7 +350,18 @@ class CoreLoop:
                 max_tokens=500,
             )
             answer = resp.content.strip()
-        except Exception:
+        except Exception as e:
+            # FIX-10: Monitor conversation handler failures
+            try:
+                from src.organism.monitoring.error_notifier import capture_error
+                asyncio.ensure_future(capture_error(
+                    component="core.loop.conversation",
+                    message=f"Conversation handler failed: {e}",
+                    exception=e,
+                    task_text=task[:500],
+                ))
+            except Exception:
+                pass
             answer = "\u041f\u0440\u0438\u0432\u0435\u0442! \u042f Organism AI. \u041e\u0442\u043f\u0440\u0430\u0432\u044c \u043c\u043d\u0435 \u0437\u0430\u0434\u0430\u0447\u0443 \u0438 \u044f \u043f\u043e\u043c\u043e\u0433\u0443."
 
         duration = time.time() - start
@@ -675,6 +686,18 @@ class CoreLoop:
                         pass
                 self.logger.log_task_end(task_id, False, duration, total_tokens)
                 _final_output = self._humanize_error(log.output or log.error, task)
+                # FIX-10: Monitor failed task
+                try:
+                    from src.organism.monitoring.error_notifier import capture_error
+                    asyncio.ensure_future(capture_error(
+                        component="core.loop",
+                        message=f"Task FAILED (quality: 0.00)\nOutput: {_final_output[:300]}",
+                        task_id=task_id,
+                        task_text=task[:500],
+                        level="ERROR",
+                    ))
+                except Exception:
+                    pass
                 return TaskResult(task_id=task_id, task=task, success=False, output=_final_output,
                                   steps=step_logs, duration=duration,
                                   error=f"Step {step.id} failed: {log.error}", memory_hits=memory_hits)
@@ -724,6 +747,19 @@ class CoreLoop:
             last_output = await self._summarize_search_results(last_output, task)
         # FIX-4: Humanize output in case a "successful" step returned raw error text
         _final_output = self._humanize_error(last_output, task)
+        # FIX-10: Monitor low-quality tasks
+        if avg_quality < 0.5:
+            try:
+                from src.organism.monitoring.error_notifier import capture_error
+                asyncio.ensure_future(capture_error(
+                    component="core.loop",
+                    message=f"Task LOW QUALITY (quality: {avg_quality:.2f})\nOutput: {_final_output[:300]}",
+                    task_id=task_id,
+                    task_text=task[:500],
+                    level="WARNING",
+                ))
+            except Exception:
+                pass
         return TaskResult(task_id=task_id, task=task, success=True, output=_final_output, answer=_final_output,
                           steps=step_logs, total_tokens=total_tokens, duration=duration, memory_hits=memory_hits,
                           quality_score=avg_quality)
@@ -756,6 +792,21 @@ class CoreLoop:
             step_start = time.time()
             if verbose and attempt > 1:
                 print(f"  Retry {attempt}/{self.MAX_RETRIES}...")
+
+            # FIX-10: Monitor step retries
+            if attempt > 1:
+                try:
+                    from src.organism.monitoring.error_notifier import capture_error
+                    _prev_error = result.error[:200] if result and result.error else "unknown"
+                    asyncio.ensure_future(capture_error(
+                        component=f"core.loop.step.{step.tool}",
+                        message=f"Step {step.id} retry {attempt}/{self.MAX_RETRIES}: {_prev_error}",
+                        task_id=task_id,
+                        task_text=task[:300],
+                        level="WARNING",
+                    ))
+                except Exception:
+                    pass
 
             try:
                 result = await tool.execute(step_input)
