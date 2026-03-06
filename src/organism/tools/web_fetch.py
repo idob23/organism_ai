@@ -43,13 +43,13 @@ class WebFetchTool(BaseTool):
         url: str = input["url"]
         max_chars: int = input.get("max_chars", 3000)
 
-        # Check blocked domains
+        # Check blocked domains — FIX-6: exit_code=1 so step is marked as failed
         for blocked in BLOCKED_DOMAINS:
             if blocked in url:
                 return ToolResult(
-                    output=f"Domain blocked (known bot protection): {blocked}. Use web_search instead.",
-                    error="",
-                    exit_code=0,
+                    output="",
+                    error=f"Domain blocked: {blocked}. Use web_search instead.",
+                    exit_code=1,
                 )
 
         try:
@@ -62,11 +62,12 @@ class WebFetchTool(BaseTool):
             ) as client:
                 response = await client.get(url)
 
+                # FIX-6: HTTP errors are failures (exit_code=1)
                 if response.status_code in (403, 404, 410, 429, 451):
                     return ToolResult(
-                        output=f"Page not accessible (HTTP {response.status_code}): {url}. Use web_search instead.",
-                        error="",
-                        exit_code=0,
+                        output="",
+                        error=f"Page not accessible (HTTP {response.status_code}): {url}. Use web_search instead.",
+                        exit_code=1,
                     )
 
                 response.raise_for_status()

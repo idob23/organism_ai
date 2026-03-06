@@ -133,6 +133,17 @@ class CoreLoop:
     MAX_PLAN_STEPS = 5
 
     @staticmethod
+    def _is_useful_output(output: str) -> bool:
+        """Check if step output contains real content, not just an error/placeholder."""
+        if not output or len(output.strip()) < 20:
+            return False
+        useless = ["domain blocked", "page not accessible", "http 403", "http 404",
+                    "not found", "access denied", "timeout", "no results",
+                    "use web_search instead"]
+        lower = output.lower()
+        return not any(u in lower for u in useless)
+
+    @staticmethod
     def _humanize_error(output: str, task: str) -> str:
         """Convert raw error output to user-friendly message."""
         t = output.lower()
@@ -569,11 +580,13 @@ class CoreLoop:
             else:
                 # Soft-fail continuation: web_fetch connection/block issues are non-fatal
                 # when a previous step already produced useful output.
+                # FIX-6: check both output and error (blocked/HTTP msgs now in error field)
+                _soft_msg = log.output or log.error or ""
                 _soft_webfetch = (
                     step.tool == "web_fetch"
                     and last_output
-                    and log.output
-                    and any(kw in log.output for kw in (
+                    and _soft_msg
+                    and any(kw in _soft_msg for kw in (
                         "Use web_search instead",
                         "not accessible",
                         "Domain blocked",
@@ -650,6 +663,11 @@ class CoreLoop:
         if verbose:
             print(f"\n{'='*50}\nDone in {duration:.1f}s | Quality: {avg_quality:.2f} | Memory hits: {memory_hits}\n{'='*50}")
 
+        # FIX-6: Prefer useful output — skip placeholders/error stubs from last step
+        if not self._is_useful_output(last_output):
+            useful = [s.output for s in step_logs if s.success and self._is_useful_output(s.output)]
+            if useful:
+                last_output = max(useful, key=len)
         # FIX-4: Humanize output in case a "successful" step returned raw error text
         _final_output = self._humanize_error(last_output, task)
         return TaskResult(task_id=task_id, task=task, success=True, output=_final_output, answer=_final_output,
