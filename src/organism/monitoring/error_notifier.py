@@ -185,6 +185,7 @@ class ErrorNotifier:
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:
+                # Try Markdown first
                 resp = await client.post(
                     f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
                     json={
@@ -197,7 +198,21 @@ class ErrorNotifier:
                 data = resp.json()
                 if data.get("ok"):
                     return True
-                _log.warning("Telegram send failed: %s", data.get("description", "unknown"))
+
+                # Markdown failed — retry as plain text
+                resp2 = await client.post(
+                    f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
+                    json={
+                        "chat_id": self._chat_id,
+                        "text": text,
+                        "disable_web_page_preview": True,
+                    },
+                )
+                data2 = resp2.json()
+                if data2.get("ok"):
+                    return True
+
+                _log.warning("Telegram send failed: %s", data2.get("description", "unknown"))
                 return False
         except Exception as e:
             _log.warning("Telegram send error: %s", e)
