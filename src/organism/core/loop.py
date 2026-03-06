@@ -132,6 +132,20 @@ class CoreLoop:
     MAX_RETRIES = 3
     MAX_PLAN_STEPS = 5
 
+    @staticmethod
+    def _humanize_error(output: str, task: str) -> str:
+        """Convert raw error output to user-friendly message."""
+        t = output.lower()
+        if "403" in t or "not accessible" in t or "access denied" in t:
+            return "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435 \u0441 \u0441\u0430\u0439\u0442\u0430 (\u0434\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043a\u0440\u044b\u0442). \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0437\u0430\u043f\u0440\u043e\u0441."
+        if "404" in t or "not found" in t:
+            return "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0434\u0440\u0443\u0433\u043e\u0439 \u0437\u0430\u043f\u0440\u043e\u0441."
+        if "timeout" in t:
+            return "\u041f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u043e \u0432\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u043e\u0437\u0436\u0435."
+        if "traceback" in t or "error:" in t:
+            return "\u041f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0437\u0430\u043f\u0440\u043e\u0441."
+        return output
+
     def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None) -> None:
         self.llm = llm
         self.registry = registry
@@ -579,7 +593,9 @@ class CoreLoop:
                     except Exception:
                         pass
                 self.logger.log_task_end(task_id, False, duration, total_tokens)
-                return TaskResult(task_id=task_id, task=task, success=False, output=last_output,
+                # FIX-4: Humanize raw error output for user
+                _final_output = self._humanize_error(last_output or log.error, task)
+                return TaskResult(task_id=task_id, task=task, success=False, output=_final_output,
                                   steps=step_logs, duration=duration,
                                   error=f"Step {step.id} failed: {log.error}", memory_hits=memory_hits)
 
@@ -618,7 +634,9 @@ class CoreLoop:
         if verbose:
             print(f"\n{'='*50}\nDone in {duration:.1f}s | Quality: {avg_quality:.2f} | Memory hits: {memory_hits}\n{'='*50}")
 
-        return TaskResult(task_id=task_id, task=task, success=True, output=last_output, answer=last_output,
+        # FIX-4: Humanize output in case a "successful" step returned raw error text
+        _final_output = self._humanize_error(last_output, task)
+        return TaskResult(task_id=task_id, task=task, success=True, output=_final_output, answer=_final_output,
                           steps=step_logs, total_tokens=total_tokens, duration=duration, memory_hits=memory_hits,
                           quality_score=avg_quality)
 

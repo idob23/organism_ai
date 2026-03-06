@@ -79,7 +79,7 @@ AVAILABLE TOOLS:
 - web_fetch: fetch a specific URL. input: {"url": "https://...", "max_chars": 3000}
 
 RULES:
-- Start with web_search, then web_fetch for specific pages if needed
+- ALWAYS start with web_search. NEVER use web_fetch as the first step \u2014 you don't know the URL yet
 - NEVER fetch: g2.com, statista.com, forbes.com, gartner.com
 - Maximum 3 steps
 - Use clear, specific search queries

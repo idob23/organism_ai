@@ -27,6 +27,7 @@ RULES:
 - code_executor: write actual working Python code, not a comment stub
 - All print() statements must be explicit in the code
 - NEVER use web_fetch on: g2.com, statista.com, forbes.com
+- For research/search tasks: ALWAYS start with web_search first, NEVER use web_fetch as the first step. Use web_fetch only AFTER web_search returns specific URLs.
 - Before writing to external systems (1C, email, file deletion) — ALWAYS use confirm_with_user first
 - If confirm_with_user returns rejected — STOP, do not proceed with the operation
 - Maximum 3 steps
