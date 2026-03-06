@@ -92,25 +92,106 @@ class Gateway:
         else:
             response_text = f"Error: {result.error}" if result.error else "Task failed"
 
-        # 3. Long responses -> temp file
-        is_file = False
-        if len(response_text) > 800:
-            try:
-                fd, path = tempfile.mkstemp(suffix=".md", prefix="result_")
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(response_text)
-                response_text = path
-                is_file = True
-            except Exception:
-                pass  # keep inline text on failure
+        meta = {
+            "duration": getattr(result, "duration", 0),
+            "steps": len(getattr(result, "steps", [])),
+        }
+        resp = self._prepare_response(response_text, msg.user_id, msg.channel, meta)
+        return resp
 
+    # FIX-3: Telegram-friendly response threshold (4096 limit, 3500 with margin)
+    _TEXT_LIMIT = 3500
+
+    def _prepare_response(
+        self,
+        output: str,
+        user_id: str,
+        channel: str,
+        metadata: dict,
+    ) -> OutgoingMessage:
+        """Convert task output to a Telegram-friendly response.
+
+        - If output is a file path: read content, send inline if short, .txt file if long.
+        - If output is plain text: send inline if short, save to .txt if long.
+        """
+        stripped = output.strip()
+
+        # Detect file paths in output
+        _file_exts = (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py")
+        is_file_path = (
+            stripped.endswith(_file_exts)
+            and "\n" not in stripped
+            and len(stripped) < 300
+            and os.path.exists(stripped)
+        )
+
+        if is_file_path:
+            return self._prepare_file_response(stripped, user_id, channel, metadata)
+
+        # Plain text output
+        if len(output) <= self._TEXT_LIMIT:
+            return OutgoingMessage(
+                text=output, user_id=user_id, channel=channel,
+                is_file=False, metadata=metadata,
+            )
+
+        # Too long for inline — save to .txt
+        try:
+            fd, path = tempfile.mkstemp(
+                suffix=".txt", prefix="result_", dir="data/outputs",
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(output)
+            return OutgoingMessage(
+                text=path, user_id=user_id, channel=channel,
+                is_file=True, metadata=metadata,
+            )
+        except Exception:
+            # Fallback: send truncated inline
+            return OutgoingMessage(
+                text=output[:self._TEXT_LIMIT], user_id=user_id, channel=channel,
+                is_file=False, metadata=metadata,
+            )
+
+    def _prepare_file_response(
+        self,
+        file_path: str,
+        user_id: str,
+        channel: str,
+        metadata: dict,
+    ) -> OutgoingMessage:
+        """Read a file and decide: inline text or .txt attachment."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception:
+            return OutgoingMessage(
+                text=file_path, user_id=user_id, channel=channel,
+                is_file=True, metadata=metadata,
+            )
+
+        if len(content) <= self._TEXT_LIMIT:
+            # Short enough — send as inline text, remove the file
+            try:
+                os.unlink(file_path)
+            except Exception:
+                pass
+            return OutgoingMessage(
+                text=content, user_id=user_id, channel=channel,
+                is_file=False, metadata=metadata,
+            )
+
+        # Long content — send as .txt (not .md)
+        if file_path.endswith(".md"):
+            txt_path = file_path.rsplit(".", 1)[0] + ".txt"
+            try:
+                os.rename(file_path, txt_path)
+                file_path = txt_path
+            except Exception:
+                pass  # keep .md if rename fails
         return OutgoingMessage(
-            text=response_text,
-            user_id=msg.user_id,
-            channel=msg.channel,
-            is_file=is_file,
-            metadata={"duration": getattr(result, "duration", 0),
-                       "steps": len(getattr(result, "steps", []))},
+            text=file_path, user_id=user_id, channel=channel,
+            is_file=True, metadata=metadata,
         )
 
     async def send_to_channel(self, msg: OutgoingMessage) -> None:

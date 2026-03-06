@@ -103,7 +103,7 @@ class TelegramChannel(BaseChannel):
                 )
 
                 if response.is_file:
-                    # File response — send preview + attachment
+                    # FIX-3: File response — send as .txt (not .md)
                     file_path = response.text
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
@@ -116,12 +116,16 @@ class TelegramChannel(BaseChannel):
                             f"\u0442\u0435\u043a\u0441\u0442 \u0432\u043e "
                             f"\u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0438:"
                         )
+                        fname = os.path.basename(file_path)
                         try:
                             await message.answer_document(
-                                FSInputFile(file_path, filename="result.md"),
+                                FSInputFile(file_path, filename=fname),
                             )
                         finally:
-                            os.unlink(file_path)
+                            try:
+                                os.unlink(file_path)
+                            except Exception:
+                                pass
                     except Exception:
                         await status_msg.edit_text(
                             f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
@@ -139,10 +143,18 @@ class TelegramChannel(BaseChannel):
                         f"\u0437\u0430\u0434\u0430\u0447\u0443."
                     )
                 else:
-                    await status_msg.edit_text(
+                    # FIX-3: Try Markdown formatting, fallback to plain text
+                    full = (
                         f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
                         f"{response.text}"
                     )
+                    try:
+                        await status_msg.edit_text(full, parse_mode="Markdown")
+                    except Exception:
+                        try:
+                            await status_msg.edit_text(full)
+                        except Exception:
+                            pass
 
             except Exception:
                 await status_msg.edit_text(
@@ -170,10 +182,17 @@ class TelegramChannel(BaseChannel):
                 return
         try:
             if message.is_file:
+                fname = os.path.basename(message.text)
                 await self.bot.send_document(
-                    chat_id, FSInputFile(message.text, filename="result.md"),
+                    chat_id, FSInputFile(message.text, filename=fname),
                 )
             else:
-                await self.bot.send_message(chat_id, message.text)
+                # FIX-3: Try Markdown, fallback to plain text
+                try:
+                    await self.bot.send_message(
+                        chat_id, message.text, parse_mode="Markdown",
+                    )
+                except Exception:
+                    await self.bot.send_message(chat_id, message.text)
         except Exception:
             pass
