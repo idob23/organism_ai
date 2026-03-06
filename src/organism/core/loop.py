@@ -586,6 +586,23 @@ class CoreLoop:
                     continue
 
                 duration = time.time() - start
+
+                # FIX-5: If previous steps succeeded, return their results instead of error
+                successful_outputs = [sl.output for sl in step_logs if sl.success and sl.output]
+                if successful_outputs:
+                    _final_output = max(successful_outputs, key=len)
+                    _log.info(f"[{task_id}] Step {step.id} failed but {len(successful_outputs)} previous step(s) succeeded — returning partial results")
+                    if self.memory:
+                        try:
+                            await self.memory.on_task_end(task, _final_output, True, duration, len(step_logs), tools_used, quality_score=0.5)
+                        except Exception:
+                            pass
+                    self.logger.log_task_end(task_id, True, duration, total_tokens)
+                    return TaskResult(task_id=task_id, task=task, success=True, output=_final_output,
+                                      answer=_final_output, steps=step_logs, duration=duration,
+                                      memory_hits=memory_hits, quality_score=0.5)
+
+                # All steps failed — return humanized error
                 _log.error(f"[{task_id}] Task FAILED at step {step.id}: {log.error}")
                 if self.memory:
                     try:
@@ -593,8 +610,7 @@ class CoreLoop:
                     except Exception:
                         pass
                 self.logger.log_task_end(task_id, False, duration, total_tokens)
-                # FIX-4: Humanize raw error output for user
-                _final_output = self._humanize_error(last_output or log.error, task)
+                _final_output = self._humanize_error(log.output or log.error, task)
                 return TaskResult(task_id=task_id, task=task, success=False, output=_final_output,
                                   steps=step_logs, duration=duration,
                                   error=f"Step {step.id} failed: {log.error}", memory_hits=memory_hits)

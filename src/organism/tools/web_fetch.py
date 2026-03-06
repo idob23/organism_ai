@@ -8,6 +8,8 @@ from .base import BaseTool, ToolResult
 BLOCKED_DOMAINS = [
     "statista.com", "g2.com", "forbes.com",
     "gartner.com", "capterra.com", "trustradius.com",
+    "fasie.ru",         # FIX-5: blocks bot requests
+    "grants.gov.ru",    # FIX-5: gov sites block bots
 ]
 
 
