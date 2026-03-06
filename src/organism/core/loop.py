@@ -2,6 +2,7 @@
 import time
 import uuid
 import re
+from datetime import datetime
 from dataclasses import dataclass, field
 
 from src.organism.core.evaluator import Evaluator
@@ -160,12 +161,19 @@ class CoreLoop:
         """Summarize raw web_search output into a clean user-facing answer."""
         from src.organism.llm.base import Message
 
+        today = datetime.now().strftime("%d.%m.%Y")
+
         prompt = (
             f"User task: {task}\n\n"
+            f"Today's date: {today}\n\n"
             f"Raw search results:\n{raw_output[:3000]}\n\n"
             "Based on these search results, write a clear, structured answer in Russian. "
             "Include specific facts, numbers, dates, URLs where relevant. "
             "Format with markdown: use headers (##), bold (**), lists (-). "
+            f"IMPORTANT: Today is {today}. If any deadlines or dates in the results have already passed, "
+            "clearly mark them as expired (\u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: ~~\u0434\u043e 28 \u0438\u044e\u043b\u044f 2025~~ \u2014 \u0441\u0440\u043e\u043a \u0438\u0441\u0442\u0451\u043a). "
+            "If the information might be outdated, add a note suggesting to check the official source for current dates. "
+            "Do NOT present past deadlines as current opportunities. "
             "If information is incomplete or contradictory, note that. "
             "Do NOT include raw URLs as a list \u2014 weave them into the text naturally. "
             "Keep answer under 2000 characters."
@@ -316,8 +324,9 @@ class CoreLoop:
         """Handle conversational messages with a direct LLM response (no planning, no files)."""
         start = time.time()
 
+        today = datetime.now().strftime("%d.%m.%Y")
         system = (
-            "You are Organism AI, an intelligent assistant. "
+            f"You are Organism AI, an intelligent assistant. Today is {today}. "
             "Respond naturally and briefly in the same language as the user. "
             "If the user greets you, greet back and briefly explain what you can do. "
             "If asked what you can do, list: calculations, reports, web search, "
