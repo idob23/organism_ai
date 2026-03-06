@@ -144,6 +144,45 @@ class CoreLoop:
         return not any(u in lower for u in useless)
 
     @staticmethod
+    def _is_raw_search_output(output: str) -> bool:
+        """Detect if output looks like raw web_search results."""
+        indicators = [
+            "URL: http",
+            "url: http",
+            "\nAnswer:",
+            "Answer: ",
+        ]
+        url_count = output.count("http://") + output.count("https://")
+        has_indicators = any(ind in output for ind in indicators)
+        return has_indicators and url_count >= 2
+
+    async def _summarize_search_results(self, raw_output: str, task: str) -> str:
+        """Summarize raw web_search output into a clean user-facing answer."""
+        from src.organism.llm.base import Message
+
+        prompt = (
+            f"User task: {task}\n\n"
+            f"Raw search results:\n{raw_output[:3000]}\n\n"
+            "Based on these search results, write a clear, structured answer in Russian. "
+            "Include specific facts, numbers, dates, URLs where relevant. "
+            "Format with markdown: use headers (##), bold (**), lists (-). "
+            "If information is incomplete or contradictory, note that. "
+            "Do NOT include raw URLs as a list \u2014 weave them into the text naturally. "
+            "Keep answer under 2000 characters."
+        )
+
+        try:
+            resp = await self.llm.complete(
+                messages=[Message(role="user", content=prompt)],
+                system="You are a research assistant. Summarize search results into clear, actionable answers in Russian.",
+                model_tier="fast",  # Haiku — fast and cheap
+                max_tokens=1000,
+            )
+            return resp.content.strip()
+        except Exception:
+            return raw_output  # fallback to raw if LLM fails
+
+    @staticmethod
     def _humanize_error(output: str, task: str) -> str:
         """Convert raw error output to user-friendly message."""
         t = output.lower()
@@ -604,6 +643,9 @@ class CoreLoop:
                 successful_outputs = [sl.output for sl in step_logs if sl.success and sl.output]
                 if successful_outputs:
                     _final_output = max(successful_outputs, key=len)
+                    # FIX-7: Summarize raw search results before returning
+                    if self._is_raw_search_output(_final_output):
+                        _final_output = await self._summarize_search_results(_final_output, task)
                     _log.info(f"[{task_id}] Step {step.id} failed but {len(successful_outputs)} previous step(s) succeeded — returning partial results")
                     if self.memory:
                         try:
@@ -668,6 +710,9 @@ class CoreLoop:
             useful = [s.output for s in step_logs if s.success and self._is_useful_output(s.output)]
             if useful:
                 last_output = max(useful, key=len)
+        # FIX-7: Summarize raw search results into clean Russian answer
+        if self._is_raw_search_output(last_output):
+            last_output = await self._summarize_search_results(last_output, task)
         # FIX-4: Humanize output in case a "successful" step returned raw error text
         _final_output = self._humanize_error(last_output, task)
         return TaskResult(task_id=task_id, task=task, success=True, output=_final_output, answer=_final_output,
