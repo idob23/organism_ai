@@ -64,6 +64,17 @@ CHAT_PATTERNS = [
     "\u043f\u043e\u043a\u0430",                          # пока
     "hello", "hi", "hey",
     "\u043f\u043e\u0447\u0435\u043c\u0443",              # почему
+    # FIX-14: Questions about the bot itself
+    "\u043a\u0430\u043a \u0442\u044b \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0448\u044c",  # как ты работаешь
+    "\u043a\u0430\u043a \u044d\u0442\u043e \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442",  # как это работает
+    "\u0440\u0430\u0441\u0441\u043a\u0430\u0436\u0438 \u043e \u0441\u0435\u0431\u0435",        # расскажи о себе
+    "\u043f\u043e\u0434\u0441\u043a\u0430\u0436\u0438",                                        # подскажи
+    "\u043e\u0431\u044a\u044f\u0441\u043d\u0438",                                              # объясни
+    "\u043a\u0430\u043a\u0438\u0435 \u0444\u0443\u043d\u043a\u0446\u0438\u0438",              # какие функции
+    "\u0447\u0442\u043e \u0437\u043d\u0430\u0435\u0448\u044c",                                # что знаешь
+    "\u0442\u044b \u0437\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u0435\u0448\u044c",        # ты запоминаешь
+    "\u0443 \u0442\u0435\u0431\u044f \u0435\u0441\u0442\u044c \u043f\u0430\u043c\u044f\u0442\u044c",  # у тебя есть память
+    "\u043a\u0430\u043a \u0443\u0441\u0442\u0440\u043e\u0435\u043d",                          # как устроен
 ]
 
 TASK_SIGNALS = [
@@ -310,12 +321,12 @@ class CoreLoop:
         if any(s in t for s in TASK_SIGNALS):
             return False
 
-        # Direct chat pattern match
-        if any(t.startswith(p) or t == p for p in CHAT_PATTERNS):
+        # FIX-14: Direct chat pattern match — substring search to catch longer phrases
+        if any(t.startswith(p) or t == p or p in t for p in CHAT_PATTERNS):
             return True
 
-        # Very short messages (< 50 chars) without task keywords are conversational
-        if len(t) < 50 and not t.startswith("/"):
+        # Very short messages (< 80 chars) without task keywords are conversational
+        if len(t) < 80 and not t.startswith("/"):
             return True
 
         return False
@@ -329,14 +340,24 @@ class CoreLoop:
             f"You are Organism AI \u2014 a smart personal assistant. Today is {today}. "
             "You communicate naturally, like a knowledgeable colleague. "
             "You adapt to the user: learn their context, remember preferences, and become more useful over time. "
-            "Your capabilities: calculations, document generation, web search, data analysis, "
-            "presentations, working with databases and external systems. "
-            "When needed, you can coordinate multiple AI agents for complex tasks. "
-            "You speak the same language as the user (Russian if they write in Russian). "
-            "Be friendly, professional, and concise. Do NOT assume user's role, company, or industry "
-            "unless they told you. Do NOT mention artels, mining, or specific companies unless asked. "
-            "On first greeting, briefly introduce yourself and ask how you can help. "
-            "Keep responses under 500 characters for greetings, under 1000 for explanations."
+            "\n\n"
+            "YOUR REAL CAPABILITIES (answer honestly about these):\n"
+            "- You DO have long-term memory (PostgreSQL + pgvector). You remember past tasks and their results.\n"
+            "- You DO have per-user personalization. Each user has isolated profile (/remember, /profile, /style).\n"
+            "- You automatically learn user facts from conversations (name, role, company, preferences).\n"
+            "- You can: calculate, generate documents, search the web, analyze data, create presentations, process voice messages.\n"
+            "- You have a solution cache \u2014 repeated tasks are answered faster.\n"
+            "- You have a self-improvement system \u2014 you learn from mistakes and improve prompts over time.\n"
+            "- Multiple users get isolated profiles but share common knowledge base.\n"
+            "- You work via Telegram, support text and voice messages.\n"
+            "- You support scheduled tasks, human-in-the-loop approval for critical actions.\n"
+            "- You can connect to external systems via MCP protocol (1C, email, etc).\n"
+            "\n"
+            "IMPORTANT: Do NOT say you have no memory or that memory resets between sessions \u2014 this is false. "
+            "You DO persist data across sessions via database. Be honest about your actual architecture.\n"
+            "\n"
+            "Respond in the same language as the user. Be friendly, professional, and concise. "
+            "For greetings: under 500 characters. For capability explanations: under 1500 characters."
         )
         if user_context:
             system += f"\n\nUser context: {user_context}"
@@ -347,7 +368,7 @@ class CoreLoop:
                 messages=[LLMMessage(role="user", content=task)],
                 system=system,
                 model_tier="fast",
-                max_tokens=500,
+                max_tokens=800,
             )
             answer = resp.content.strip()
         except Exception as e:
