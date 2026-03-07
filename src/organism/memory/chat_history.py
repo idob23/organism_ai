@@ -6,7 +6,7 @@ from src.organism.logging.error_handler import get_logger
 _log = get_logger("memory.chat_history")
 
 MAX_CONTEXT_MESSAGES = 10  # last N messages injected into context
-MAX_STORED_MESSAGES = 500  # max stored messages per user
+MAX_STORED_MESSAGES = 50000  # max stored messages per user
 
 
 class ChatHistory:
