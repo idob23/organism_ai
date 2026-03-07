@@ -624,6 +624,14 @@ class CoreLoop:
             steps = await self.planner.plan(task, task_context=task_context, user_context=user_context, task_type_hint=task_type_hint)
             _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
         except Exception as e:
+            # FIX-16: Planner returned text instead of JSON — treat as conversational
+            if "Could not parse plan from response" in str(e):
+                _log.warning(
+                    f"[{task_id}] Planner returned text instead of JSON — "
+                    f"routing to conversation handler. Task: {task[:100]}"
+                )
+                return await self._handle_conversation(task_id, task, user_id=user_id)
+
             log_exception(_log, f"[{task_id}] Planning failed", e)
             # MON-1: Capture to ErrorLog for Telegram monitoring
             try:

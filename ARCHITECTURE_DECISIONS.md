@@ -375,3 +375,4 @@ Block D (real artel tasks): 3/5+ completed (KP, work order template, production 
 - datetime.now(timezone.utc) incompatible with asyncpg -> datetime.utcnow()
 - Writing fast path intercepting temporal/causal queries -> intent-aware skip
 - Re-plan picking unavailable tools -> available tools hint appended to re-plan task (Q-6.3/Q-6.5)
+- FIX-16: Long conversational messages (>80 chars) bypassed _is_conversational() -> Planner returned text instead of JSON -> user saw error. Fixed: universal fallback in CoreLoop.run() — "Could not parse plan" routes to _handle_conversation()
