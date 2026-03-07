@@ -1,24 +1,32 @@
-﻿import anthropic
+import openai
 from config.settings import settings
+from src.organism.logging.error_handler import get_logger
+
+_log = get_logger("memory.embeddings")
 
 
 async def get_embedding(text: str) -> list[float]:
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    """Get embedding vector for text using OpenAI text-embedding-3-small.
 
-    # Truncate to avoid token limits
+    Supports custom base_url for proxy services (proxyapi.ru etc).
+    Returns empty list if OpenAI not configured — BM25 fallback.
+    """
+    if not settings.openai_api_key:
+        return []
+
     text = text[:2000]
 
-    # Claude doesnt have embeddings API  use a simple hash-based fallback
-    # or integrate OpenAI embeddings. For now: use text-embedding-3-small via OpenAI if available,
-    # otherwise return None and skip vector search
     try:
-        import openai
-        oa = openai.AsyncOpenAI()
-        response = await oa.embeddings.create(
+        kwargs = {"api_key": settings.openai_api_key}
+        if settings.openai_base_url:
+            kwargs["base_url"] = settings.openai_base_url
+
+        client = openai.AsyncOpenAI(**kwargs)
+        response = await client.embeddings.create(
             model="text-embedding-3-small",
             input=text,
         )
         return response.data[0].embedding
-    except Exception:
-        # Fallback: no embeddings available, memory will work without vector search
+    except Exception as e:
+        _log.warning(f"Embedding failed: {e}")
         return []

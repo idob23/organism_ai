@@ -52,7 +52,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 ## Tech Stack
 - Python 3.11+
 - LLM: Claude API (Anthropic) — Sonnet=balanced, Haiku=fast
-- Memory: pgvector (PostgreSQL), text-embedding-3-small (OpenAI)
+- Memory: pgvector (PostgreSQL), text-embedding-3-small (OpenAI/proxy), BM25 fallback when unavailable
 - Search: Tavily API
 - Sandbox: Docker (code_executor)
 - Presentations: python-pptx
