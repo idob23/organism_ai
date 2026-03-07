@@ -92,6 +92,14 @@ class Gateway:
         else:
             response_text = f"Error: {result.error}" if result.error else "Task failed"
 
+        # HIST-1: Save chat history (user message + assistant response)
+        if self.loop.memory and msg.user_id:
+            try:
+                await self.loop.memory.chat_history.save_message(msg.user_id, "user", msg.text)
+                await self.loop.memory.chat_history.save_message(msg.user_id, "assistant", response_text[:2000])
+            except Exception:
+                pass
+
         meta = {
             "duration": getattr(result, "duration", 0),
             "steps": len(getattr(result, "steps", [])),

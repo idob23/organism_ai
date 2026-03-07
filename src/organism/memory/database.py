@@ -171,6 +171,16 @@ class ErrorLog(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, nullable=False, index=True)
+    role = Column(String, nullable=False)         # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class SchemaMigration(Base):
     __tablename__ = "schema_migrations"
 
@@ -465,6 +475,22 @@ async def _m008_user_id_profile(conn) -> None:
         pass
 
 
+async def _m009_chat_history(conn) -> None:
+    """Create chat_messages table for conversation history."""
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR NOT NULL,
+            role VARCHAR NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_cm_user_time ON chat_messages (user_id, created_at DESC)"
+    ))
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -476,4 +502,5 @@ _MIGRATIONS = [
     (6, "retention_helpers", _m006_retention_helpers),
     (7, "few_shot_indexes", _m007_few_shot_indexes),
     (8, "user_id_profile", _m008_user_id_profile),
+    (9, "chat_history", _m009_chat_history),
 ]

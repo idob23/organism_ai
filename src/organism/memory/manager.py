@@ -9,6 +9,7 @@ from .causal_analyzer import CausalAnalyzer
 from .templates import TemplateExtractor
 from .search_policy import SearchPolicy
 from .few_shot_store import FewShotStore
+from .chat_history import ChatHistory
 from .database import init_db, AgentReflection, TaskMemory, AsyncSessionLocal
 from sqlalchemy import select, or_
 from src.organism.llm.base import LLMProvider
@@ -23,6 +24,7 @@ class MemoryManager:
         self.graph = MemoryGraph()
         self.templates = TemplateExtractor()
         self.few_shot = FewShotStore()
+        self.chat_history = ChatHistory()
         self.llm = llm
         self._initialized = False
 

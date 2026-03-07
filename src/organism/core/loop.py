@@ -331,7 +331,7 @@ class CoreLoop:
 
         return False
 
-    async def _handle_conversation(self, task_id: str, task: str, user_context: str = "") -> "TaskResult":
+    async def _handle_conversation(self, task_id: str, task: str, user_context: str = "", user_id: str = "default") -> "TaskResult":
         """Handle conversational messages with a direct LLM response (no planning, no files)."""
         start = time.time()
 
@@ -360,7 +360,7 @@ class CoreLoop:
             "4. You DO search past tasks via semantic search (pgvector) on every new task.\n"
             "5. You DO automatically extract and save user facts from conversations.\n"
             "6. You DO have solution cache that persists across sessions.\n"
-            "7. The only thing you do NOT have is chat history replay (you don't see raw message history, but you see extracted facts and task results).\n"
+            "7. You DO have chat history \u2014 you see recent messages from the current user in context.\n"
             "8. If unsure about a specific capability, say 'I need to check' rather than denying it.\n"
             "\n"
             "Respond in the same language as the user. Be friendly, professional, and concise. "
@@ -371,8 +371,20 @@ class CoreLoop:
 
         try:
             from src.organism.llm.base import Message as LLMMessage
+
+            # HIST-1: Build messages list with recent chat history
+            messages = []
+            if self.memory and user_id != "default":
+                try:
+                    recent = await self.memory.chat_history.get_recent(user_id, limit=6)
+                    for msg in recent[-4:]:  # last 4 messages (2 user/assistant pairs)
+                        messages.append(LLMMessage(role=msg["role"], content=msg["content"][:500]))
+                except Exception:
+                    pass
+            messages.append(LLMMessage(role="user", content=task))
+
             resp = await self.llm.complete(
-                messages=[LLMMessage(role="user", content=task)],
+                messages=messages,
                 system=system,
                 model_tier="fast",
                 max_tokens=800,
@@ -415,7 +427,7 @@ class CoreLoop:
 
         # FIX-1: Detect conversational messages (not tasks) — fast path, skip memory/planning
         if self._is_conversational(task):
-            return await self._handle_conversation(task_id, task)
+            return await self._handle_conversation(task_id, task, user_id=user_id)
 
         if self.memory:
             try:
@@ -450,6 +462,20 @@ class CoreLoop:
             personality_addition = self.personality.get_system_prompt_addition()
             if personality_addition:
                 user_context = user_context + personality_addition
+
+        # HIST-1: Load recent chat history for task context
+        if self.memory and user_id != "default":
+            try:
+                recent = await self.memory.chat_history.get_recent(user_id, limit=10)
+                if recent:
+                    lines = []
+                    for msg in recent[-6:]:  # last 6 messages (3 user/assistant pairs)
+                        prefix = "User" if msg["role"] == "user" else "Assistant"
+                        lines.append(f"{prefix}: {msg['content'][:200]}")
+                    chat_context = "\n".join(lines)
+                    user_context += f"\n\nRecent conversation:\n{chat_context}"
+            except Exception:
+                pass
 
         # Q-7.3: Inject few-shot examples into planner context
         if self.memory:
