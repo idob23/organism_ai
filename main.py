@@ -230,11 +230,13 @@ async def run_telegram() -> None:
     if settings.error_monitor_chat_id:
         from src.organism.monitoring.error_notifier import ErrorNotifier
         error_notifier = ErrorNotifier()
-        await error_notifier.start()
-        from src.organism.logging.error_handler import get_logger
-        get_logger("main").info(
-            "Error monitoring active -> chat %s", settings.error_monitor_chat_id
-        )
+        if error_notifier.is_configured:
+            await error_notifier.start()
+            from src.organism.logging.error_handler import get_logger
+            _bot_type = "dedicated" if settings.error_bot_token else "main"
+            get_logger("main").info(
+                "Error monitoring active (%s bot) -> chat %s", _bot_type, settings.error_monitor_chat_id
+            )
 
     gateway = Gateway(loop, scheduler=scheduler, approval=approval)
     channel = TelegramChannel(gateway)

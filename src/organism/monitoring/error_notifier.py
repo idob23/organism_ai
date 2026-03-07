@@ -103,7 +103,8 @@ class ErrorNotifier:
     """Background task that polls ErrorLog for unnotified errors and sends to Telegram."""
 
     def __init__(self) -> None:
-        self._bot_token = settings.telegram_bot_token
+        # Prefer dedicated error bot, fallback to main bot
+        self._bot_token = settings.error_bot_token or settings.telegram_bot_token
         self._chat_id = settings.error_monitor_chat_id
         self._interval = settings.error_monitor_interval
         self._running = False
