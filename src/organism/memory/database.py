@@ -32,6 +32,7 @@ class UserProfile(Base):
     __tablename__ = "user_profile"
 
     id = Column(String, primary_key=True)          # UUID, generated on insert
+    user_id = Column(String, nullable=False, default="default")  # Telegram user ID
     key = Column(String, nullable=False, index=True)  # fact_type, e.g. "name"
     value = Column(Text, nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -448,6 +449,22 @@ async def _m007_few_shot_indexes(conn) -> None:
             pass
 
 
+async def _m008_user_id_profile(conn) -> None:
+    """Add user_id to user_profile for multi-user isolation (USER-1)."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS user_id VARCHAR DEFAULT 'default'"
+        ))
+    except Exception:
+        pass
+    try:
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_up_user_key ON user_profile (user_id, key) WHERE valid_until IS NULL"
+        ))
+    except Exception:
+        pass
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -458,4 +475,5 @@ _MIGRATIONS = [
     (5, "result_size", _m005_result_size),
     (6, "retention_helpers", _m006_retention_helpers),
     (7, "few_shot_indexes", _m007_few_shot_indexes),
+    (8, "user_id_profile", _m008_user_id_profile),
 ]

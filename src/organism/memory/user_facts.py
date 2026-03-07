@@ -73,8 +73,8 @@ class UserFactsExtractor:
         except Exception:
             return []
 
-    async def save_facts(self, facts: list[dict]) -> None:
-        """Persist facts with temporal archiving.
+    async def save_facts(self, facts: list[dict], user_id: str = "default") -> None:
+        """Persist facts with temporal archiving, scoped by user_id.
 
         For each fact:
         - If no active row exists for the key → insert fresh row.
@@ -88,9 +88,10 @@ class UserFactsExtractor:
             for fact in facts:
                 key = fact["fact_type"]
                 value = fact["fact_value"]
-                # Find the currently-active row for this key
+                # Find the currently-active row for this key and user
                 stmt = (
                     select(UserProfile)
+                    .where(UserProfile.user_id == user_id)
                     .where(UserProfile.key == key)
                     .where(UserProfile.valid_until.is_(None))
                 )
@@ -110,6 +111,7 @@ class UserFactsExtractor:
 
                 session.add(UserProfile(
                     id=new_id,
+                    user_id=user_id,
                     key=key,
                     value=value,
                     valid_from=now,
@@ -118,18 +120,23 @@ class UserFactsExtractor:
                 ))
             await session.commit()
 
-    async def get_all_facts(self) -> dict:
+    async def get_all_facts(self, user_id: str = "default") -> dict:
         """Return only currently-active user facts as {fact_type: fact_value}."""
         async with AsyncSessionLocal() as session:
-            stmt = select(UserProfile).where(UserProfile.valid_until.is_(None))
+            stmt = (
+                select(UserProfile)
+                .where(UserProfile.user_id == user_id)
+                .where(UserProfile.valid_until.is_(None))
+            )
             result = await session.execute(stmt)
             return {row.key: row.value for row in result.scalars().all()}
 
-    async def get_fact_history(self, key: str) -> list[dict]:
+    async def get_fact_history(self, key: str, user_id: str = "default") -> list[dict]:
         """Return all versions of a fact ordered by valid_from descending."""
         async with AsyncSessionLocal() as session:
             stmt = (
                 select(UserProfile)
+                .where(UserProfile.user_id == user_id)
                 .where(UserProfile.key == key)
                 .order_by(UserProfile.valid_from.desc())
             )

@@ -41,7 +41,7 @@ class CommandHandler:
     def is_command(self, text: str) -> bool:
         return text.strip().startswith("/")
 
-    async def handle(self, text: str, memory: "MemoryManager | None") -> str:
+    async def handle(self, text: str, memory: "MemoryManager | None", user_id: str = "default") -> str:
         parts = text.strip().split(maxsplit=2)
         cmd = parts[0].lower()
 
@@ -79,15 +79,15 @@ class CommandHandler:
             return f"Memory error: {e}"
 
         if cmd == "/remember":
-            return await self._handle_remember(parts, memory)
+            return await self._handle_remember(parts, memory, user_id)
         elif cmd == "/forget":
-            return await self._handle_forget(parts, memory)
+            return await self._handle_forget(parts, memory, user_id)
         elif cmd == "/profile":
-            return await self._handle_profile(memory)
+            return await self._handle_profile(memory, user_id)
         elif cmd == "/history":
-            return await self._handle_history(parts, memory)
+            return await self._handle_history(parts, memory, user_id)
         elif cmd == "/style":
-            return await self._handle_style(parts, memory)
+            return await self._handle_style(parts, memory, user_id)
         elif cmd == "/stats":
             return await self._handle_stats(memory)
         elif cmd == "/improve":
@@ -95,13 +95,13 @@ class CommandHandler:
         elif cmd == "/prompts":
             return await self._handle_prompts(memory)
         elif cmd == "/reset":
-            return await self._handle_reset(memory)
+            return await self._handle_reset(memory, user_id)
         elif cmd == "/cleanup":
             return await self._handle_cleanup(memory)
         else:
             return f"Unknown command: {cmd}\n\n{HELP_TEXT}"
 
-    async def _handle_remember(self, parts: list[str], memory: "MemoryManager") -> str:
+    async def _handle_remember(self, parts: list[str], memory: "MemoryManager", user_id: str) -> str:
         """Save a personal fact: /remember <key> <value>."""
         if len(parts) < 3:
             return "Usage: /remember <key> <value>\nExample: /remember name Igor"
@@ -109,10 +109,10 @@ class CommandHandler:
         value = parts[2].strip()
         if not key or not value:
             return "Key and value must not be empty."
-        await memory.facts.save_facts([{"fact_type": key, "fact_value": value}])
+        await memory.facts.save_facts([{"fact_type": key, "fact_value": value}], user_id=user_id)
         return f"Saved: {key} = {value}"
 
-    async def _handle_forget(self, parts: list[str], memory: "MemoryManager") -> str:
+    async def _handle_forget(self, parts: list[str], memory: "MemoryManager", user_id: str) -> str:
         """Retire the active fact for a key: /forget <key>."""
         if len(parts) < 2:
             return "Usage: /forget <key>\nExample: /forget name"
@@ -123,6 +123,7 @@ class CommandHandler:
         async with AsyncSessionLocal() as session:
             stmt = (
                 select(UserProfile)
+                .where(UserProfile.user_id == user_id)
                 .where(UserProfile.key == key)
                 .where(UserProfile.valid_until.is_(None))
             )
@@ -134,12 +135,12 @@ class CommandHandler:
                 return f"Deleted: {key}"
         return f"Key not found: {key}"
 
-    async def _handle_history(self, parts: list[str], memory: "MemoryManager") -> str:
+    async def _handle_history(self, parts: list[str], memory: "MemoryManager", user_id: str) -> str:
         """Show change history for a fact key: /history <key>."""
         if len(parts) < 2:
             return "Usage: /history <key>\nExample: /history name"
         key = parts[1].lower().strip()
-        history = await memory.facts.get_fact_history(key)
+        history = await memory.facts.get_fact_history(key, user_id=user_id)
         if not history:
             return f"No history found for: {key}"
         lines = [f"History for '{key}':"]
@@ -151,9 +152,9 @@ class CommandHandler:
             lines.append(f"    {vf} -> {vu}")
         return "\n".join(lines)
 
-    async def _handle_profile(self, memory: "MemoryManager") -> str:
+    async def _handle_profile(self, memory: "MemoryManager", user_id: str) -> str:
         """Show all saved personal facts."""
-        facts = await memory.facts.get_all_facts()
+        facts = await memory.facts.get_all_facts(user_id=user_id)
         if not facts:
             return "No personal facts saved yet.\nUse /remember <key> <value> to add facts."
         lines = ["Your profile:"]
@@ -161,14 +162,14 @@ class CommandHandler:
             lines.append(f"  {k}: {v}")
         return "\n".join(lines)
 
-    async def _handle_style(self, parts: list[str], memory: "MemoryManager") -> str:
+    async def _handle_style(self, parts: list[str], memory: "MemoryManager", user_id: str) -> str:
         """Set writing style preference: /style <formal|informal|technical|brief>."""
         if len(parts) < 2:
             return f"Usage: /style <style>\nValid styles: {', '.join(sorted(VALID_STYLES))}"
         style = parts[1].lower().strip()
         if style not in VALID_STYLES:
             return f"Unknown style: {style}\nValid styles: {', '.join(sorted(VALID_STYLES))}"
-        await memory.facts.save_facts([{"fact_type": "style", "fact_value": style}])
+        await memory.facts.save_facts([{"fact_type": "style", "fact_value": style}], user_id=user_id)
         return f"Writing style set: {style}"
 
     async def _handle_stats(self, memory: "MemoryManager") -> str:
@@ -303,14 +304,16 @@ class CommandHandler:
         except Exception as e:
             return f"Failed to create test error: {e}"
 
-    async def _handle_reset(self, memory: "MemoryManager") -> str:
-        """Clear all user profile facts."""
+    async def _handle_reset(self, memory: "MemoryManager", user_id: str) -> str:
+        """Clear all user profile facts for this user."""
         from src.organism.memory.database import UserProfile, AsyncSessionLocal
         from sqlalchemy import delete
         try:
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
-                    delete(UserProfile).where(UserProfile.valid_until.is_(None))
+                    delete(UserProfile)
+                    .where(UserProfile.user_id == user_id)
+                    .where(UserProfile.valid_until.is_(None))
                 )
                 count = result.rowcount
                 await session.commit()

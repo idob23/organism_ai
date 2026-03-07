@@ -127,6 +127,7 @@ class MemoryManager:
         steps_count: int,
         tools_used: list[str],
         quality_score: float = 0.0,
+        user_id: str = "default",
     ) -> None:
         task_id = await self.longterm.save_task(
             task=task,
@@ -165,7 +166,7 @@ class MemoryManager:
         if self.llm:
             try:
                 facts = await self.facts.extract_facts(task, self.llm)
-                await self.facts.save_facts(facts)
+                await self.facts.save_facts(facts, user_id=user_id)
             except Exception:
                 pass
 

@@ -372,7 +372,7 @@ class CoreLoop:
             duration=duration, quality_score=1.0,
         )
 
-    async def run(self, task: str, verbose: bool = True) -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default") -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -411,7 +411,7 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
             try:
-                user_facts = await self.memory.facts.get_all_facts()
+                user_facts = await self.memory.facts.get_all_facts(user_id=user_id)
                 user_context = format_for_prompt(user_facts)
                 if user_context and verbose:
                     print(f"User context: {user_context}")
@@ -477,7 +477,7 @@ class CoreLoop:
                     _log.info(f"[{task_id}] Writing task {'SUCCESS' if result.success else 'FAILED'} in {result.duration:.1f}s")
                     if self.memory and result.success:
                         try:
-                            await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"], quality_score=0.8)
+                            await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"], quality_score=0.8, user_id=user_id)
                         except Exception:
                             pass
                         # Q-7.3: Save as few-shot example
@@ -669,7 +669,7 @@ class CoreLoop:
                     _log.info(f"[{task_id}] Step {step.id} failed but {len(successful_outputs)} previous step(s) succeeded — returning partial results")
                     if self.memory:
                         try:
-                            await self.memory.on_task_end(task, _final_output, True, duration, len(step_logs), tools_used, quality_score=0.5)
+                            await self.memory.on_task_end(task, _final_output, True, duration, len(step_logs), tools_used, quality_score=0.5, user_id=user_id)
                         except Exception:
                             pass
                     self.logger.log_task_end(task_id, True, duration, total_tokens)
@@ -681,7 +681,7 @@ class CoreLoop:
                 _log.error(f"[{task_id}] Task FAILED at step {step.id}: {log.error}")
                 if self.memory:
                     try:
-                        await self.memory.on_task_end(task, last_output, False, duration, len(step_logs), tools_used, quality_score=0.2)
+                        await self.memory.on_task_end(task, last_output, False, duration, len(step_logs), tools_used, quality_score=0.2, user_id=user_id)
                     except Exception:
                         pass
                 self.logger.log_task_end(task_id, False, duration, total_tokens)
@@ -710,7 +710,7 @@ class CoreLoop:
 
         if self.memory:
             try:
-                await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used, quality_score=avg_quality)
+                await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used, quality_score=avg_quality, user_id=user_id)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory save failed", e)
             # Q-7.3: Save as few-shot example if high quality

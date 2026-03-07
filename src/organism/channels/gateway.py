@@ -49,7 +49,7 @@ class Gateway:
         if self.cmd_handler.is_command(msg.text):
             try:
                 result_text = await self.cmd_handler.handle(
-                    msg.text, self.loop.memory,
+                    msg.text, self.loop.memory, user_id=msg.user_id,
                 )
             except Exception as exc:
                 _log.error("gateway.cmd_error: %s: %s", type(exc).__name__, exc)
@@ -60,7 +60,7 @@ class Gateway:
 
         # 2. Regular task -> CoreLoop
         try:
-            result = await self.loop.run(msg.text, verbose=False)
+            result = await self.loop.run(msg.text, verbose=False, user_id=msg.user_id)
         except Exception as exc:
             _log.error("gateway.task_error: %s: %s", type(exc).__name__, exc)
             # MON-1: Capture to ErrorLog for Telegram monitoring
