@@ -696,6 +696,7 @@ async def run_benchmark(quick: bool) -> None:
     scheduler = ProactiveScheduler(task_runner=loop.run)
     for job in DEFAULT_ARTEL_JOBS:
         scheduler.add_job(job)
+    loop.scheduler = scheduler
 
     results: list[BenchmarkResult] = []
 

@@ -223,6 +223,7 @@ async def run_telegram() -> None:
     )
     for job in DEFAULT_ARTEL_JOBS:
         scheduler.add_job(job)
+    loop.scheduler = scheduler
     scheduler.start()
 
     # MON-1: Start error monitoring
