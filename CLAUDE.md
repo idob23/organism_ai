@@ -154,7 +154,7 @@ python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
 - Average Quality Score: 0.85
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes: FIX-1 through FIX-17 ✅, HIST-1 ✅
-- Sprint 9 (TBD) — NEXT
+- Sprint 9 (Agent Factory + Reliability) — NEXT ✅ roadmap defined in organism_ai_roadmap.md
 
 ## Critical Rules for Claude Code
 - **Russian strings**: ALWAYS use unicode escapes (\u043d\u0430\u043f\u0438\u0448\u0438), NEVER Cyrillic literals in .py files
