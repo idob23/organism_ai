@@ -153,7 +153,7 @@ python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
 - Benchmark: 26 tasks total (23/26 success without Docker/DB, 100% with Docker+DB)
 - Average Quality Score: 0.85
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes: FIX-1 through FIX-16 ✅, HIST-1 ✅
+- Fixes: FIX-1 through FIX-17 ✅, HIST-1 ✅
 - Sprint 9 (TBD) — NEXT
 
 ## Critical Rules for Claude Code

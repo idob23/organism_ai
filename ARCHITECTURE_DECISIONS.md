@@ -376,3 +376,4 @@ Block D (real artel tasks): 3/5+ completed (KP, work order template, production 
 - Writing fast path intercepting temporal/causal queries -> intent-aware skip
 - Re-plan picking unavailable tools -> available tools hint appended to re-plan task (Q-6.3/Q-6.5)
 - FIX-16: Long conversational messages (>80 chars) bypassed _is_conversational() -> Planner returned text instead of JSON -> user saw error. Fixed: universal fallback in CoreLoop.run() — "Could not parse plan" routes to _handle_conversation()
+- FIX-17: Plan validation failed for complex tasks (>5 steps). MAX_PLAN_STEPS raised to 7. Re-plan hint now explicitly instructs to consolidate steps within limit. Permanent fix planned for Sprint 9 via automatic task decomposition through orchestrator.

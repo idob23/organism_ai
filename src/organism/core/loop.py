@@ -142,7 +142,7 @@ def _extract_filename(task: str) -> str | None:
 class CoreLoop:
 
     MAX_RETRIES = 3
-    MAX_PLAN_STEPS = 5
+    MAX_PLAN_STEPS = 7
 
     @staticmethod
     def _is_useful_output(output: str) -> bool:
@@ -654,7 +654,10 @@ class CoreLoop:
                 print("  Re-planning with generic prompt...")
             try:
                 avail = self.registry.list_all()
-                replan_hint = f"\nIMPORTANT: Only use these tools: {avail}. Do NOT use any other tools."
+                replan_hint = (
+                    f"\nIMPORTANT: Only use these tools: {avail}. Do NOT use any other tools."
+                    f"\nIMPORTANT: Maximum {self.MAX_PLAN_STEPS} steps. Consolidate similar steps, combine search+fetch into one step if needed."
+                )
                 steps = await self.planner._fast_plan(task + replan_hint)
                 if not steps:
                     steps = await self.planner._react_plan(task + replan_hint)
