@@ -392,6 +392,13 @@ New tool: create PDF from text/markdown (reportlab) and read/extract text from P
 Use cases: reports, grant applications, commercial proposals, any document output.
 Registered in main.py, benchmark.py. Added to PLAN_WRITING and PLAN_MIXED prompts.
 
+## FIX-21: Binary files not sent in Telegram
+Binary files (.xlsx, .pptx, .pdf, .docx) caused UnicodeDecodeError in telegram.py because
+both handle_task and voice handler opened all files with `open(path, "r", encoding="utf-8")`.
+The except block silently swallowed the error and never called send_document.
+Fixed: BINARY_EXTENSIONS tuple at module level. Both is_file blocks now check extension first;
+binary files skip text preview and go directly to answer_document. Text files keep existing logic.
+
 ## FIX-20: openpyxl in Docker sandbox
 openpyxl missing in sandbox → Excel tasks fell back to CSV with dummy data.
 Fixed: openpyxl added to Dockerfile. Planner prompt updated: fallback must use real data.

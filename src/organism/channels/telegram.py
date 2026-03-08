@@ -10,6 +10,9 @@ from aiogram.filters import CommandStart, Command
 from src.organism.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
 from config.settings import settings
 
+# FIX-21: Binary file extensions that must not be read as text
+BINARY_EXTENSIONS = (".xlsx", ".pptx", ".pdf", ".docx", ".zip", ".png", ".jpg", ".jpeg")
+
 
 class TelegramChannel(BaseChannel):
 
@@ -106,20 +109,16 @@ class TelegramChannel(BaseChannel):
                 )
 
                 if response.is_file:
-                    # FIX-3: File response — send as .txt (not .md)
+                    # FIX-21: Handle binary and text files separately
                     file_path = response.text
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            full_text = f.read()
-                        short_preview = full_text[:500] + "..."
+                    fname = os.path.basename(file_path)
+                    is_binary = file_path.lower().endswith(BINARY_EXTENSIONS)
+
+                    if is_binary:
                         await status_msg.edit_text(
                             f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
-                            f"{short_preview}\n\n"
-                            f"\U0001f4ce \u041f\u043e\u043b\u043d\u044b\u0439 "
-                            f"\u0442\u0435\u043a\u0441\u0442 \u0432\u043e "
-                            f"\u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0438:"
+                            f"\U0001f4ce {fname}"
                         )
-                        fname = os.path.basename(file_path)
                         try:
                             await message.answer_document(
                                 FSInputFile(file_path, filename=fname),
@@ -129,10 +128,31 @@ class TelegramChannel(BaseChannel):
                                 os.unlink(file_path)
                             except Exception:
                                 pass
-                    except Exception:
-                        await status_msg.edit_text(
-                            f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
-                        )
+                    else:
+                        try:
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                full_text = f.read()
+                            short_preview = full_text[:500] + "..."
+                            await status_msg.edit_text(
+                                f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
+                                f"{short_preview}\n\n"
+                                f"\U0001f4ce \u041f\u043e\u043b\u043d\u044b\u0439 "
+                                f"\u0442\u0435\u043a\u0441\u0442 \u0432\u043e "
+                                f"\u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0438:"
+                            )
+                            try:
+                                await message.answer_document(
+                                    FSInputFile(file_path, filename=fname),
+                                )
+                            finally:
+                                try:
+                                    os.unlink(file_path)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            await status_msg.edit_text(
+                                f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
+                            )
                 elif response.text.startswith("Error:"):
                     err = response.text[7:]  # strip "Error: "
                     if "Traceback" in err or "File \"/" in err:
@@ -232,19 +252,16 @@ class TelegramChannel(BaseChannel):
                 )
 
                 if response.is_file:
+                    # FIX-21: Handle binary and text files separately
                     file_path = response.text
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            full_text = f.read()
-                        short_preview = full_text[:500] + "..."
+                    fname = os.path.basename(file_path)
+                    is_binary = file_path.lower().endswith(BINARY_EXTENSIONS)
+
+                    if is_binary:
                         await status_msg.edit_text(
                             f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
-                            f"{short_preview}\n\n"
-                            f"\U0001f4ce \u041f\u043e\u043b\u043d\u044b\u0439 "
-                            f"\u0442\u0435\u043a\u0441\u0442 \u0432\u043e "
-                            f"\u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0438:"
+                            f"\U0001f4ce {fname}"
                         )
-                        fname = os.path.basename(file_path)
                         try:
                             await message.answer_document(
                                 FSInputFile(file_path, filename=fname),
@@ -254,10 +271,31 @@ class TelegramChannel(BaseChannel):
                                 os.unlink(file_path)
                             except Exception:
                                 pass
-                    except Exception:
-                        await status_msg.edit_text(
-                            f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
-                        )
+                    else:
+                        try:
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                full_text = f.read()
+                            short_preview = full_text[:500] + "..."
+                            await status_msg.edit_text(
+                                f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
+                                f"{short_preview}\n\n"
+                                f"\U0001f4ce \u041f\u043e\u043b\u043d\u044b\u0439 "
+                                f"\u0442\u0435\u043a\u0441\u0442 \u0432\u043e "
+                                f"\u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0438:"
+                            )
+                            try:
+                                await message.answer_document(
+                                    FSInputFile(file_path, filename=fname),
+                                )
+                            finally:
+                                try:
+                                    os.unlink(file_path)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            await status_msg.edit_text(
+                                f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
+                            )
                 elif response.text.startswith("Error:"):
                     err = response.text[7:]
                     if "Traceback" in err or "File \"/" in err:
