@@ -21,14 +21,14 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e . 2>/dev/null || true
-          pip install anthropic tavily-python asyncpg sqlalchemy "sqlalchemy[asyncio]" pgvector aiohttp aiogram openai python-pptx numpy httpx "pydantic-settings" structlog psycopg2-binary aiofiles python-dotenv docker beautifulsoup4 lxml requests python-multipart tiktoken
+          pip install anthropic tavily-python asyncpg sqlalchemy "sqlalchemy[asyncio]" pgvector aiohttp aiogram openai python-pptx numpy httpx "pydantic-settings" structlog psycopg2-binary aiofiles python-dotenv docker beautifulsoup4 lxml requests python-multipart tiktoken aiosqlite
 
       - name: Create minimal .env for CI
         run: |
           cat > .env << 'EOF'
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}
-          DATABASE_URL=
+          DATABASE_URL=sqlite+aiosqlite:///ci_test.db
           TELEGRAM_BOT_TOKEN=dummy
           LOG_LEVEL=ERROR
           EOF

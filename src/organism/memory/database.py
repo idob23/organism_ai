@@ -189,8 +189,8 @@ class SchemaMigration(Base):
     applied_at = Column(DateTime, server_default=func.now())
 
 
-engine = create_async_engine(settings.database_url, echo=False)
-AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+engine = create_async_engine(settings.database_url, echo=False) if settings.database_url else None
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False) if engine else None
 
 
 async def init_db() -> None:
