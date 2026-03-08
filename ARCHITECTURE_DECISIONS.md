@@ -386,3 +386,12 @@ Three-layer regression protection:
 2. benchmark.py --quick — 5-task quality check after changes to core files. Score must not drop.
 3. GitHub Actions CI — automatic pre_commit_check.py + benchmark --quick on every push to master.
 CLAUDE.md updated: pre_commit_check.py is mandatory before any commit.
+
+## TOOL-1: pdf_tool
+New tool: create PDF from text/markdown (reportlab) and read/extract text from PDF (pypdf2).
+Use cases: reports, grant applications, commercial proposals, any document output.
+Registered in main.py, benchmark.py. Added to PLAN_WRITING and PLAN_MIXED prompts.
+
+## FIX-20: openpyxl in Docker sandbox
+openpyxl missing in sandbox → Excel tasks fell back to CSV with dummy data.
+Fixed: openpyxl added to Dockerfile. Planner prompt updated: fallback must use real data.

@@ -36,6 +36,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | text_writer | tools/text_writer.py | Long text generation + save to file |
 | pptx_creator | tools/pptx_creator.py | PowerPoint via python-pptx |
 | confirm_with_user | tools/confirm_user.py | Human approval via Telegram (Q-6.3), only in Telegram mode |
+| pdf_tool | tools/pdf_tool.py | Create/read PDF files via reportlab/pypdf2 (TOOL-1) |
 | duplicate_finder | tools/duplicate_finder.py | Semantic duplicate search in 1C entities via embeddings (Q-8.3) |
 | mcp_* | tools/mcp_client.py | Dynamic tools from MCP servers (MCP_SERVERS env) |
 | delegate_to_agent | a2a/protocol.py | Peer delegation (A2A_PEERS env), only when peers configured |
@@ -81,7 +82,7 @@ organism_ai/
 │   │                  # scheduler.py, human_approval.py, personality.py
 │   ├── tools/         # registry.py, code_executor.py, web_search.py, confirm_user.py
 │   │                  # web_fetch.py, file_manager.py, text_writer.py, pptx_creator.py
-│   │                  # duplicate_finder.py, mcp_client.py
+│   │                  # duplicate_finder.py, pdf_tool.py, mcp_client.py
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
@@ -153,7 +154,7 @@ ___
 - Benchmark: 26 tasks total (23/26 success without Docker/DB, 100% with Docker+DB)
 - Average Quality Score: 0.85
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes: FIX-1 through FIX-19 ✅, HIST-1 ✅
+- Fixes: FIX-1 through FIX-20 ✅, HIST-1 ✅, TOOL-1 ✅
 - Sprint 9 (Agent Factory + Reliability) — NEXT ✅ roadmap defined in organism_ai_roadmap.md
 
 ## Critical Rules for Claude Code

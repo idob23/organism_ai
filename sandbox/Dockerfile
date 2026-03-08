@@ -3,7 +3,10 @@ FROM python:3.11-slim
 # Только стандартная библиотека + базовые пакеты для вычислений
 RUN pip install --no-cache-dir \
     numpy==1.26.4 \
-    pandas==2.2.1
+    pandas==2.2.1 \
+    openpyxl \
+    reportlab \
+    pypdf2
 
 # Рабочая директория
 WORKDIR /sandbox

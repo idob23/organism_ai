@@ -416,6 +416,8 @@ def build_registry() -> ToolRegistry:
     registry.register(FileManagerTool())
     from src.organism.tools.duplicate_finder import DuplicateFinderTool
     registry.register(DuplicateFinderTool())
+    from src.organism.tools.pdf_tool import PdfTool
+    registry.register(PdfTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
     return registry

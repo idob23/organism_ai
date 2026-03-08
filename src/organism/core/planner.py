@@ -44,10 +44,12 @@ PLAN_WRITING = """You are a document planner. Choose the most efficient tool for
 AVAILABLE TOOLS:
 - text_writer: write long text and save to file. input: {"prompt": "detailed instructions", "filename": "file.md"}
 - file_manager: read/write SHORT plain text files only (under 30 lines). input: {"action": "write", "path": "file.txt", "content": "short content"}
+- pdf_tool: create or read PDF files. input: {"action": "create", "filename": "doc.pdf", "content": "text", "title": "Title"}
 
 RULES:
 - Use text_writer for anything longer than a few lines
 - file_manager ONLY for very short files (configs, notes)
+- pdf_tool for PDF output (reports, proposals, commercial offers)
 - Maximum 2 steps
 
 Example:
@@ -61,6 +63,8 @@ AVAILABLE TOOLS:
 RULES:
 - Write actual working Python code, not stubs
 - For CSV: use csv module, write with open('filename.csv','w',newline='',encoding='utf-8-sig')
+- Excel files: always use openpyxl: df.to_excel(filename, index=False, engine='openpyxl')
+- If Excel fails: save same real data as .csv, NEVER use placeholder/dummy data
 - For calculations: print all results with labels
 - All print() statements must be explicit
 - Keep code under 30 lines
@@ -107,6 +111,7 @@ AVAILABLE TOOLS:
 - web_fetch: fetch URL. input: {"url": "https://...", "max_chars": 3000}
 - text_writer: write long text and save to file. input: {"prompt": "detailed instructions including context from previous steps", "filename": "file.md"}
 - code_executor: run Python code. input: {"code": "python code", "domains": []}
+- pdf_tool: create or read PDF files. input: {"action": "create", "filename": "doc.pdf", "content": "text", "title": "Title"}
 
 RULES:
 - For "find + write" tasks: first web_search, then text_writer with {{step_1_output}} in prompt
