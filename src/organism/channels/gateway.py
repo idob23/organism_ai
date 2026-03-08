@@ -124,8 +124,20 @@ class Gateway:
         """
         stripped = output.strip()
 
+        # FIX-23: Extract file path from code_executor multi-line output
+        # Pattern: "Saved files: filename.xlsx" anywhere in output
+        import re as _re
+        _saved_match = _re.search(r'Saved files:\s*(\S+)', stripped)
+        if _saved_match:
+            fname = _saved_match.group(1).strip()
+            candidate = os.path.join("data", "outputs", fname)
+            if os.path.exists(candidate) and candidate.endswith(
+                (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py", ".pdf")
+            ):
+                return self._prepare_file_response(candidate, user_id, channel, metadata)
+
         # Detect file paths in output
-        _file_exts = (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py")
+        _file_exts = (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py", ".pdf")
         is_file_path = (
             stripped.endswith(_file_exts)
             and "\n" not in stripped

@@ -411,3 +411,11 @@ binary files skip text preview and go directly to answer_document. Text files ke
 ## FIX-20: openpyxl in Docker sandbox
 openpyxl missing in sandbox → Excel tasks fell back to CSV with dummy data.
 Fixed: openpyxl added to Dockerfile. Planner prompt updated: fallback must use real data.
+
+## FIX-23: Gateway not sending files from multi-line code_executor output
+Gateway._prepare_output() detected file paths only when output was a single line ending with
+a known extension. But code_executor returns multi-line output with "Saved files: filename.xlsx"
+at the end. The "\n" not in stripped check always failed → file never sent as attachment.
+Fixed: Added regex extraction of filename from "Saved files: <filename>" pattern before the
+existing is_file_path check. Constructs candidate path in data/outputs/, verifies existence
+and extension, routes to _prepare_file_response(). Also added .pdf to _file_exts tuple.
