@@ -387,6 +387,15 @@ Three-layer regression protection:
 3. GitHub Actions CI — automatic pre_commit_check.py + benchmark --quick on every push to master.
 CLAUDE.md updated: pre_commit_check.py is mandatory before any commit.
 
+## FIX-22: Tasks routed to conversation mode instead of execution
+Short task messages (<80 chars) like "создай excel таблицу" were classified as conversational
+by _is_conversational() and handled by _handle_conversation() which has no tools — causing LLM
+to hallucinate file creation. Three fixes: (1) Expanded TASK_SIGNALS with excel, таблиц, файл,
+отчёт, график, посчитай, построй, скачать. (2) Replaced <80 char rule with <15 char + no-digits
+rule — only truly trivial messages are conversational. (3) Added FILE CREATION PROHIBITION block
+to _handle_conversation system prompt as safety net — if a task still leaks through, LLM says
+"Выполняю..." instead of hallucinating results.
+
 ## TOOL-1: pdf_tool
 New tool: create PDF from text/markdown (reportlab) and read/extract text from PDF (pypdf2).
 Use cases: reports, grant applications, commercial proposals, any document output.

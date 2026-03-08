@@ -87,6 +87,15 @@ TASK_SIGNALS = [
     "\u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439",  # проанализируй
     "\u0441\u0434\u0435\u043b\u0430\u0439",              # сделай
     "csv", "xlsx", "pptx",
+    "excel",
+    "\u0442\u0430\u0431\u043b\u0438\u0446",    # таблиц
+    "\u0444\u0430\u0439\u043b",                 # файл
+    "\u043e\u0442\u0447\u0451\u0442",           # отчёт
+    "\u043e\u0442\u0447\u0435\u0442",           # отчет
+    "\u0433\u0440\u0430\u0444\u0438\u043a",     # график
+    "\u043f\u043e\u0441\u0447\u0438\u0442\u0430\u0439",  # посчитай
+    "\u043f\u043e\u0441\u0442\u0440\u043e\u0439",        # построй
+    "\u0441\u043a\u0430\u0447\u0430\u0442\u044c",        # скачать
 ]
 
 
@@ -326,8 +335,8 @@ class CoreLoop:
         if any(t.startswith(p) or t == p or p in t for p in CHAT_PATTERNS):
             return True
 
-        # Very short messages (< 80 chars) without task keywords are conversational
-        if len(t) < 80 and not t.startswith("/"):
+        # Only truly trivial short messages — no digits (digits suggest a calculation/data task)
+        if len(t) < 15 and not any(c.isdigit() for c in t) and not t.startswith("/"):
             return True
 
         return False
@@ -396,6 +405,14 @@ class CoreLoop:
             "- NEVER invent capabilities that are not in the live system state\n"
             "- NEVER say 'I will set up automatic tracking' if you cannot actually create the scheduled job right now\n"
             "- If uncertain whether you can do something \u2014 say 'let me try' and attempt it, rather than promising or denying\n"
+            "\n"
+            "FILE CREATION PROHIBITION:\n"
+            "- You are in CONVERSATION mode. You have NO tools, NO file system access, NO ability to create files.\n"
+            "- NEVER say '\u044f \u0441\u043e\u0437\u0434\u0430\u043b \u0444\u0430\u0439\u043b', '\u0444\u0430\u0439\u043b \u0433\u043e\u0442\u043e\u0432', '\u0444\u0430\u0439\u043b \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d', '\u0442\u0430\u0431\u043b\u0438\u0446\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0430' \u2014 this is a LIE.\n"
+            "- NEVER say '\u044f \u0432\u044b\u043f\u043e\u043b\u043d\u0438\u043b', '\u0433\u043e\u0442\u043e\u0432\u043e', '\u0441\u0434\u0435\u043b\u0430\u043d\u043e' for file/calculation/data tasks.\n"
+            "- If user asks to CREATE a file (excel, csv, pptx, pdf, docx), calculate data, or generate a report:\n"
+            "  respond ONLY with: '\u0412\u044b\u043f\u043e\u043b\u043d\u044f\u044e...' \u2014 nothing else. Do not describe results you didn't produce.\n"
+            "- If user asks a QUESTION (explain, describe, what is, how does) \u2014 answer normally.\n"
             "\n"
             "Respond in the same language as the user. Be natural, like a knowledgeable colleague. "
             "No bullet-point lists of features unless asked. Just talk. "
