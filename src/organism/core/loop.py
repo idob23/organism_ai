@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from dataclasses import dataclass, field
 
+from src.organism.core.decomposer import TaskDecomposer
 from src.organism.core.evaluator import Evaluator
 from src.organism.core.planner import PlanStep, Planner
 from src.organism.llm.base import LLMProvider
@@ -194,6 +195,7 @@ class CoreLoop:
         self.llm = llm
         self.registry = registry
         self.planner = Planner(llm)
+        self.decomposer = TaskDecomposer(llm)
         pvc = PromptVersionControl() if memory is not None else None
         self.evaluator = Evaluator(llm, pvc=pvc)
         self.validator = SafetyValidator()
@@ -523,7 +525,7 @@ class CoreLoop:
             duration=duration, quality_score=1.0,
         )
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None) -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None) -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -696,6 +698,40 @@ class CoreLoop:
                     ))
                 except Exception:
                     pass
+
+        # Q-9.1: Task Decomposer — check if task needs decomposition before planning
+        if len(task) > 100:  # skip decomposition check for very short tasks
+            try:
+                decomp_plan = await self.decomposer.analyze(task)
+                if decomp_plan.should_decompose:
+                    _log.info(f"[{task_id}] Decomposing into {len(decomp_plan.subtasks)} subtasks")
+                    if verbose:
+                        print(f"Complex task detected \u2014 decomposing into {len(decomp_plan.subtasks)} parts")
+                    result = await self.decomposer.run(
+                        task=task,
+                        subtasks=decomp_plan.subtasks,
+                        loop=self,
+                        user_id=user_id,
+                        user_context=user_context,
+                        progress_callback=progress_callback,
+                    )
+                    result.memory_hits = memory_hits
+                    # Save to memory
+                    if self.memory and result.success:
+                        try:
+                            await self.memory.on_task_end(
+                                task, result.output, True, result.duration,
+                                len(result.steps),
+                                list({s.tool for s in result.steps}),
+                                quality_score=result.quality_score,
+                                user_id=user_id,
+                            )
+                        except Exception:
+                            pass
+                    return result
+            except Exception as e:
+                _log.warning(f"[{task_id}] Decomposer failed, falling back to normal plan: {e}")
+                # Graceful degradation: continue with normal planning
 
         if verbose:
             print("Planning...")

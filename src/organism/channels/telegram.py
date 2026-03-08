@@ -95,6 +95,24 @@ class TelegramChannel(BaseChannel):
                 f"\u0437\u0430\u0434\u0430\u0447\u0443:\n{preview}\n\n"
                 f"\u0412\u044b\u043f\u043e\u043b\u043d\u044f\u044e..."
             )
+            # Q-9.9: Progress callback for task decomposition
+            async def _subtask_progress(current: int, total: int, subtask_preview: str) -> None:
+                try:
+                    await status_msg.edit_text(
+                        f"\u23f3 {preview}\n\n"
+                        f"\u0427\u0430\u0441\u0442\u044c {current}/{total}: "
+                        f"{subtask_preview}..."
+                    )
+                except Exception:
+                    pass  # message may have been deleted or rate-limited
+
+            incoming = IncomingMessage(
+                text=task,
+                user_id=str(message.from_user.id),
+                channel="telegram",
+                metadata={"chat_id": message.chat.id, "progress_callback": _subtask_progress},
+            )
+
             ticker = asyncio.create_task(self._tick_progress(status_msg, preview))
 
             try:

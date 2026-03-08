@@ -573,3 +573,16 @@ Fallback on Haiku error: keep fast path (safe default). Cost: ~10 tokens per wri
 ## Q-10.3: MAX_PLAN_STEPS = 10
 Permanent fix for FIX-17. Plan step limit raised from 7 to 10 in `CoreLoop.MAX_PLAN_STEPS`.
 `_validate_plan()` already used `self.MAX_PLAN_STEPS` (no hardcoded numbers to change).
+
+## Q-9.1: Task Decomposer
+New `src/organism/core/decomposer.py`. Haiku analyzes the task: if it has multiple distinct
+phases (gather data + process + write report) it breaks it into 2-5 subtasks. Each subtask
+executes sequentially through `CoreLoop.run()` with context passing (last 2 results injected).
+Results aggregated by Haiku into one final answer. Gate: tasks under 100 chars skip the check.
+Graceful degradation: if decomposition fails, continues with normal planning.
+
+## Q-9.9: Subtask progress in Telegram
+`progress_callback` passed through `IncomingMessage.metadata` \u2192 `Gateway` \u2192
+`CoreLoop.run()`. During decomposition, Telegram shows "\u0427\u0430\u0441\u0442\u044c X/Y: ..."
+instead of the static ticker. The callback is fire-and-forget (try/except), so rate-limiting
+or deleted messages do not crash the execution.
