@@ -157,6 +157,9 @@ python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
 - Sprint 9 (Agent Factory + Reliability) — NEXT ✅ roadmap defined in organism_ai_roadmap.md
 
 ## Critical Rules for Claude Code
+- **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
+- **After ANY change to loop.py, planner.py, evaluator.py, gateway.py**: run `python benchmark.py --quick` and confirm score ≥ previous
+- **Commit only if**: pre_commit_check.py exits with code 0
 - **Russian strings**: ALWAYS use unicode escapes (\u043d\u0430\u043f\u0438\u0448\u0438), NEVER Cyrillic literals in .py files
 - **Memory operations**: ALWAYS wrap in try/except — one DB failure must not crash the system
 - **New tools**: register in BOTH main.py AND benchmark.py `build_registry()`

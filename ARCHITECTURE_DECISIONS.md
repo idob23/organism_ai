@@ -379,3 +379,10 @@ Block D (real artel tasks): 3/5+ completed (KP, work order template, production 
 - FIX-17: Plan validation failed for complex tasks (>5 steps). MAX_PLAN_STEPS raised to 7. Re-plan hint now explicitly instructs to consolidate steps within limit. Permanent fix planned for Sprint 9 via automatic task decomposition through orchestrator.
 - FIX-18: Bot answered from hardcoded capability list instead of live system state. Fixed: _handle_conversation now queries registry.list_all(), scheduler.list_jobs(), memory availability at runtime and builds system prompt from real data. Bot self-knowledge is now always accurate and automatically reflects new tools/integrations.
 - FIX-19: Bot could hallucinate capabilities (e.g. promise to create scheduled jobs via chat). Fixed: added HONEST LIMITATIONS and ANTI-HALLUCINATION RULES block to _handle_conversation system prompt. Bot now distinguishes between what it knows vs what it can actually execute right now.
+
+## Code Protection (PROTECT-1)
+Three-layer regression protection:
+1. pre_commit_check.py — syntax, Cyrillic literals, critical imports. Run before every commit.
+2. benchmark.py --quick — 5-task quality check after changes to core files. Score must not drop.
+3. GitHub Actions CI — automatic pre_commit_check.py + benchmark --quick on every push to master.
+CLAUDE.md updated: pre_commit_check.py is mandatory before any commit.
