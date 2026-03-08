@@ -126,7 +126,7 @@ python main.py --serve-mcp         # Start as MCP server (port 8091)
 python benchmark.py                # Full benchmark (26 tasks)
 python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
 ```
-
+___
 ### Bot/Chat Commands
 ```
 /remember <key> <value>   — save a personal fact
