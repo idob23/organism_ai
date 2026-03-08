@@ -155,8 +155,9 @@ ___
 - Average Quality Score: 0.85
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes: FIX-1 through FIX-30 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
-- Sprint 9: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (conversational mode upgrade), MEDIA-1 ✅ (photo/video/doc Vision), MEDIA-3 ✅ (PDF Vision via pdf2image)
-- Sprint 9 (Agent Factory + Reliability) — IN PROGRESS ✅ roadmap defined in organism_ai_roadmap.md
+- Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
+  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 conversational upgrade ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
+  - Следующий: Q-10.1 (универсальный планировщик)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
