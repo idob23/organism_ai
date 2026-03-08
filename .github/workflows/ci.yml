@@ -18,7 +18,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" || pip install -e . || pip install anthropic tavily-python asyncpg sqlalchemy pgvector aiohttp python-telegram-bot aiogram openai python-pptx numpy httpx pydantic-settings
 
       - name: Syntax + Cyrillic + Import check
         run: python pre_commit_check.py
