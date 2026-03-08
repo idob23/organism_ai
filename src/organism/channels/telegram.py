@@ -573,32 +573,26 @@ class TelegramChannel(BaseChannel):
 
     @staticmethod
     async def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[dict]:
-        """Convert PDF pages to Vision API image blocks via pdf2image + poppler.
+        """Convert PDF pages to Vision API image blocks via pymupdf (fitz).
 
         Returns list of media items: [{"type": "image", "data": "<b64>", "media_type": "image/jpeg"}]
-        Returns empty list if pdf2image/poppler unavailable.
+        Returns empty list if pymupdf unavailable.
         """
         try:
-            from pdf2image import convert_from_bytes
-        except ImportError:
-            return []
-
-        try:
-            images = convert_from_bytes(pdf_bytes, first_page=1, last_page=max_pages, dpi=200)
+            import fitz  # pymupdf
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            result = []
+            for i in range(min(len(doc), max_pages)):
+                page = doc[i]
+                mat = fitz.Matrix(2.0, 2.0)  # 2x zoom = ~144 DPI
+                pix = page.get_pixmap(matrix=mat)
+                img_bytes = pix.tobytes("jpeg")
+                b64 = base64.b64encode(img_bytes).decode("ascii")
+                result.append({"type": "image", "data": b64, "media_type": "image/jpeg"})
+            doc.close()
+            return result
         except Exception:
             return []
-
-        items = []
-        for img in images:
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=85)
-            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-            items.append({
-                "type": "image",
-                "data": b64,
-                "media_type": "image/jpeg",
-            })
-        return items
 
     @staticmethod
     async def _transcribe_voice(file_path: str) -> str:

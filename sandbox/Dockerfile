@@ -1,8 +1,8 @@
 FROM python:3.11-slim
 
-# MEDIA-1/3: ffmpeg for video frames, poppler-utils for PDF-to-image
+# MEDIA-1: ffmpeg for video frame extraction
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg poppler-utils && \
+    apt-get install -y --no-install-recommends ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Только стандартная библиотека + базовые пакеты для вычислений

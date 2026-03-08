@@ -548,3 +548,10 @@ Previously, if pdf2image/poppler was unavailable, the PDF handler fell back to s
 file and injecting the path into task text. This silently produced broken plans on systems
 without poppler. Replaced with an honest Telegram message telling the user to install
 poppler-utils or send the document content as text. No temp file created, early return.
+
+## FIX-32: pymupdf instead of pdf2image+poppler
+Replaced pdf2image+poppler with pymupdf (fitz) for PDF-to-image conversion. pymupdf is a
+pure-wheel Python package — no system dependencies (poppler-utils), works on Windows/Linux/Mac
+out of the box. `_pdf_to_images()` uses `fitz.open(stream=bytes)`, 2x zoom matrix (~144 DPI),
+`pix.tobytes("jpeg")`. Removed poppler-utils from sandbox/Dockerfile, replaced pdf2image
+with pymupdf>=1.24.0 in pyproject.toml.
