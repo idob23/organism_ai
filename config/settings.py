@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     mcp_servers: str = Field("", alias="MCP_SERVERS")
     # A2A peer agents (JSON: [{"name": "...", "url": "...", "api_key": "..."}])
     a2a_peers: str = Field("", alias="A2A_PEERS")
+    # FIX-26: Memory retention period (days). Default 3 years — agent never forgets.
+    memory_retention_days: int = Field(1095, alias="MEMORY_RETENTION_DAYS")
     # Error monitoring: dedicated bot token (falls back to main bot if empty)
     error_bot_token: str = Field("", alias="TELEGRAM_ERROR_BOT_TOKEN")
     # Error monitoring: Telegram chat ID for error notifications (separate from user bot)

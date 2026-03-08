@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .database import TaskMemory, UserProfile, AsyncSessionLocal
 from .embeddings import get_embedding
 from src.organism.llm.base import LLMProvider, Message
+from config.settings import settings
 
 
 def _enrich_for_embedding(task: str, tools_used: list[str] = None, outcome: str = None) -> str:
@@ -118,14 +119,15 @@ class LongTermMemory:
         Combining both improves recall — e.g. "расход ГСМ" finds fuel tasks even
         when phrased differently or using abbreviations.
 
-        Metadata filtering: success=True, quality_score >= min_quality, last 90 days.
+        Metadata filtering: success=True, quality_score >= min_quality,
+        retention period from settings (default 3 years).
 
         Adaptive K:
           - best score > 0.9 → return 1 (near-exact match, no more needed)
           - best score < 0.6 → return [] (nothing relevant)
           - otherwise → return up to limit
         """
-        cutoff = datetime.utcnow() - timedelta(days=90)
+        cutoff = datetime.utcnow() - timedelta(days=settings.memory_retention_days)
 
         # Search with just [TASK] tag — we don't know tools/outcome yet
         search_text = _enrich_for_embedding(task=task)

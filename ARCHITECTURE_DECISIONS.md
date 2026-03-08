@@ -453,3 +453,11 @@ User couldn't reference past tasks ("remember that salary report?") in conversat
 Fixed: (1) Increased chat history window from 4 to 10 messages. (2) Added longterm memory
 search via memory.on_task_start() — top 3 relevant past tasks injected into system prompt
 as "Relevant past tasks:" block. Both changes gated on self.memory + try/except.
+
+## FIX-26: Memory retention expanded — agent never forgets
+Longterm memory search had a hardcoded 90-day cutoff, contradicting the "agent remembers
+everything" design principle. Tasks older than 3 months were invisible to memory search.
+Fixed: (1) Replaced 90-day cutoff with configurable MEMORY_RETENTION_DAYS setting (default
+1095 = 3 years). Imported settings in longterm.py. (2) Increased chat history storage limit
+from 50000 to 100000 messages per user. The retention period is now an env var that can be
+overridden without code changes.
