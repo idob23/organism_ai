@@ -408,6 +408,24 @@ class CoreLoop:
         if user_context:
             system += f"\n\nUser context: {user_context}"
 
+        # FIX-25: Search longterm memory for relevant past tasks
+        longterm_context = ""
+        if self.memory and user_id != "default":
+            try:
+                similar = await self.memory.on_task_start(task)
+                if similar:
+                    lines = []
+                    for s in similar[:3]:  # top 3 relevant past tasks
+                        task_str = s.get("task", "")[:100]
+                        result_str = (s.get("result") or "")[:150].replace("\n", " ")
+                        lines.append(f"- Task: {task_str} \u2192 {result_str}")
+                    longterm_context = "Relevant past tasks:\n" + "\n".join(lines)
+            except Exception:
+                pass
+
+        if longterm_context:
+            system += f"\n\n{longterm_context}"
+
         try:
             from src.organism.llm.base import Message as LLMMessage
 
@@ -415,8 +433,8 @@ class CoreLoop:
             messages = []
             if self.memory and user_id != "default":
                 try:
-                    recent = await self.memory.chat_history.get_recent(user_id, limit=6)
-                    for msg in recent[-4:]:  # last 4 messages (2 user/assistant pairs)
+                    recent = await self.memory.chat_history.get_recent(user_id, limit=10)
+                    for msg in recent[-10:]:
                         messages.append(LLMMessage(role=msg["role"], content=msg["content"][:500]))
                 except Exception:
                     pass

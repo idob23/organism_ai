@@ -446,3 +446,10 @@ chat history (HIST-1), user facts, or any memory-backed features.
 Fixed: moved memory.initialize() before _classify_intent(). The second initialize()
 call in the task path is harmless (idempotent _initialized flag) but the memory search
 block no longer calls it redundantly.
+
+## FIX-25: Conversation handler lacks longterm memory + small history window
+_handle_conversation had only 4 messages of chat history and no access to longterm memory.
+User couldn't reference past tasks ("remember that salary report?") in conversation mode.
+Fixed: (1) Increased chat history window from 4 to 10 messages. (2) Added longterm memory
+search via memory.on_task_start() — top 3 relevant past tasks injected into system prompt
+as "Relevant past tasks:" block. Both changes gated on self.memory + try/except.
