@@ -12,7 +12,9 @@ RUN pip install --no-cache-dir \
 WORKDIR /sandbox
 
 # Непривилегированный пользователь
-RUN useradd -m -u 1000 sandbox
+RUN useradd -m -u 1000 sandbox && \
+    mkdir -p /output && chown sandbox:sandbox /output && \
+    chown sandbox:sandbox /sandbox
 USER sandbox
 
 # Точка входа — читаем код из stdin
