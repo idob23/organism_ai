@@ -464,6 +464,13 @@ class CoreLoop:
         memory_context = ""
         user_context = ""
 
+        # FIX-24: Initialize memory BEFORE intent classification — needed for chat history in both paths
+        if self.memory:
+            try:
+                await self.memory.initialize()
+            except Exception as e:
+                log_exception(_log, f"[{task_id}] Memory init failed", e)
+
         # Q-9.0: LLM-based intent classification (replaces keyword matching)
         _intent = await self._classify_intent(task)
         if _intent == "chat":
@@ -471,7 +478,6 @@ class CoreLoop:
 
         if self.memory:
             try:
-                await self.memory.initialize()
                 similar = await self.memory.on_task_start(task)
                 if similar:
                     memory_hits = len(similar)

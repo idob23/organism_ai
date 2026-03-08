@@ -438,3 +438,11 @@ CHAT_PATTERNS and TASK_SIGNALS constants removed entirely.
 
 Also added time-sensitive cache skip: queries containing "текущ", "актуал", "сейчас", "сегодн",
 "свеж", "now", "current", "today", "latest" bypass solution cache to get fresh results.
+
+## FIX-24: Memory not initialized for conversational messages
+Memory.initialize() was called AFTER intent classification, so conversational messages
+returned before memory was ready. This meant _handle_conversation had no access to
+chat history (HIST-1), user facts, or any memory-backed features.
+Fixed: moved memory.initialize() before _classify_intent(). The second initialize()
+call in the task path is harmless (idempotent _initialized flag) but the memory search
+block no longer calls it redundantly.
