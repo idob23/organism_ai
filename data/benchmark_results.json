@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-08T08:51:43",
+  "timestamp": "2026-03-08T13:10:30",
   "mode": "quick",
   "results": [
     {
@@ -8,7 +8,7 @@
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
       "quality_score": 0.95,
-      "duration": 8.24,
+      "duration": 7.06,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -19,7 +19,7 @@
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
       "quality_score": 0.95,
-      "duration": 4.92,
+      "duration": 5.61,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -30,7 +30,7 @@
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
       "quality_score": 0.8,
-      "duration": 5.98,
+      "duration": 5.54,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -40,12 +40,10 @@
       "type": "analysis",
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
-      "quality_score": 1.0,
-      "duration": 19.4,
-      "tools_used": [
-        "code_executor"
-      ],
-      "cache_hit": false,
+      "quality_score": 0.95,
+      "duration": 4.82,
+      "tools_used": [],
+      "cache_hit": true,
       "error": ""
     },
     {
@@ -54,9 +52,11 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.95,
-      "duration": 4.64,
-      "tools_used": [],
-      "cache_hit": true,
+      "duration": 25.05,
+      "tools_used": [
+        "code_executor"
+      ],
+      "cache_hit": false,
       "error": ""
     }
   ],
@@ -64,8 +64,8 @@
     "total": 5,
     "successful": 5,
     "success_rate": 100.0,
-    "avg_quality": 0.93,
-    "avg_duration": 8.64,
+    "avg_quality": 0.92,
+    "avg_duration": 9.62,
     "cache_hits": 4,
     "cache_hit_rate": 80.0
   }
