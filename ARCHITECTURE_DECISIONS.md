@@ -519,3 +519,14 @@ Implementation across 5 files:
 
 Graceful degradation: ffmpeg unavailable → honest "cannot process video, send screenshot".
 No changes to benchmark, monitoring, or existing text/voice handlers.
+
+## FIX-29: Graceful degradation on total step failure
+When all plan steps failed, the system returned success=False with a raw error message.
+Users saw cryptic errors in Telegram. Now falls back to _handle_conversation with an enriched
+task that includes the error context: "[Автоматическое выполнение не удалось: {error}. Отвечаю
+напрямую.]" — Sonnet answers from its own knowledge instead of showing FAILED.
+
+## FIX-30: retry_hint extended to web_search
+Previously only code_executor got retry hints on failed evaluation. Now web_search also uses
+eval_result.retry_hint: appended to the query string on retry, so the search refines itself
+based on what went wrong (e.g., "price gold" + "current 2026" on retry).

@@ -154,7 +154,7 @@ ___
 - Benchmark: 26 tasks total (23/26 success without Docker/DB, 100% with Docker+DB)
 - Average Quality Score: 0.85
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes: FIX-1 through FIX-29 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅
+- Fixes: FIX-1 through FIX-30 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅
 - Sprint 9: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (conversational mode upgrade), MEDIA-1 ✅ (photo/video/doc Vision)
 - Sprint 9 (Agent Factory + Reliability) — IN PROGRESS ✅ roadmap defined in organism_ai_roadmap.md
 
