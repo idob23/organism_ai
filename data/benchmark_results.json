@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-08T21:46:18",
+  "timestamp": "2026-03-08T22:00:11",
   "mode": "quick",
   "results": [
     {
@@ -8,7 +8,7 @@
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
       "quality_score": 0.95,
-      "duration": 16.56,
+      "duration": 9.59,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -19,7 +19,7 @@
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
       "quality_score": 0.95,
-      "duration": 6.62,
+      "duration": 9.2,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -30,7 +30,7 @@
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
       "quality_score": 0.8,
-      "duration": 6.76,
+      "duration": 9.0,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -41,7 +41,7 @@
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
       "quality_score": 0.95,
-      "duration": 13.36,
+      "duration": 7.0,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -52,7 +52,7 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.95,
-      "duration": 8.16,
+      "duration": 7.66,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -63,7 +63,7 @@
     "successful": 5,
     "success_rate": 100.0,
     "avg_quality": 0.92,
-    "avg_duration": 10.29,
+    "avg_duration": 8.49,
     "cache_hits": 5,
     "cache_hit_rate": 100.0
   }

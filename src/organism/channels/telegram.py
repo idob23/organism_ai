@@ -367,17 +367,21 @@ class TelegramChannel(BaseChannel):
                             "media_type": mime,
                         })
                     elif mime == "application/pdf" or (doc.file_name or "").lower().endswith(".pdf"):
-                        # MEDIA-2: PDF document — save to temp file for pdf_tool
+                        # MEDIA-3: PDF → convert pages to images via pdf2image → Vision API
                         file = await self.bot.get_file(doc.file_id)
                         buf = io.BytesIO()
                         await self.bot.download_file(file.file_path, buf)
-                        tmp_pdf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-                        tmp_pdf.write(buf.getvalue())
-                        tmp_pdf_path = tmp_pdf.name
-                        tmp_pdf.close()
-                        caption = message.caption or "\u041f\u0440\u043e\u0447\u0438\u0442\u0430\u0439 \u0438 \u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439 \u044d\u0442\u043e\u0442 PDF \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442."
-                        task = f"{caption}\n\n[PDF \u0444\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d \u043f\u043e \u043f\u0443\u0442\u0438: {tmp_pdf_path}]"
-                        media_items = []  # no Vision needed — pdf_tool handles it
+                        pages = await self._pdf_to_images(buf.getvalue())
+                        if pages:
+                            media_items.extend(pages)
+                        else:
+                            # Fallback: save as temp file if pdf2image fails
+                            tmp_pdf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+                            tmp_pdf.write(buf.getvalue())
+                            tmp_pdf_path = tmp_pdf.name
+                            tmp_pdf.close()
+                            caption = message.caption or "\u041f\u0440\u043e\u0447\u0438\u0442\u0430\u0439 \u0438 \u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439 \u044d\u0442\u043e\u0442 PDF \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442."
+                            task = f"{caption}\n\n[PDF \u0444\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d \u043f\u043e \u043f\u0443\u0442\u0438: {tmp_pdf_path}]"
                     else:
                         # Non-image document — just mention filename in task
                         fname = doc.file_name or "document"
@@ -565,6 +569,35 @@ class TelegramChannel(BaseChannel):
             return []
         except Exception:
             return []
+
+    @staticmethod
+    async def _pdf_to_images(pdf_bytes: bytes, max_pages: int = 10) -> list[dict]:
+        """Convert PDF pages to Vision API image blocks via pdf2image + poppler.
+
+        Returns list of media items: [{"type": "image", "data": "<b64>", "media_type": "image/jpeg"}]
+        Returns empty list if pdf2image/poppler unavailable.
+        """
+        try:
+            from pdf2image import convert_from_bytes
+        except ImportError:
+            return []
+
+        try:
+            images = convert_from_bytes(pdf_bytes, first_page=1, last_page=max_pages, dpi=200)
+        except Exception:
+            return []
+
+        items = []
+        for img in images:
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            items.append({
+                "type": "image",
+                "data": b64,
+                "media_type": "image/jpeg",
+            })
+        return items
 
     @staticmethod
     async def _transcribe_voice(file_path: str) -> str:
