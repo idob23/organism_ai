@@ -419,3 +419,22 @@ at the end. The "\n" not in stripped check always failed → file never sent as 
 Fixed: Added regex extraction of filename from "Saved files: <filename>" pattern before the
 existing is_file_path check. Constructs candidate path in data/outputs/, verifies existence
 and extension, routes to _prepare_file_response(). Also added .pdf to _file_exts tuple.
+
+## Q-9.0: LLM Intent Classifier
+Replaced keyword-based _is_conversational() with async _classify_intent() using Haiku LLM.
+
+**Problem**: CHAT_PATTERNS and TASK_SIGNALS were hardcoded keyword lists. Russian morphology is
+too rich for keyword matching — "прикинь расход соляры", "почему топлива уходит больше нормы?"
+are tasks but keyword matching missed them, routing to conversation mode → hallucinated responses.
+
+**Solution**: Three-layer classification:
+1. Pre-filter: /commands → always task
+2. Pre-filter: ≤3 words + no digits → chat (avoids LLM cost for "привет", "спасибо")
+   Exception: file extensions (xlsx, csv, etc.) → task
+3. All other messages → Haiku LLM call (max_tokens=5, ~0.1s)
+   Graceful degradation: LLM failure → assume task (safer than dropping request)
+
+CHAT_PATTERNS and TASK_SIGNALS constants removed entirely.
+
+Also added time-sensitive cache skip: queries containing "текущ", "актуал", "сейчас", "сегодн",
+"свеж", "now", "current", "today", "latest" bypass solution cache to get fresh results.

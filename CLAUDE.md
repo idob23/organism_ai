@@ -155,7 +155,8 @@ ___
 - Average Quality Score: 0.85
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes: FIX-1 through FIX-23 ✅, HIST-1 ✅, TOOL-1 ✅
-- Sprint 9 (Agent Factory + Reliability) — NEXT ✅ roadmap defined in organism_ai_roadmap.md
+- Sprint 9: Q-9.0 ✅ (LLM intent classifier)
+- Sprint 9 (Agent Factory + Reliability) — IN PROGRESS ✅ roadmap defined in organism_ai_roadmap.md
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

@@ -48,55 +48,24 @@ SEARCH_KEYWORDS = [
     "исследуй",  # исследуй
 ]
 
-# FIX-1: Patterns for conversational (non-task) messages
-CHAT_PATTERNS = [
-    "\u043f\u0440\u0438\u0432\u0435\u0442",              # привет
-    "\u0437\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439",  # здравствуй
-    "\u0434\u043e\u0431\u0440\u043e\u0435 \u0443\u0442\u0440\u043e",  # доброе утро
-    "\u0434\u043e\u0431\u0440\u044b\u0439 \u0434\u0435\u043d\u044c",  # добрый день
-    "\u0434\u043e\u0431\u0440\u044b\u0439 \u0432\u0435\u0447\u0435\u0440",  # добрый вечер
-    "\u043a\u0430\u043a \u0434\u0435\u043b\u0430",        # как дела
-    "\u043a\u0442\u043e \u0442\u044b",                    # кто ты
-    "\u0447\u0442\u043e \u0442\u044b \u0443\u043c\u0435\u0435\u0448\u044c",  # что ты умеешь
-    "\u0447\u0442\u043e \u043c\u043e\u0436\u0435\u0448\u044c",  # что можешь
-    "\u043f\u043e\u043c\u043e\u0433\u0438",              # помоги
-    "\u0441\u043f\u0430\u0441\u0438\u0431\u043e",        # спасибо
-    "\u043f\u043e\u043a\u0430",                          # пока
-    "hello", "hi", "hey",
-    "\u043f\u043e\u0447\u0435\u043c\u0443",              # почему
-    # FIX-14: Questions about the bot itself
-    "\u043a\u0430\u043a \u0442\u044b \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0448\u044c",  # как ты работаешь
-    "\u043a\u0430\u043a \u044d\u0442\u043e \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442",  # как это работает
-    "\u0440\u0430\u0441\u0441\u043a\u0430\u0436\u0438 \u043e \u0441\u0435\u0431\u0435",        # расскажи о себе
-    "\u043f\u043e\u0434\u0441\u043a\u0430\u0436\u0438",                                        # подскажи
-    "\u043e\u0431\u044a\u044f\u0441\u043d\u0438",                                              # объясни
-    "\u043a\u0430\u043a\u0438\u0435 \u0444\u0443\u043d\u043a\u0446\u0438\u0438",              # какие функции
-    "\u0447\u0442\u043e \u0437\u043d\u0430\u0435\u0448\u044c",                                # что знаешь
-    "\u0442\u044b \u0437\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u0435\u0448\u044c",        # ты запоминаешь
-    "\u0443 \u0442\u0435\u0431\u044f \u0435\u0441\u0442\u044c \u043f\u0430\u043c\u044f\u0442\u044c",  # у тебя есть память
-    "\u043a\u0430\u043a \u0443\u0441\u0442\u0440\u043e\u0435\u043d",                          # как устроен
-]
+# Q-9.0: LLM intent classifier prompt (replaces keyword-based CHAT_PATTERNS/TASK_SIGNALS)
+INTENT_CLASSIFIER_PROMPT = """Classify the user message: is it a TASK or CHAT?
 
-TASK_SIGNALS = [
-    "\u043d\u0430\u043f\u0438\u0448\u0438",              # напиши
-    "\u0441\u043e\u0441\u0442\u0430\u0432\u044c",        # составь
-    "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439",  # рассчитай
-    "\u043d\u0430\u0439\u0434\u0438",                    # найди
-    "\u0441\u043e\u0437\u0434\u0430\u0439",              # создай
-    "\u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c",  # подготовь
-    "\u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439",  # проанализируй
-    "\u0441\u0434\u0435\u043b\u0430\u0439",              # сделай
-    "csv", "xlsx", "pptx",
-    "excel",
-    "\u0442\u0430\u0431\u043b\u0438\u0446",    # таблиц
-    "\u0444\u0430\u0439\u043b",                 # файл
-    "\u043e\u0442\u0447\u0451\u0442",           # отчёт
-    "\u043e\u0442\u0447\u0435\u0442",           # отчет
-    "\u0433\u0440\u0430\u0444\u0438\u043a",     # график
-    "\u043f\u043e\u0441\u0447\u0438\u0442\u0430\u0439",  # посчитай
-    "\u043f\u043e\u0441\u0442\u0440\u043e\u0439",        # построй
-    "\u0441\u043a\u0430\u0447\u0430\u0442\u044c",        # скачать
-]
+TASK \u2014 user wants something done, produced, calculated, found, or analyzed:
+- Any request to create a file, document, table, report, presentation
+- Any calculation or analysis request, even phrased as a question
+- Any search request ("find", "what is the price of", "how much")
+- Any question that requires looking something up or computing an answer
+- Analytical questions ("why is fuel consumption high?", "what causes...")
+- Requests with numbers, dates, names of objects
+
+CHAT \u2014 pure conversation with no actionable output expected:
+- Greetings ("hi", "hello", "good morning")
+- Thanks, farewells
+- Questions about the bot itself ("who are you", "what can you do")
+- Vague non-actionable phrases ("ok", "got it", "interesting")
+
+Respond with ONLY one word: TASK or CHAT. No explanation."""
 
 
 @dataclass
@@ -323,23 +292,41 @@ class CoreLoop:
                           steps=[step_log], duration=duration,
                           error=result.error if result.exit_code != 0 else "")
 
-    def _is_conversational(self, task: str) -> bool:
-        """Detect if message is conversational (not a task)."""
-        t = task.lower().strip()
+    async def _classify_intent(self, task: str) -> str:
+        """Classify message as 'task' or 'chat' using Haiku LLM.
 
-        # Messages with task signals are always tasks
-        if any(s in t for s in TASK_SIGNALS):
-            return False
+        Fast pre-filter handles obvious cases without LLM call.
+        Returns 'chat' or 'task'.
+        """
+        t = task.strip()
 
-        # FIX-14: Direct chat pattern match — substring search to catch longer phrases
-        if any(t.startswith(p) or t == p or p in t for p in CHAT_PATTERNS):
-            return True
+        # Pre-filter 1: /commands are always tasks
+        if t.startswith("/"):
+            return "task"
 
-        # Only truly trivial short messages — no digits (digits suggest a calculation/data task)
-        if len(t) < 15 and not any(c.isdigit() for c in t) and not t.startswith("/"):
-            return True
+        # Pre-filter 2: very short messages (\u22643 words, no digits) \u2014 classify as chat
+        # This avoids LLM cost for obvious greetings like "\u043f\u0440\u0438\u0432\u0435\u0442", "\u0441\u043f\u0430\u0441\u0438\u0431\u043e", "\u043f\u043e\u043a\u0430"
+        words = t.split()
+        if len(words) <= 3 and not any(c.isdigit() for c in t):
+            # But if it contains a known task file extension \u2014 it's a task
+            if any(ext in t.lower() for ext in ("xlsx", "csv", "pptx", "pdf", "docx")):
+                return "task"
+            return "chat"
 
-        return False
+        # All other messages \u2014 ask Haiku
+        try:
+            from src.organism.llm.base import Message as LLMMessage
+            resp = await self.llm.complete(
+                messages=[LLMMessage(role="user", content=task)],
+                system=INTENT_CLASSIFIER_PROMPT,
+                model_tier="fast",
+                max_tokens=5,
+            )
+            result = resp.content.strip().upper()
+            return "chat" if result == "CHAT" else "task"
+        except Exception:
+            # Graceful degradation: if LLM fails, assume task (safer than dropping user request)
+            return "task"
 
     async def _handle_conversation(self, task_id: str, task: str, user_context: str = "", user_id: str = "default") -> "TaskResult":
         """Handle conversational messages with a direct LLM response (no planning, no files)."""
@@ -477,8 +464,9 @@ class CoreLoop:
         memory_context = ""
         user_context = ""
 
-        # FIX-1: Detect conversational messages (not tasks) — fast path, skip memory/planning
-        if self._is_conversational(task):
+        # Q-9.0: LLM-based intent classification (replaces keyword matching)
+        _intent = await self._classify_intent(task)
+        if _intent == "chat":
             return await self._handle_conversation(task_id, task, user_id=user_id)
 
         if self.memory:
@@ -542,9 +530,15 @@ class CoreLoop:
                 pass
 
         # L1 Solution Cache — check before planning/fast-path
+        # Skip cache for time-sensitive queries
+        _time_sensitive = any(w in task.lower() for w in [
+            "\u0442\u0435\u043a\u0443\u0449", "\u0430\u043a\u0442\u0443\u0430\u043b",  # текущ, актуал
+            "\u0441\u0435\u0439\u0447\u0430\u0441", "\u0441\u0435\u0433\u043e\u0434\u043d",  # сейчас, сегодн
+            "\u0441\u0432\u0435\u0436", "now", "current", "today", "latest",
+        ])
         cache_hash: str | None = None
         canonical_task: str | None = None
-        if self.memory:
+        if self.memory and not _time_sensitive:
             try:
                 canonical_task = await self.cache.normalize_task(task, self.llm)
                 cache_hash = self.cache.hash_task(canonical_task)
