@@ -381,20 +381,50 @@ class CoreLoop:
         if user_context:
             system += f"\n\n## What you know about this user\n{user_context}"
 
-        # FIX-25: Search longterm memory for relevant past tasks
+        # FIX-28: Multi-query longterm memory search
         longterm_context = ""
         if self.memory and user_id != "default":
             try:
-                similar = await self.memory.on_task_start(task)
-                if similar:
-                    lines = []
-                    for s in similar[:3]:  # top 3 relevant past tasks
-                        task_str = s.get("task", "")[:100]
-                        result_str = (s.get("result") or "")[:150].replace("\n", " ")
-                        lines.append(f"- Task: {task_str} \u2192 {result_str}")
-                    longterm_context = "Relevant past tasks:\n" + "\n".join(lines)
+                # Extract key terms from the message using Haiku
+                from src.organism.llm.base import Message as LLMMessage
+                _kw_resp = await self.llm.complete(
+                    messages=[LLMMessage(role="user", content=task)],
+                    system=(
+                        "Extract 2-3 short search queries from the user message to find relevant past work. "
+                        "Return ONLY a JSON array of strings, nothing else. "
+                        'Example: ["excel salary", "salaries Russia", "\u0437\u0430\u0440\u043f\u043b\u0430\u0442\u044b \u0440\u0435\u0433\u0438\u043e\u043d\u044b"]'
+                    ),
+                    model_tier="fast",
+                    max_tokens=60,
+                )
+                import json as _json, re as _re
+                _kw_text = _kw_resp.content.strip()
+                _match = _re.search(r'\[.*?\]', _kw_text, _re.DOTALL)
+                queries = _json.loads(_match.group(0)) if _match else [task]
             except Exception:
-                pass
+                queries = [task]
+
+            # Search memory with each query, collect unique results
+            seen_ids = set()
+            all_similar = []
+            for q in queries[:3]:
+                try:
+                    results = await self.memory.on_task_start(q)
+                    for r in results:
+                        rid = r.get("task", "")[:50]
+                        if rid not in seen_ids:
+                            seen_ids.add(rid)
+                            all_similar.append(r)
+                except Exception:
+                    pass
+
+            if all_similar:
+                lines = []
+                for s in all_similar[:5]:  # top 5 unique results
+                    task_str = s.get("task", "")[:100]
+                    result_str = (s.get("result") or "")[:150].replace("\n", " ")
+                    lines.append(f"- Task: {task_str} \u2192 {result_str}")
+                longterm_context = "Relevant past tasks:\n" + "\n".join(lines)
 
         if longterm_context:
             system += f"\n\n{longterm_context}"

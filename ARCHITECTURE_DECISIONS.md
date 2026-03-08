@@ -479,3 +479,12 @@ principle: "wants a NEW action performed right now" = TASK, "is conversing about
 reflecting, giving feedback" = CHAT. Added key distinction examples showing the difference
 between action requests and references to past work. This enables proper routing of messages
 like "помнишь тот excel по зарплатам?" → CHAT → longterm memory lookup instead of TASK.
+
+## FIX-28: Multi-query memory search for conversational mode
+Single-query memory search in _handle_conversation missed relevant past tasks when the user
+phrased their reference differently from the original task text. E.g., "помнишь тот excel
+по зарплатам?" didn't match "Создай CSV таблицу зарплат по регионам России".
+Fixed: Haiku generates 2-3 short search queries from the user message, each query runs
+against longterm memory independently, results are deduplicated by task prefix and capped
+at 5 unique results. Graceful fallback: if Haiku fails, falls back to original message as
+single query. JSON array parsing uses regex extraction for robustness.
