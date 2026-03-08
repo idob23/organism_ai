@@ -79,7 +79,7 @@ for module in CRITICAL_MODULES:
         capture_output=True, text=True
     )
     if result.returncode != 0:
-        errors.append(f"IMPORT FAILED: {module}\n  {result.stderr.strip()[:200]}")
+        errors.append(f"IMPORT FAILED: {module}\n  {result.stderr.strip()[:500]}")
 if not errors:
     print("  OK")
 
