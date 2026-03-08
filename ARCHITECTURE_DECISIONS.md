@@ -488,3 +488,12 @@ Fixed: Haiku generates 2-3 short search queries from the user message, each quer
 against longterm memory independently, results are deduplicated by task prefix and capped
 at 5 unique results. Graceful fallback: if Haiku fails, falls back to original message as
 single query. JSON array parsing uses regex extraction for robustness.
+
+## FIX-29: Explicit memory search status in conversation prompt
+Sonnet didn't know that memory search had already been executed before its turn, so it
+would say "let me search" or "I'll look that up" instead of reporting found results.
+Fixed: Changed longterm_context wording from passive "Relevant past tasks:" to active
+"Memory search already completed. You found these relevant past tasks:" with instruction
+to report findings directly. When no results found, explicitly states "Memory search
+completed. No relevant past tasks found" so Sonnet can honestly say it checked and found
+nothing, rather than promising to search.

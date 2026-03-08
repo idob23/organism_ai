@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-08T20:58:16",
+  "timestamp": "2026-03-08T21:03:52",
   "mode": "quick",
   "results": [
     {
@@ -8,7 +8,7 @@
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
       "quality_score": 0.95,
-      "duration": 9.24,
+      "duration": 19.7,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -19,7 +19,7 @@
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
       "quality_score": 0.95,
-      "duration": 5.93,
+      "duration": 13.11,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -30,7 +30,7 @@
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
       "quality_score": 0.8,
-      "duration": 5.95,
+      "duration": 5.44,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -40,8 +40,8 @@
       "type": "analysis",
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
-      "quality_score": 1.0,
-      "duration": 34.25,
+      "quality_score": 0.95,
+      "duration": 25.57,
       "tools_used": [
         "code_executor"
       ],
@@ -54,9 +54,11 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.95,
-      "duration": 6.09,
-      "tools_used": [],
-      "cache_hit": true,
+      "duration": 27.07,
+      "tools_used": [
+        "code_executor"
+      ],
+      "cache_hit": false,
       "error": ""
     }
   ],
@@ -64,9 +66,9 @@
     "total": 5,
     "successful": 5,
     "success_rate": 100.0,
-    "avg_quality": 0.93,
-    "avg_duration": 12.29,
-    "cache_hits": 4,
-    "cache_hit_rate": 80.0
+    "avg_quality": 0.92,
+    "avg_duration": 18.18,
+    "cache_hits": 3,
+    "cache_hit_rate": 60.0
   }
 }

@@ -424,7 +424,13 @@ class CoreLoop:
                     task_str = s.get("task", "")[:100]
                     result_str = (s.get("result") or "")[:150].replace("\n", " ")
                     lines.append(f"- Task: {task_str} \u2192 {result_str}")
-                longterm_context = "Relevant past tasks:\n" + "\n".join(lines)
+                longterm_context = (
+                    "Memory search already completed. You found these relevant past tasks:\n"
+                    + "\n".join(lines)
+                    + "\n\nUse this to answer the user's question directly. Don't say you will search \u2014 report what you found."
+                )
+            else:
+                longterm_context = "Memory search completed. No relevant past tasks found for this query."
 
         if longterm_context:
             system += f"\n\n{longterm_context}"
