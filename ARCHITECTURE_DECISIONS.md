@@ -563,3 +563,13 @@ The planner now chooses tools based on what the task actually needs, not by matc
 template. The Haiku classifier (`_classify`) is kept for `task_type_hint` labeling and few-shot
 store indexing in `loop.py`. Fallback chain: `_universal_plan` \u2192 `_fast_plan` \u2192 `_react_plan`.
 Deleted method: `_specialized_plan`. Added: `_universal_plan`, `VALID_TASK_TYPES` set.
+
+## Q-10.2: Writing fast path under LLM control
+Before `_run_writing_task()` a Haiku gate `_needs_planner()` now checks whether a writing task
+is self-contained (WRITE) or needs data gathering / multiple tools (PLAN). Tasks like
+"\u043d\u0430\u043f\u0438\u0448\u0438 \u043e\u0442\u0447\u0451\u0442 \u043f\u043e \u0434\u043e\u0431\u044b\u0447\u0435 \u0437\u0430 \u043c\u0430\u0440\u0442" now route to the planner instead of the text_writer fast path.
+Fallback on Haiku error: keep fast path (safe default). Cost: ~10 tokens per writing task.
+
+## Q-10.3: MAX_PLAN_STEPS = 10
+Permanent fix for FIX-17. Plan step limit raised from 7 to 10 in `CoreLoop.MAX_PLAN_STEPS`.
+`_validate_plan()` already used `self.MAX_PLAN_STEPS` (no hardcoded numbers to change).

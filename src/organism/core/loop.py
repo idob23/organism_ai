@@ -117,7 +117,7 @@ def _extract_filename(task: str) -> str | None:
 class CoreLoop:
 
     MAX_RETRIES = 3
-    MAX_PLAN_STEPS = 7
+    MAX_PLAN_STEPS = 10
 
     @staticmethod
     def _is_useful_output(output: str) -> bool:
@@ -258,6 +258,36 @@ class CoreLoop:
                     return f"Step {step.id}: depends_on step {dep} which comes after (circular)"
 
         return None
+
+    async def _needs_planner(self, task: str) -> bool:
+        """Q-10.2: Haiku check \u2014 does this writing task actually need Planner?
+        Returns True if task needs data gathering or multiple tools.
+        Returns False if text_writer alone is sufficient.
+        """
+        from src.organism.llm.base import Message
+        WRITING_GATE_PROMPT = (
+            "You decide if a task needs only text generation or requires data/tools first.\n\n"
+            "Answer ONLY with one word: WRITE or PLAN\n\n"
+            "WRITE \u2014 task is self-contained: write letter, compose memo, draft document from given info.\n"
+            "PLAN \u2014 task needs data first: find + write, calculate + report, analyze + summarize.\n\n"
+            "Examples:\n"
+            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u0448\u0430\u0431\u043b\u043e\u043d \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430' -> WRITE\n"
+            "  '\u0441\u043e\u0441\u0442\u0430\u0432\u044c \u043f\u0438\u0441\u044c\u043c\u043e \u043f\u0430\u0440\u0442\u043d\u0451\u0440\u0443' -> WRITE\n"
+            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u043e\u0442\u0447\u0451\u0442 \u043f\u043e \u0434\u043e\u0431\u044b\u0447\u0435 \u0437\u0430 \u043c\u0430\u0440\u0442' -> PLAN\n"
+            "  '\u0441\u043e\u0441\u0442\u0430\u0432\u044c \u0441\u043f\u0440\u0430\u0432\u043a\u0443 \u043f\u043e \u0446\u0435\u043d\u0430\u043c \u0434\u0438\u0437\u0435\u043b\u044f' -> PLAN\n"
+            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u043a\u043e\u043c\u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0434\u043b\u044f \u0438\u043d\u0432\u0435\u0441\u0442\u043e\u0440\u0430' -> WRITE\n"
+            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u0430\u043d\u0430\u043b\u0438\u0437 \u0440\u044b\u043d\u043a\u0430 \u0437\u043e\u043b\u043e\u0442\u0430 \u0432 \u0420\u043e\u0441\u0441\u0438\u0438' -> PLAN"
+        )
+        try:
+            response = await self.llm.complete(
+                messages=[Message(role="user", content=task[:300])],
+                system=WRITING_GATE_PROMPT,
+                model_tier="fast",
+                max_tokens=10,
+            )
+            return response.content.strip().upper().startswith("PLAN")
+        except Exception:
+            return False  # on failure — keep fast path (safe default)
 
     async def _run_writing_task(self, task_id: str, task: str, verbose: bool, user_context: str = "") -> "TaskResult | None":
         start = time.time()
@@ -621,7 +651,15 @@ class CoreLoop:
                 if verbose:
                     print(f"Intent: {_intent} + memory context -> skip fast path, let planner decide")
 
+        _writing_needs_planner = False
         if not _skip_fast_path and _is_writing_task(task):
+            _writing_needs_planner = await self._needs_planner(task)
+            if _writing_needs_planner:
+                _log.info(f"[{task_id}] Writing fast path: Haiku says PLAN -> routing to planner")
+                if verbose:
+                    print("Writing task needs data/tools -> routing to planner")
+
+        if not _skip_fast_path and not _writing_needs_planner and _is_writing_task(task):
             try:
                 result = await self._run_writing_task(task_id, task, verbose, user_context)
                 if result is not None:
