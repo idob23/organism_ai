@@ -49,23 +49,20 @@ SEARCH_KEYWORDS = [
 ]
 
 # Q-9.0: LLM intent classifier prompt (replaces keyword-based CHAT_PATTERNS/TASK_SIGNALS)
-INTENT_CLASSIFIER_PROMPT = """Classify the user message: is it a TASK or CHAT?
+INTENT_CLASSIFIER_PROMPT = """Classify the user message: TASK or CHAT?
 
-TASK \u2014 user wants something done, produced, calculated, found, or analyzed:
-- Any request to create a file, document, table, report, presentation
-- Any calculation or analysis request, even phrased as a question
-- Any search request ("find", "what is the price of", "how much")
-- Any question that requires looking something up or computing an answer
-- Analytical questions ("why is fuel consumption high?", "what causes...")
-- Requests with numbers, dates, names of objects
+TASK \u2014 user wants a NEW action performed right now: create, calculate, find, analyze, build, generate.
+CHAT \u2014 user is conversing: discussing past work, asking about you, reflecting, giving feedback, referencing something already done.
 
-CHAT \u2014 pure conversation with no actionable output expected:
-- Greetings ("hi", "hello", "good morning")
-- Thanks, farewells
-- Questions about the bot itself ("who are you", "what can you do")
-- Vague non-actionable phrases ("ok", "got it", "interesting")
+Key distinction:
+  "create an excel file" = TASK
+  "remember that excel file we made?" = CHAT
+  "why is fuel consumption high?" = TASK (needs analysis)
+  "that was a great answer" = CHAT
 
-Respond with ONLY one word: TASK or CHAT. No explanation."""
+When in doubt: if the user expects a new result to be produced \u2014 TASK. If they expect a conversation \u2014 CHAT.
+
+Respond with ONLY one word: TASK or CHAT."""
 
 
 @dataclass

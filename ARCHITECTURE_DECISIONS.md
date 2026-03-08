@@ -471,3 +471,11 @@ task messages no longer leak into conversation mode, so defensive rules are unne
 New prompt focuses on communication style (think out loud, match user tone, be direct)
 and honestly describes capabilities via live_context. User context section renamed to
 "What you know about this user" for natural injection.
+
+## FIX-27: Intent classifier prompt — principle instead of lists
+Replaced list-based INTENT_CLASSIFIER_PROMPT with principle-based one. Old prompt listed
+categories (files, calculations, search, greetings, thanks). New prompt states a single
+principle: "wants a NEW action performed right now" = TASK, "is conversing about past work,
+reflecting, giving feedback" = CHAT. Added key distinction examples showing the difference
+between action requests and references to past work. This enables proper routing of messages
+like "помнишь тот excel по зарплатам?" → CHAT → longterm memory lookup instead of TASK.
