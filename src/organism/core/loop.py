@@ -325,7 +325,7 @@ class CoreLoop:
             # Graceful degradation: if LLM fails, assume task (safer than dropping user request)
             return "task"
 
-    async def _handle_conversation(self, task_id: str, task: str, user_context: str = "", user_id: str = "default") -> "TaskResult":
+    async def _handle_conversation(self, task_id: str, task: str, user_context: str = "", user_id: str = "default", media: list | None = None) -> "TaskResult":
         """Handle conversational messages with a direct LLM response (no planning, no files)."""
         start = time.time()
 
@@ -447,7 +447,22 @@ class CoreLoop:
                         messages.append(LLMMessage(role=msg["role"], content=msg["content"][:500]))
                 except Exception:
                     pass
-            messages.append(LLMMessage(role="user", content=task))
+            # MEDIA-1: Build multimodal content for Vision API when media present
+            if media:
+                content_blocks = []
+                for item in media:
+                    content_blocks.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": item.get("media_type", "image/jpeg"),
+                            "data": item["data"],
+                        },
+                    })
+                content_blocks.append({"type": "text", "text": task})
+                messages.append(LLMMessage(role="user", content=content_blocks))
+            else:
+                messages.append(LLMMessage(role="user", content=task))
 
             resp = await self.llm.complete(
                 messages=messages,
@@ -478,7 +493,7 @@ class CoreLoop:
             duration=duration, quality_score=1.0,
         )
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default") -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None) -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -497,6 +512,10 @@ class CoreLoop:
                 await self.memory.initialize()
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory init failed", e)
+
+        # MEDIA-1: Messages with media always go to conversation handler (Vision API)
+        if media:
+            return await self._handle_conversation(task_id, task, user_id=user_id, media=media)
 
         # Q-9.0: LLM-based intent classification (replaces keyword matching)
         _intent = await self._classify_intent(task)

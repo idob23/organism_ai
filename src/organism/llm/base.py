@@ -6,7 +6,7 @@ from typing import Any
 @dataclass
 class Message:
     role: str  # "user" | "assistant"
-    content: str
+    content: str | list  # str for text, list of content blocks for multimodal (Vision API)
 
 
 @dataclass

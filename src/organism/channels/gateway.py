@@ -60,7 +60,10 @@ class Gateway:
 
         # 2. Regular task -> CoreLoop
         try:
-            result = await self.loop.run(msg.text, verbose=False, user_id=msg.user_id)
+            result = await self.loop.run(
+                msg.text, verbose=False, user_id=msg.user_id,
+                media=getattr(msg, "media", None) or [],
+            )
         except Exception as exc:
             _log.error("gateway.task_error: %s: %s", type(exc).__name__, exc)
             # MON-1: Capture to ErrorLog for Telegram monitoring

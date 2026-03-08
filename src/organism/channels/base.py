@@ -8,6 +8,9 @@ class IncomingMessage:
     user_id: str        # telegram user id, "local" for CLI, session id for web
     channel: str        # "telegram", "cli", "web"
     metadata: dict = field(default_factory=dict)
+    # MEDIA-1: list of media attachments for Vision API
+    # Each item: {"type": "image", "data": "<base64>", "media_type": "image/jpeg"}
+    media: list = field(default_factory=list)
 
 
 @dataclass

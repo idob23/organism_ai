@@ -497,3 +497,25 @@ Fixed: Changed longterm_context wording from passive "Relevant past tasks:" to a
 to report findings directly. When no results found, explicitly states "Memory search
 completed. No relevant past tasks found" so Sonnet can honestly say it checked and found
 nothing, rather than promising to search.
+
+## MEDIA-1: Photo/video/document support via Vision API
+Previously, media sent to Telegram bot was silently ignored — no handler for F.photo/F.video/
+F.document. User sending a photo with "analyze this" got routed as text → planner → web_search
+→ hallucination → FAILED.
+
+Implementation across 5 files:
+- **base.py**: IncomingMessage gains `media: list[dict]` field. Each item: type, data (base64),
+  media_type (MIME). Backward-compatible (default empty list).
+- **telegram.py**: New `handle_media` handler for F.photo|F.video|F.document. Photos: download
+  largest resolution, base64-encode. Videos: extract up to 4 frames via ffmpeg subprocess
+  (graceful: if ffmpeg unavailable, honest error instead of FAILED). Image documents: treated
+  as photos. Non-image documents: filename prepended to caption text.
+- **gateway.py**: Passes `msg.media` to `loop.run()`.
+- **loop.py**: `run()` and `_handle_conversation()` gain `media` param. Messages with media
+  bypass intent classification and go directly to conversation handler. User message built as
+  multimodal content blocks (image source type=base64 + text block) for Claude Vision API.
+- **llm/base.py**: `Message.content` type widened from `str` to `str | list` to support
+  multimodal content blocks. `_to_anthropic_messages` already passes content through unchanged.
+
+Graceful degradation: ffmpeg unavailable → honest "cannot process video, send screenshot".
+No changes to benchmark, monitoring, or existing text/voice handlers.
