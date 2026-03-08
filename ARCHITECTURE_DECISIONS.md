@@ -530,3 +530,10 @@ task that includes the error context: "[Автоматическое выпол�
 Previously only code_executor got retry hints on failed evaluation. Now web_search also uses
 eval_result.retry_hint: appended to the query string on retry, so the search refines itself
 based on what went wrong (e.g., "price gold" + "current 2026" on retry).
+
+## MEDIA-2: PDF documents from Telegram
+PDF documents sent to Telegram bot are now saved to a temp file and passed to the planner
+as task text with "[PDF файл сохранён по пути: /tmp/xxx.pdf]". The planner selects pdf_tool
+with action=read (already in PLAN_MIXED and PLAN_WRITING prompts), which extracts text
+content. No Vision API needed — pdf_tool handles it natively. media_items set to [] so
+the message goes through normal task execution (not conversation handler).

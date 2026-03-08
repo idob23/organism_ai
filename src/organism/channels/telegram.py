@@ -366,6 +366,18 @@ class TelegramChannel(BaseChannel):
                             "data": b64,
                             "media_type": mime,
                         })
+                    elif mime == "application/pdf" or (doc.file_name or "").lower().endswith(".pdf"):
+                        # MEDIA-2: PDF document — save to temp file for pdf_tool
+                        file = await self.bot.get_file(doc.file_id)
+                        buf = io.BytesIO()
+                        await self.bot.download_file(file.file_path, buf)
+                        tmp_pdf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+                        tmp_pdf.write(buf.getvalue())
+                        tmp_pdf_path = tmp_pdf.name
+                        tmp_pdf.close()
+                        caption = message.caption or "\u041f\u0440\u043e\u0447\u0438\u0442\u0430\u0439 \u0438 \u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439 \u044d\u0442\u043e\u0442 PDF \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442."
+                        task = f"{caption}\n\n[PDF \u0444\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d \u043f\u043e \u043f\u0443\u0442\u0438: {tmp_pdf_path}]"
+                        media_items = []  # no Vision needed — pdf_tool handles it
                     else:
                         # Non-image document — just mention filename in task
                         fname = doc.file_name or "document"
