@@ -375,13 +375,14 @@ class TelegramChannel(BaseChannel):
                         if pages:
                             media_items.extend(pages)
                         else:
-                            # Fallback: save as temp file if pdf2image fails
-                            tmp_pdf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-                            tmp_pdf.write(buf.getvalue())
-                            tmp_pdf_path = tmp_pdf.name
-                            tmp_pdf.close()
-                            caption = message.caption or "\u041f\u0440\u043e\u0447\u0438\u0442\u0430\u0439 \u0438 \u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0439 \u044d\u0442\u043e\u0442 PDF \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442."
-                            task = f"{caption}\n\n[PDF \u0444\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d \u043f\u043e \u043f\u0443\u0442\u0438: {tmp_pdf_path}]"
+                            # FIX-31: Honest error if poppler not installed
+                            await message.answer(
+                                "\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u0430\u0442\u044c PDF: "
+                                "poppler \u043d\u0435 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d. "
+                                "\u0423\u0441\u0442\u0430\u043d\u043e\u0432\u0438: apt-get install poppler-utils "
+                                "\u0438\u043b\u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c \u0441\u043e\u0434\u0435\u0440\u0436\u0438\u043c\u043e\u0435 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430 \u043a\u0430\u043a \u0442\u0435\u043a\u0441\u0442."
+                            )
+                            return
                     else:
                         # Non-image document — just mention filename in task
                         fname = doc.file_name or "document"

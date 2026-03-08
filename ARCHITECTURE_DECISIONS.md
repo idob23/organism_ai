@@ -542,3 +542,9 @@ then sent as Vision API content blocks (same pipeline as photos). `_pdf_to_image
 method: `convert_from_bytes()` at 200 DPI, max 10 pages, JPEG quality 85. Graceful fallback
 to MEDIA-2 temp-file approach if pdf2image or poppler-utils is not installed. Dependencies:
 pdf2image>=1.16.0 in pyproject.toml, poppler-utils + ffmpeg in sandbox/Dockerfile.
+
+## FIX-31: PDF fallback — honest error instead of temp-file path
+Previously, if pdf2image/poppler was unavailable, the PDF handler fell back to saving a temp
+file and injecting the path into task text. This silently produced broken plans on systems
+without poppler. Replaced with an honest Telegram message telling the user to install
+poppler-utils or send the document content as text. No temp file created, early return.
