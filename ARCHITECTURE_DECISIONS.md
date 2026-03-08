@@ -461,3 +461,13 @@ Fixed: (1) Replaced 90-day cutoff with configurable MEMORY_RETENTION_DAYS settin
 1095 = 3 years). Imported settings in longterm.py. (2) Increased chat history storage limit
 from 50000 to 100000 messages per user. The retention period is now an env var that can be
 overridden without code changes.
+
+## Q-9.1: Conversational mode upgrade — agent as Claude with extensions
+Replaced verbose, rule-heavy conversation system prompt with a natural, concise one.
+Upgraded model from Haiku (fast) to Sonnet (balanced) and max_tokens from 800 to 2000.
+Removed HONEST LIMITATIONS, ANTI-HALLUCINATION RULES, FILE CREATION PROHIBITION blocks —
+these were band-aids for keyword-based routing. With Q-9.0 LLM intent classification,
+task messages no longer leak into conversation mode, so defensive rules are unnecessary.
+New prompt focuses on communication style (think out loud, match user tone, be direct)
+and honestly describes capabilities via live_context. User context section renamed to
+"What you know about this user" for natural injection.
