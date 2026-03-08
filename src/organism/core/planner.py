@@ -64,7 +64,7 @@ RULES:
 - Write actual working Python code, not stubs
 - For CSV: use csv module, write with open('filename.csv','w',newline='',encoding='utf-8-sig')
 - Excel files: always use openpyxl: df.to_excel(filename, index=False, engine='openpyxl')
-- If Excel fails: save same real data as .csv, NEVER use placeholder/dummy data
+- If Excel fails: save same real data as .csv, NEVER use placeholder/dummy data (no Alice/Bob/Charlie)
 - For calculations: print all results with labels
 - All print() statements must be explicit
 - Keep code under 30 lines

@@ -21,7 +21,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e . 2>/dev/null || true
-          pip install anthropic tavily-python asyncpg sqlalchemy "sqlalchemy[asyncio]" pgvector aiohttp aiogram openai python-pptx numpy httpx "pydantic-settings" structlog psycopg2-binary aiofiles python-dotenv docker beautifulsoup4 lxml requests python-multipart tiktoken aiosqlite reportlab pypdf2
+          pip install anthropic tavily-python asyncpg sqlalchemy "sqlalchemy[asyncio]" pgvector aiohttp aiogram openai python-pptx numpy httpx "pydantic-settings" structlog psycopg2-binary aiofiles python-dotenv docker beautifulsoup4 lxml requests python-multipart tiktoken aiosqlite reportlab pypdf2 openpyxl
 
       - name: Create minimal .env for CI
         run: |
