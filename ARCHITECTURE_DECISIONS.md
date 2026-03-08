@@ -555,3 +555,11 @@ pure-wheel Python package — no system dependencies (poppler-utils), works on W
 out of the box. `_pdf_to_images()` uses `fitz.open(stream=bytes)`, 2x zoom matrix (~144 DPI),
 `pix.tobytes("jpeg")`. Removed poppler-utils from sandbox/Dockerfile, replaced pdf2image
 with pymupdf>=1.24.0 in pyproject.toml.
+
+## Q-10.1: Universal Planner
+Replaced 6 specialized planner prompts (PLAN_WRITING, PLAN_CODE, PLAN_RESEARCH,
+PLAN_PRESENTATION, PLAN_MIXED, SPECIALIZED_PROMPTS dict) with a single PLAN_UNIVERSAL prompt.
+The planner now chooses tools based on what the task actually needs, not by matching a category
+template. The Haiku classifier (`_classify`) is kept for `task_type_hint` labeling and few-shot
+store indexing in `loop.py`. Fallback chain: `_universal_plan` \u2192 `_fast_plan` \u2192 `_react_plan`.
+Deleted method: `_specialized_plan`. Added: `_universal_plan`, `VALID_TASK_TYPES` set.

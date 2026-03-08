@@ -37,105 +37,39 @@ Classification rules:
 
 Available tools: text_writer, code_executor, web_search, web_fetch, file_manager, pptx_creator"""
 
-# ---- Phase 2: Specialized planner prompts ----
+# ---- Phase 2: Universal planner prompt (Q-10.1) ----
 
-PLAN_WRITING = """You are a document planner. Choose the most efficient tool for the requested text output. Return ONLY a JSON array.
-
-AVAILABLE TOOLS:
-- text_writer: write long text and save to file. input: {"prompt": "detailed instructions", "filename": "file.md"}
-- file_manager: read/write SHORT plain text files only (under 30 lines). input: {"action": "write", "path": "file.txt", "content": "short content"}
-- pdf_tool: create or read PDF files. input: {"action": "create", "filename": "doc.pdf", "content": "text", "title": "Title"}
-
-RULES:
-- Use text_writer for anything longer than a few lines
-- file_manager ONLY for very short files (configs, notes)
-- pdf_tool for PDF output (reports, proposals, commercial offers)
-- Maximum 2 steps
-
-Example:
-[{"id":1,"tool":"text_writer","description":"Write report","input":{"prompt":"Write a professional report about...","filename":"report.md"},"depends_on":[]}]"""
-
-PLAN_CODE = """You are a computation planner. Write minimal, working Python code that produces clearly labeled output. Return ONLY a JSON array.
-
-AVAILABLE TOOLS:
-- code_executor: run Python code in Docker sandbox. input: {"code": "python code here", "domains": []}
-
-RULES:
-- Write actual working Python code, not stubs
-- For CSV: use csv module, write with open('filename.csv','w',newline='',encoding='utf-8-sig')
-- Excel files: always use openpyxl: df.to_excel(filename, index=False, engine='openpyxl')
-- If Excel fails: save same real data as .csv, NEVER use placeholder/dummy data (no Alice/Bob/Charlie)
-- For calculations: print all results with labels
-- All print() statements must be explicit
-- Keep code under 30 lines
-- Maximum 2 steps
-
-Example for CSV:
-[{"id":1,"tool":"code_executor","description":"Create CSV report","input":{"code":"import csv\\nrows=[['Item','Value'],['Gold','300kg']]\\nwith open('report.csv','w',newline='',encoding='utf-8-sig') as f:\\n    csv.writer(f).writerows(rows)\\nprint('CSV created')","domains":[]},"depends_on":[]}]
-
-Example for calculation:
-[{"id":1,"tool":"code_executor","description":"Calculate plan","input":{"code":"total=300*1000\\ndaily=total/150\\nprint(f'Daily plan: {daily:.1f} g')","domains":[]},"depends_on":[]}]"""
-
-PLAN_RESEARCH = """You are a research planner. Find the most authoritative source with minimum search steps. Return ONLY a JSON array.
-
-AVAILABLE TOOLS:
-- web_search: search internet for information. input: {"query": "search query", "max_results": 5}
-- web_fetch: fetch a specific URL. input: {"url": "https://...", "max_chars": 3000}
-
-RULES:
-- ALWAYS start with web_search. NEVER use web_fetch as the first step \u2014 you don't know the URL yet
-- NEVER fetch: g2.com, statista.com, forbes.com, gartner.com
-- Maximum 3 steps
-- Use clear, specific search queries
-
-Example:
-[{"id":1,"tool":"web_search","description":"Search for AI news","input":{"query":"AI news today 2026","max_results":5},"depends_on":[]}]"""
-
-PLAN_PRESENTATION = """You are a presentation planner. Structure slides for clarity and business impact. Return ONLY a JSON array.
-
-AVAILABLE TOOLS:
-- pptx_creator: create PowerPoint presentation. input: {"filename": "name.pptx", "topic": "topic", "slides": [{"title": "...", "content": "brief key points"}]}
-
-RULES:
-- Create clear slide structure with concise content per slide
-- 5-10 slides typically
-- Maximum 1 step
-
-Example:
-[{"id":1,"tool":"pptx_creator","description":"Create presentation","input":{"filename":"report.pptx","topic":"Monthly report","slides":[{"title":"Overview","content":"Key metrics and results"}]},"depends_on":[]}]"""
-
-PLAN_MIXED = """You are a multi-step task planner. Coordinate multiple tools with clear data flow between steps. Return ONLY a JSON array.
+PLAN_UNIVERSAL = """You are an autonomous task planner. Given a task, choose the right tools and sequence to accomplish it. Think about what the task actually needs, not what category it belongs to. Return ONLY a JSON array of steps.
 
 AVAILABLE TOOLS:
 - web_search: search internet. input: {"query": "...", "max_results": 5}
-- web_fetch: fetch URL. input: {"url": "https://...", "max_chars": 3000}
-- text_writer: write long text and save to file. input: {"prompt": "detailed instructions including context from previous steps", "filename": "file.md"}
-- code_executor: run Python code. input: {"code": "python code", "domains": []}
-- pdf_tool: create or read PDF files. input: {"action": "create", "filename": "doc.pdf", "content": "text", "title": "Title"}
+- web_fetch: fetch specific URL. input: {"url": "https://...", "max_chars": 3000}
+- text_writer: write and save long text/documents. input: {"prompt": "...", "filename": "file.md"}
+- code_executor: run Python in Docker sandbox. input: {"code": "python code", "domains": []}
+- file_manager: read/write short plain text files. input: {"action": "read|write", "path": "file.txt", "content": "..."}
+- pptx_creator: create PowerPoint. input: {"filename": "name.pptx", "topic": "...", "slides": [...]}
+- pdf_tool: create or read PDF. input: {"action": "create|read", "filename": "doc.pdf", "content": "...", "title": "..."}
+- confirm_with_user: ask human approval before critical actions. input: {"description": "..."}
+- duplicate_finder: find semantic duplicates in entity lists. input: {"entities": [...], "entity_type": "..."}
+- delegate_to_agent: delegate to specialized agent. input: {"peer_name": "...", "task": "..."}
 
 RULES:
-- For "find + write" tasks: first web_search, then text_writer with {{step_1_output}} in prompt
-- For "research + calculate" tasks: first web_search, then code_executor
-- text_writer prompt MUST include: the original task + "Use this research data: {{step_1_output}}"
-- Maximum 3 steps
-- NEVER use web_fetch on: g2.com, statista.com, forbes.com
+- Pick tools based on what the task actually needs, not a template
+- For data/calculations: code_executor with real working Python
+- For documents/reports: text_writer or pdf_tool
+- For current information: web_search first, never web_fetch as first step
+- For write operations to external systems: confirm_with_user first
+- Use {{step_N_output}} to pass results between steps
+- Maximum 10 steps
+- All outputs in Russian
 
-Example (find + write):
-[
-  {"id":1,"tool":"web_search","description":"Search for information","input":{"query":"search query","max_results":5},"depends_on":[]},
-  {"id":2,"tool":"text_writer","description":"Write document based on research","input":{"prompt":"Write a memo about X. Use this research data: {{step_1_output}}","filename":"memo.md"},"depends_on":[1]}
-]"""
+EXAMPLES:
+Research + write: [web_search] \u2192 [text_writer with {{step_1_output}}]
+Calculate: [code_executor]
+Compare documents: [pdf_tool read doc1] \u2192 [pdf_tool read doc2] \u2192 [text_writer compare]"""
 
-
-# Map task type → specialized prompt
-SPECIALIZED_PROMPTS = {
-    "writing": PLAN_WRITING,
-    "code": PLAN_CODE,
-    "data": PLAN_CODE,
-    "research": PLAN_RESEARCH,
-    "presentation": PLAN_PRESENTATION,
-    "mixed": PLAN_MIXED,
-}
+# Valid task types for classifier
+VALID_TASK_TYPES = {"writing", "code", "data", "research", "presentation", "mixed"}
 
 
 def _is_complex(task: str) -> bool:
@@ -346,16 +280,16 @@ class Planner:
 
         # Phase 1: Classify task type (Haiku — fast, cheap).
         # task_type_hint can override the classifier (e.g. force "writing" for memory-answer tasks).
-        if task_type_hint and task_type_hint in SPECIALIZED_PROMPTS:
+        if task_type_hint and task_type_hint in VALID_TASK_TYPES:
             task_type = task_type_hint
         else:
             task_type = await self._classify(task, user_context)
 
-        # Phase 2: Plan with specialized prompt
+        # Phase 2: Universal planner (Q-10.1)
         use_react = _is_complex(task)
 
         if not use_react:
-            steps = await self._specialized_plan(full_task, task_type, user_context)
+            steps = await self._universal_plan(full_task, user_context)
             if steps:
                 return steps
             # Fallback to generic fast plan
@@ -382,18 +316,15 @@ class Planner:
             if match:
                 data = json.loads(match.group(0))
                 task_type = data.get('type', 'mixed')
-                if task_type in SPECIALIZED_PROMPTS:
+                if task_type in VALID_TASK_TYPES:
                     return task_type
         except Exception:
             pass
         return 'mixed'
 
-    async def _specialized_plan(self, task: str, task_type: str, user_context: str = '') -> list[PlanStep]:
-        """Phase 2: Plan with specialized prompt (only relevant tools)."""
-        prompt = SPECIALIZED_PROMPTS.get(task_type)
-        if not prompt:
-            return []
-        sys = f"{user_context}\n\n{prompt}" if user_context else prompt
+    async def _universal_plan(self, task: str, user_context: str = '') -> list[PlanStep]:
+        """Phase 2: Plan with universal prompt (Q-10.1)."""
+        sys = f"{user_context}\n\n{PLAN_UNIVERSAL}" if user_context else PLAN_UNIVERSAL
 
         for attempt in range(2):
             hint = '' if attempt == 0 else '\nReturn ONLY valid JSON array, no explanation.'
