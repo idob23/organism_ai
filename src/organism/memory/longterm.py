@@ -264,6 +264,23 @@ class LongTermMemory:
             return await self._rerank(task, candidates, llm, top_k=limit)
         return candidates[:limit]
 
+    async def get_recent_tasks(self, limit: int = 3) -> list[dict]:
+        """Return the last N completed tasks, newest first (FIX-34)."""
+        _artel = settings.artel_id
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(TaskMemory)
+                .where(
+                    TaskMemory.success == True,
+                    text("artel_id = :artel_id"),
+                )
+                .params(artel_id=_artel)
+                .order_by(TaskMemory.created_at.desc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [_to_dict(r) for r in result.scalars().all()]
+
     async def get_stats(self) -> dict:
         async with AsyncSessionLocal() as session:
             result = await session.execute(

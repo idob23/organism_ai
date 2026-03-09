@@ -367,6 +367,27 @@ class CoreLoop:
             except Exception:
                 pass
 
+        # FIX-34: Recent work context — agent always knows what it just did
+        recent_work_context = ""
+        if self.memory:
+            try:
+                recent_tasks = await self.memory.get_recent_tasks(limit=3)
+                if recent_tasks:
+                    lines = []
+                    for t in recent_tasks:
+                        result_preview = (t.get("result") or "")[:300].replace("\n", " ")
+                        lines.append(
+                            f"- \u0417\u0430\u0434\u0430\u0447\u0430: {t.get('task', '')[:100]}\n"
+                            f"  \u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442: {result_preview}"
+                        )
+                    recent_work_context = (
+                        "\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0435 "
+                        "\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043d\u044b\u0435 "
+                        "\u0437\u0430\u0434\u0430\u0447\u0438:\n" + "\n".join(lines)
+                    )
+            except Exception:
+                pass
+
         # Chat history
         chat_history_messages: list[LLMMessage] = []
         if self.memory:
@@ -392,6 +413,8 @@ class CoreLoop:
         ]
         if user_context:
             system_parts.append(f"\n{user_context}")
+        if recent_work_context:
+            system_parts.append(f"\n{recent_work_context}")
         if longterm_context:
             system_parts.append(f"\n{longterm_context}")
         system = "\n".join(system_parts)

@@ -618,3 +618,20 @@ routed to `_handle_conversation` (with tools) \u2014 so they get tool access too
 
 Impact: eliminates hallucinated actions in conversation mode. Previously the LLM would
 describe actions without executing. Now it can call tools directly via complete_with_tools.
+
+## FIX-34: Recent Work Context in Conversation
+
+**Problem**: User asks "\u0447\u0442\u043e \u043f\u043e \u0444\u0430\u0439\u043b\u0443 \u043a\u043e\u0442\u043e\u0440\u044b\u0439 \u0442\u044b \u0441\u043e\u0437\u0434\u0430\u043b?" \u2014 agent responds "\u0443 \u043c\u0435\u043d\u044f \u043d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u043a \u0444\u0430\u0439\u043b\u0443".
+Root cause: `_handle_conversation` injects only semantically similar past tasks (vector search).
+A query like "\u0447\u0442\u043e \u043f\u043e \u0444\u0430\u0439\u043b\u0443" doesn't semantically match "\u0441\u043e\u0437\u0434\u0430\u0439 Excel \u043e\u0442\u0447\u0451\u0442" \u2192 0 results.
+
+**Solution**: Add chronological recent tasks as a third context layer (alongside chat history
+and semantic memory). `LongTermMemory.get_recent_tasks(limit=3)` returns last N completed
+tasks ordered by `created_at DESC`, filtered by `artel_id`. Injected into
+`_handle_conversation` system prompt as "\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043d\u044b\u0435 \u0437\u0430\u0434\u0430\u0447\u0438:" section,
+placed before semantic memory hits (more likely relevant for self-referential questions).
+
+**Design**: No keyword detection, no if-chains. Always fetched (like chat_history).
+Result capped at 3 tasks, preview 300 chars. Wrapped in try/except \u2014 graceful degradation.
+
+Files changed: `memory/longterm.py`, `memory/manager.py`, `core/loop.py`.

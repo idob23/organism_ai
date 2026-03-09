@@ -280,5 +280,9 @@ class MemoryManager:
         except Exception:
             pass
 
+    async def get_recent_tasks(self, limit: int = 3) -> list[dict]:
+        """Return last N completed tasks, newest first (FIX-34)."""
+        return await self.longterm.get_recent_tasks(limit=limit)
+
     async def get_stats(self) -> dict:
         return await self.longterm.get_stats()
