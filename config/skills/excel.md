@@ -2,6 +2,19 @@
 
 Используй openpyxl. Всегда применяй форматирование.
 
+## Важно: пути в sandbox
+- Читать существующие файлы: /data/outputs/filename.xlsx
+- Сохранять новые и обновлённые файлы: /output/filename.xlsx  ← всегда сюда
+- После сохранения: print("Saved files: filename.xlsx")
+
+Пример обновления существующего файла:
+```python
+wb = openpyxl.load_workbook('/data/outputs/existing.xlsx')
+# ... изменения ...
+wb.save('/output/existing.xlsx')  # сохраняем в /output/, не в /data/outputs/
+print("Saved files: existing.xlsx")
+```
+
 ## Структура кода
 ```python
 import openpyxl

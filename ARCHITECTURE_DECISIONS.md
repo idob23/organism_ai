@@ -761,3 +761,17 @@ and write updated versions to `/output/` as before.
 Tool description updated to inform LLM about the `/data/outputs/` path.
 
 Files changed: `tools/code_executor.py`.
+
+## FIX-39: Fix save path in sandbox after FIX-38
+
+**Problem**: After FIX-38, agent reads from `/data/outputs/` correctly but tries to
+save updated files back to `/data/outputs/` — which is read-only. File never written,
+"Saved files:" never printed, file never delivered.
+
+**Solution**: Two changes to make the path rule unmissable:
+1. `code_executor.py` description: explicit PATHS section — "Read from /data/outputs/,
+   ALWAYS save to /output/"
+2. `config/skills/excel.md`: added "Важно: пути в sandbox" section with read/write
+   path rules and an update-existing-file example
+
+Files changed: `tools/code_executor.py`, `config/skills/excel.md`.

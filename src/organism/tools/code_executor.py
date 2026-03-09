@@ -28,8 +28,10 @@ class CodeExecutorTool(BaseTool):
         return (
             "Execute Python code in an isolated Docker sandbox. "
             "Use for calculations, data processing, file operations, scripting. "
-            "Output via print(). NO internet access inside sandbox. "
-            "Previously created files are available at /data/outputs/ (read-only)."
+            "Output via print(). NO internet access inside sandbox.\n"
+            "PATHS: Read existing files from /data/outputs/ (read-only). "
+            "ALWAYS save new or updated files to /output/ (writable). "
+            "Print 'Saved files: filename.ext' after saving."
         )
 
     @property
