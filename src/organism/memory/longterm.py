@@ -73,6 +73,15 @@ class LongTermMemory:
             )
             session.add(memory)
             await session.commit()
+            # Q-9.6: Set artel_id on newly created row
+            try:
+                await session.execute(
+                    text("UPDATE task_memories SET artel_id = :aid WHERE id = :mid"),
+                    {"aid": settings.artel_id, "mid": memory_id},
+                )
+                await session.commit()
+            except Exception:
+                pass
 
         return memory_id
 
@@ -136,13 +145,17 @@ class LongTermMemory:
         async with AsyncSessionLocal() as session:
             if not embedding:
                 # Fallback: recent high-quality tasks
+                # Q-9.6: artel_id filter via raw SQL condition
+                _artel = settings.artel_id
                 stmt = (
                     select(TaskMemory)
                     .where(
                         TaskMemory.success == True,
                         TaskMemory.quality_score >= min_quality,
                         TaskMemory.created_at >= cutoff,
+                        text("artel_id = :artel_id"),
                     )
+                    .params(artel_id=_artel)
                     .order_by(TaskMemory.created_at.desc())
                     .limit(limit)
                 )
@@ -152,6 +165,7 @@ class LongTermMemory:
             fetch = limit * 2
 
             # --- Vector search (pgvector L2 distance) ---
+            _artel = settings.artel_id
             dist_expr = TaskMemory.embedding.l2_distance(embedding)
             vec_stmt = (
                 select(TaskMemory, dist_expr.label("l2_dist"))
@@ -161,7 +175,9 @@ class LongTermMemory:
                     TaskMemory.created_at >= cutoff,
                     TaskMemory.embedding.isnot(None),
                     dist_expr < self.SIMILARITY_THRESHOLD,
+                    text("artel_id = :artel_id"),  # Q-9.6
                 )
+                .params(artel_id=_artel)
                 .order_by(dist_expr)
                 .limit(fetch)
             )
@@ -180,12 +196,13 @@ class LongTermMemory:
                         WHERE success = true
                           AND quality_score >= :min_quality
                           AND created_at >= :cutoff
+                          AND artel_id = :artel_id
                           AND to_tsvector('russian', task)
                               @@ plainto_tsquery('russian', :q)
                         ORDER BY bm25_rank DESC
                         LIMIT :lim
                     """),
-                    {"q": task, "lim": fetch, "min_quality": min_quality, "cutoff": cutoff},
+                    {"q": task, "lim": fetch, "min_quality": min_quality, "cutoff": cutoff, "artel_id": _artel},
                 )
                 bm25_rows = bm25_result.all()
             except Exception:
@@ -256,7 +273,9 @@ class LongTermMemory:
                            SUM(CASE WHEN success THEN 1 ELSE 0 END),
                            AVG(quality_score)
                     FROM task_memories
-                """)
+                    WHERE artel_id = :artel_id
+                """),
+                {"artel_id": settings.artel_id},
             )
             row = result.fetchone()
             total = row[0] or 0

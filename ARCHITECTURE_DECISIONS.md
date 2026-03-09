@@ -586,3 +586,21 @@ Graceful degradation: if decomposition fails, continues with normal planning.
 `CoreLoop.run()`. During decomposition, Telegram shows "\u0427\u0430\u0441\u0442\u044c X/Y: ..."
 instead of the static ticker. The callback is fire-and-forget (try/except), so rate-limiting
 or deleted messages do not crash the execution.
+
+## Q-9.7: Docker production deployment
+Production-ready containerization:
+- `Dockerfile`: python:3.11-slim, system deps, pip install from pyproject.toml, HEALTHCHECK
+- `docker-compose.yml`: bot + postgres (pgvector/pgvector:pg15), healthchecks, named volumes,
+  DATABASE_URL injected, docker.sock mounted for sandbox
+- `.env.production.example`: template with all required/optional env vars
+- `scripts/deploy.sh`: git pull \u2192 docker-compose build \u2192 up -d --no-deps bot \u2192 health check
+
+## Q-9.6: Multi-tenancy (artel_id isolation)
+All DB queries in memory layer filtered by `settings.artel_id` (from ARTEL_ID env var).
+Since `artel_id` column added via migration `_m002_artel_id` (not in ORM model), filtering
+uses `text("artel_id = :artel_id")` with `.params()` for ORM queries and raw SQL conditions.
+- `longterm.py`: save_task sets artel_id after INSERT; search_similar filters in vector,
+  BM25, and fallback queries; get_stats filtered
+- `solution_cache.py`: get() filters by artel_id; put() sets artel_id on INSERT;
+  get_stats() uses raw SQL with artel_id filter
+- `knowledge_base.py`: get_rules() filters by artel_id; add_rule() sets artel_id on INSERT

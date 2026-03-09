@@ -6,20 +6,41 @@ services:
     container_name: organism_postgres
     environment:
       POSTGRES_USER: organism
-      POSTGRES_PASSWORD: organism_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-organism_secret}
       POSTGRES_DB: organism_ai
     ports:
       - "5433:5432"
     volumes:
       - organism_pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U organism -d organism_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  redis:
-    image: redis:7-alpine
-    container_name: organism_redis
-    ports:
-      - "6380:6379"
+  bot:
+    build: .
+    container_name: organism_bot
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://organism:${POSTGRES_PASSWORD:-organism_secret}@postgres:5432/organism_ai
+    volumes:
+      - organism_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   organism_pgdata:
+  organism_data:

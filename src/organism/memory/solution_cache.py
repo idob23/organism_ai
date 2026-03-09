@@ -2,10 +2,11 @@ import hashlib
 import re
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 
 from src.organism.llm.base import LLMProvider, Message
 from src.organism.memory.database import SolutionCacheEntry, AsyncSessionLocal
+from config.settings import settings
 
 
 NORMALIZE_PROMPT = """You are a task normalizer. Convert the user task to a canonical form.
@@ -57,9 +58,20 @@ class SolutionCache:
 
         On a cache hit the hit counter is incremented.
         On an expired entry the row is deleted.
+        Q-9.6: filtered by artel_id for multi-tenancy.
         """
         async with AsyncSessionLocal() as session:
-            entry = await session.get(SolutionCacheEntry, task_hash)
+            # Q-9.6: filter by artel_id
+            stmt = (
+                select(SolutionCacheEntry)
+                .where(
+                    SolutionCacheEntry.task_hash == task_hash,
+                    text("artel_id = :artel_id"),
+                )
+                .params(artel_id=settings.artel_id)
+            )
+            result = await session.execute(stmt)
+            entry = result.scalar_one_or_none()
             if entry is None:
                 return None
 
@@ -117,16 +129,30 @@ class SolutionCache:
                     expires_at=expires_at,
                 ))
                 await session.commit()
+                # Q-9.6: set artel_id on newly created row
+                try:
+                    await session.execute(
+                        text("UPDATE solution_cache SET artel_id = :aid WHERE task_hash = :th"),
+                        {"aid": settings.artel_id, "th": task_hash},
+                    )
+                    await session.commit()
+                except Exception:
+                    pass
 
     async def get_stats(self) -> dict:
-        """Return live stats for non-expired cache entries."""
+        """Return live stats for non-expired cache entries.
+        Q-9.6: filtered by artel_id."""
         async with AsyncSessionLocal() as session:
             row = (await session.execute(
-                select(
-                    func.count(SolutionCacheEntry.task_hash),
-                    func.sum(SolutionCacheEntry.hits),
-                    func.avg(SolutionCacheEntry.quality_score),
-                ).where(SolutionCacheEntry.expires_at > datetime.utcnow())
+                text("""
+                    SELECT COUNT(task_hash),
+                           SUM(hits),
+                           AVG(quality_score)
+                    FROM solution_cache
+                    WHERE expires_at > :now
+                      AND artel_id = :artel_id
+                """),
+                {"now": datetime.utcnow(), "artel_id": settings.artel_id},
             )).fetchone()
 
         return {

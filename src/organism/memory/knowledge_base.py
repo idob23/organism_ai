@@ -1,5 +1,6 @@
-from sqlalchemy import select
+from sqlalchemy import select, text
 from .database import KnowledgeRule, AsyncSessionLocal
+from config.settings import settings
 
 
 class KnowledgeBase:
@@ -7,10 +8,15 @@ class KnowledgeBase:
     async def get_rules(self, top_k: int = 5, min_confidence: float = 0.7) -> list[str]:
         """Return top active rules ordered by confidence * usage_count descending."""
         async with AsyncSessionLocal() as session:
+            # Q-9.6: filter by artel_id
             stmt = (
                 select(KnowledgeRule)
-                .where(KnowledgeRule.confidence >= min_confidence)
-                .where(KnowledgeRule.valid_until.is_(None))  # Q-5.1: active only
+                .where(
+                    KnowledgeRule.confidence >= min_confidence,
+                    KnowledgeRule.valid_until.is_(None),  # Q-5.1: active only
+                    text("artel_id = :artel_id"),
+                )
+                .params(artel_id=settings.artel_id)
                 .order_by((KnowledgeRule.confidence * KnowledgeRule.usage_count).desc())
                 .limit(top_k)
             )
@@ -41,5 +47,14 @@ class KnowledgeBase:
                     source_tasks=source_task_hash,
                     usage_count=1,
                 ))
+                await session.flush()
+                # Q-9.6: set artel_id on newly created row
+                try:
+                    await session.execute(
+                        text("UPDATE knowledge_rules SET artel_id = :aid WHERE rule_text = :rt"),
+                        {"aid": settings.artel_id, "rt": rule_text},
+                    )
+                except Exception:
+                    pass
 
             await session.commit()

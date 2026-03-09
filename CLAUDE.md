@@ -156,7 +156,7 @@ ___
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes: FIX-1 through FIX-30 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
-  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (task decomposer), Q-9.9 ✅ (Telegram subtask progress), Q-10.1 ✅ (универсальный планировщик), Q-10.2 ✅ (writing gate), Q-10.3 ✅ (MAX_PLAN_STEPS=10), MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
+  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (task decomposer), Q-9.6 ✅ (multi-tenancy artel_id), Q-9.7 ✅ (Docker production), Q-9.9 ✅ (Telegram subtask progress), Q-10.1 ✅ (универсальный планировщик), Q-10.2 ✅ (writing gate), Q-10.3 ✅ (MAX_PLAN_STEPS=10), MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
   - Следующий: Q-10.4 (Agent Factory)
 
 ## Critical Rules for Claude Code
