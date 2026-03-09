@@ -1,7 +1,6 @@
 ﻿import asyncio
 import time
 import uuid
-import re
 from datetime import datetime
 from dataclasses import dataclass, field
 
@@ -16,55 +15,11 @@ from src.organism.memory.manager import MemoryManager
 from src.organism.memory.knowledge_base import KnowledgeBase
 from src.organism.memory.solution_cache import SolutionCache
 from src.organism.memory.user_facts import format_for_prompt
-from src.organism.memory.search_policy import SearchPolicy
 from src.organism.self_improvement.prompt_versioning import PromptVersionControl
 from src.organism.safety.validator import SafetyValidator
 from src.organism.tools.registry import ToolRegistry
 
 _log = get_logger("core.loop")
-
-WRITE_KEYWORDS = [
-    "napishi", "napihi",  # transliteration fallback
-    "write", "draft", "compose",
-    "\u043d\u0430\u043f\u0438\u0448\u0438",
-    "\u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c",
-    "\u0441\u043e\u0441\u0442\u0430\u0432\u044c",
-    "\u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c",
-    "\u043a\u043e\u043c\u043c\u0435\u0440\u0447\u0435\u0441\u043a\u043e\u0435 \u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u0435",
-    "\u0448\u0430\u0431\u043b\u043e\u043d",
-    "\u0441\u0442\u0430\u0442\u044c\u044e",
-    "\u043f\u0438\u0441\u044c\u043c\u043e",
-]
-
-SEARCH_KEYWORDS = [
-    "find", "search", "look up",
-    "найди",           # найди
-    "поищи",           # поищи
-    "найти",           # найти
-    "актуальные",  # актуальные
-    "текущие",  # текущие
-    "свежие",     # свежие
-    "узнай",           # узнай
-    "проверь",  # проверь
-    "исследуй",  # исследуй
-]
-
-# Q-9.0: LLM intent classifier prompt (replaces keyword-based CHAT_PATTERNS/TASK_SIGNALS)
-INTENT_CLASSIFIER_PROMPT = """Classify the user message: TASK or CHAT?
-
-TASK \u2014 user wants a NEW action performed right now: create, calculate, find, analyze, build, generate.
-CHAT \u2014 user is conversing: discussing past work, asking about you, reflecting, giving feedback, referencing something already done.
-
-Key distinction:
-  "create an excel file" = TASK
-  "remember that excel file we made?" = CHAT
-  "why is fuel consumption high?" = TASK (needs analysis)
-  "that was a great answer" = CHAT
-
-When in doubt: if the user expects a new result to be produced \u2014 TASK. If they expect a conversation \u2014 CHAT.
-
-Respond with ONLY one word: TASK or CHAT."""
-
 
 @dataclass
 class StepLog:
@@ -92,27 +47,6 @@ class TaskResult:
     error: str = ""
     memory_hits: int = 0
     quality_score: float = 0.0
-
-
-def _is_writing_task(task: str) -> bool:
-    t = task.lower()
-    has_write = any(kw.lower() in t for kw in WRITE_KEYWORDS)
-    if not has_write:
-        return False
-    # If task also contains search signals — let Planner handle it
-    has_search = any(kw.lower() in t for kw in SEARCH_KEYWORDS)
-    if has_search:
-        return False
-    return True
-
-
-def _extract_filename(task: str) -> str | None:
-    m = re.search(
-        r"(\w[\w\-]+\.(?:md|txt|docx|html|csv|xlsx|json|pdf|pptx))",
-        task,
-        re.IGNORECASE
-    )
-    return m.group(1) if m else None
 
 
 class CoreLoop:
@@ -261,66 +195,6 @@ class CoreLoop:
 
         return None
 
-    async def _needs_planner(self, task: str) -> bool:
-        """Q-10.2: Haiku check \u2014 does this writing task actually need Planner?
-        Returns True if task needs data gathering or multiple tools.
-        Returns False if text_writer alone is sufficient.
-        """
-        from src.organism.llm.base import Message
-        WRITING_GATE_PROMPT = (
-            "You decide if a task needs only text generation or requires data/tools first.\n\n"
-            "Answer ONLY with one word: WRITE or PLAN\n\n"
-            "WRITE \u2014 task is self-contained: write letter, compose memo, draft document from given info.\n"
-            "PLAN \u2014 task needs data first: find + write, calculate + report, analyze + summarize.\n\n"
-            "Examples:\n"
-            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u0448\u0430\u0431\u043b\u043e\u043d \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430' -> WRITE\n"
-            "  '\u0441\u043e\u0441\u0442\u0430\u0432\u044c \u043f\u0438\u0441\u044c\u043c\u043e \u043f\u0430\u0440\u0442\u043d\u0451\u0440\u0443' -> WRITE\n"
-            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u043e\u0442\u0447\u0451\u0442 \u043f\u043e \u0434\u043e\u0431\u044b\u0447\u0435 \u0437\u0430 \u043c\u0430\u0440\u0442' -> PLAN\n"
-            "  '\u0441\u043e\u0441\u0442\u0430\u0432\u044c \u0441\u043f\u0440\u0430\u0432\u043a\u0443 \u043f\u043e \u0446\u0435\u043d\u0430\u043c \u0434\u0438\u0437\u0435\u043b\u044f' -> PLAN\n"
-            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u043a\u043e\u043c\u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0434\u043b\u044f \u0438\u043d\u0432\u0435\u0441\u0442\u043e\u0440\u0430' -> WRITE\n"
-            "  '\u043d\u0430\u043f\u0438\u0448\u0438 \u0430\u043d\u0430\u043b\u0438\u0437 \u0440\u044b\u043d\u043a\u0430 \u0437\u043e\u043b\u043e\u0442\u0430 \u0432 \u0420\u043e\u0441\u0441\u0438\u0438' -> PLAN"
-        )
-        try:
-            response = await self.llm.complete(
-                messages=[Message(role="user", content=task[:300])],
-                system=WRITING_GATE_PROMPT,
-                model_tier="fast",
-                max_tokens=10,
-            )
-            return response.content.strip().upper().startswith("PLAN")
-        except Exception:
-            return False  # on failure — keep fast path (safe default)
-
-    async def _run_writing_task(self, task_id: str, task: str, verbose: bool, user_context: str = "") -> "TaskResult | None":
-        start = time.time()
-        filename = _extract_filename(task) or "output.md"
-        try:
-            tool = self.registry.get("text_writer")
-        except KeyError:
-            return None
-
-        if verbose:
-            print("Writing task detected - using text_writer directly")
-            print("Step 1: Generate and save text")
-
-        tool_input: dict = {"prompt": task, "filename": filename}
-        if user_context:
-            tool_input["user_context"] = user_context
-        result = await tool.execute(tool_input)
-        duration = time.time() - start
-        step_log = StepLog(step_id=1, tool="text_writer", description="Write and save text",
-                           output=result.output, error=result.error,
-                           success=result.exit_code == 0, duration=duration)
-        if verbose:
-            status = "OK" if result.exit_code == 0 else "FAIL"
-            print(f"  [{status}] {duration:.1f}s | {result.output[:100]}")
-            print(f"\n{'='*50}\nDone in {duration:.1f}s\n{'='*50}")
-
-        return TaskResult(task_id=task_id, task=task, success=result.exit_code == 0,
-                          output=result.output, answer=result.output,
-                          steps=[step_log], duration=duration,
-                          error=result.error if result.exit_code != 0 else "")
-
     def _build_tool_definitions(self) -> list[dict]:
         """Build Anthropic-format tool definitions from registry."""
         try:
@@ -330,28 +204,33 @@ class CoreLoop:
 
     async def _handle_conversation(
         self, task_id: str, task: str,
-        user_context: str = "", user_id: str = "default",
+        user_context: str = "",
+        memory_context: str = "",
+        user_id: str = "default",
         media: list | None = None,
     ) -> "TaskResult":
-        """Unified conversation+action handler (FIX-33).
+        """Q-10.4: Primary execution path — LLM with tools.
 
         LLM receives message + tools, decides itself whether to answer
         directly or execute tools. No mode switching, no routing.
         """
-        import json as _json
         from src.organism.llm.base import Message as LLMMessage
 
         start = time.time()
         today = datetime.now().strftime("%d.%m.%Y")
 
         # --- Build context ---
-        memory_available = self.memory is not None
-
-        # Longterm memory search
+        # If memory_context was passed from run(), use it; otherwise fetch here (media path)
         longterm_context = ""
-        if self.memory:
+        if memory_context:
+            longterm_context = (
+                "\u041f\u0430\u043c\u044f\u0442\u044c: \u043d\u0430\u0448\u043b\u0438 "
+                "\u043f\u0440\u043e\u0448\u043b\u044b\u0435 \u0437\u0430\u0434\u0430\u0447\u0438:\n"
+                + memory_context
+            )
+        elif self.memory:
             try:
-                mem_result = await self.memory.on_task_start(task, user_id=user_id)
+                mem_result = await self.memory.on_task_start(task)
                 if mem_result and isinstance(mem_result, list) and len(mem_result) > 0:
                     snippets = []
                     for t_item in mem_result[:3]:
@@ -467,9 +346,10 @@ class CoreLoop:
                               output=answer, answer=answer,
                               duration=time.time() - start)
 
-        # --- Handle tool calls (max 3 rounds) ---
-        MAX_TOOL_ROUNDS = 3
+        # --- Handle tool calls (max 7 rounds) ---
+        MAX_TOOL_ROUNDS = 7
         round_count = 0
+        all_tool_calls: list[dict] = []
 
         while response.has_tool_calls and round_count < MAX_TOOL_ROUNDS:
             round_count += 1
@@ -486,6 +366,8 @@ class CoreLoop:
                 tool_input = tc.get("input", {})
                 tool_use_id = tc.get("id", "")
 
+                all_tool_calls.append(tc)
+
                 assistant_content.append({
                     "type": "tool_use",
                     "id": tool_use_id,
@@ -493,7 +375,7 @@ class CoreLoop:
                     "input": tool_input,
                 })
 
-                _log.info(f"[{task_id}] Conversation tool call: {tool_name}({str(tool_input)[:80]})")
+                _log.info(f"[{task_id}] Tool call: {tool_name}({str(tool_input)[:80]})")
 
                 tool_output = ""
                 try:
@@ -531,7 +413,29 @@ class CoreLoop:
             "\u0413\u043e\u0442\u043e\u0432\u043e."
 
         duration = time.time() - start
-        _log.info(f"[{task_id}] Unified handler: {round_count} tool rounds, {duration:.1f}s")
+        _log.info(f"[{task_id}] Handler: {round_count} tool rounds, {duration:.1f}s")
+
+        # Save to memory
+        if self.memory:
+            try:
+                tools_used = list({tc.get("name") for tc in all_tool_calls}) or []
+                await self.memory.on_task_end(
+                    task, answer, True, duration,
+                    steps_count=round_count,
+                    tools_used=tools_used,
+                    quality_score=1.0,
+                    user_id=user_id,
+                )
+            except Exception:
+                pass
+
+        # Save chat history
+        if self.memory:
+            try:
+                await self.memory.chat_history.save_message(user_id, "user", task[:1000])
+                await self.memory.chat_history.save_message(user_id, "assistant", answer[:1000])
+            except Exception:
+                pass
 
         return TaskResult(
             task_id=task_id, task=task, success=True,
@@ -562,9 +466,6 @@ class CoreLoop:
         # MEDIA-1: Messages with media always go to conversation handler (Vision API)
         if media:
             return await self._handle_conversation(task_id, task, user_id=user_id, media=media)
-
-        # FIX-33: classification removed — all non-media messages go through planner path
-        # _handle_conversation (with tools) is used for media and FIX-16 fallback only
 
         if self.memory:
             try:
@@ -652,65 +553,6 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Cache check failed", e)
 
-        # Fast path for writing tasks
-        # If intent is retrieval-oriented (temporal/causal/entity) and we have
-        # memory context, skip fast path so the planner can answer from memory
-        # instead of generating new content via text_writer.
-        _skip_fast_path = False
-        if memory_context and self.memory:
-            _intent = SearchPolicy().classify_intent(task)
-            if _intent in ("temporal", "causal", "entity"):
-                _skip_fast_path = True
-                _log.info(f"[{task_id}] Intent={_intent} + memory -> skip writing fast path")
-                if verbose:
-                    print(f"Intent: {_intent} + memory context -> skip fast path, let planner decide")
-
-        _writing_needs_planner = False
-        if not _skip_fast_path and _is_writing_task(task):
-            _writing_needs_planner = await self._needs_planner(task)
-            if _writing_needs_planner:
-                _log.info(f"[{task_id}] Writing fast path: Haiku says PLAN -> routing to planner")
-                if verbose:
-                    print("Writing task needs data/tools -> routing to planner")
-
-        if not _skip_fast_path and not _writing_needs_planner and _is_writing_task(task):
-            try:
-                result = await self._run_writing_task(task_id, task, verbose, user_context)
-                if result is not None:
-                    result.memory_hits = memory_hits
-                    _log.info(f"[{task_id}] Writing task {'SUCCESS' if result.success else 'FAILED'} in {result.duration:.1f}s")
-                    if self.memory and result.success:
-                        try:
-                            await self.memory.on_task_end(task, result.output, True, result.duration, 1, ["text_writer"], quality_score=0.8, user_id=user_id)
-                        except Exception:
-                            pass
-                        # Q-7.3: Save as few-shot example
-                        try:
-                            await self.memory.few_shot.save_example(
-                                task_text=task, task_type="writing",
-                                plan_steps=[{"tool": "text_writer", "description": "Write and save text"}],
-                                quality_score=0.8, tools_used=["text_writer"],
-                            )
-                        except Exception:
-                            pass
-                        if cache_hash and canonical_task:
-                            try:
-                                await self.cache.put(cache_hash, canonical_task, task, result.output, 0.8)
-                            except Exception:
-                                pass
-                    return result
-            except Exception as e:
-                log_exception(_log, f"[{task_id}] Writing fast path failed", e)
-                # MON-1: Capture to ErrorLog for Telegram monitoring
-                try:
-                    from src.organism.monitoring.error_notifier import capture_error
-                    asyncio.ensure_future(capture_error(
-                        component="core.loop.writing", message=f"Writing fast path failed: {e}",
-                        exception=e, task_id=task_id, task_text=task[:500],
-                    ))
-                except Exception:
-                    pass
-
         # Q-9.1: Task Decomposer — check if task needs decomposition before planning
         if len(task) > 100:  # skip decomposition check for very short tasks
             try:
@@ -742,276 +584,15 @@ class CoreLoop:
                             pass
                     return result
             except Exception as e:
-                _log.warning(f"[{task_id}] Decomposer failed, falling back to normal plan: {e}")
-                # Graceful degradation: continue with normal planning
+                _log.warning(f"[{task_id}] Decomposer failed, falling back to handler: {e}")
 
-        if verbose:
-            print("Planning...")
-
-        knowledge_rules: list[str] = []
-        if self.memory:
-            try:
-                knowledge_rules = await self.knowledge_base.get_rules()
-            except Exception:
-                pass
-
-        # Q-5.4: Template hint — look up matching procedural template before planning
-        template_hint = ""
-        if self.memory:
-            try:
-                tmpl = await self.memory.templates.find_template(task)
-                if tmpl:
-                    hint_parts = [
-                        f"Reusable template '{tmpl['pattern_name']}'"
-                        f" (quality={tmpl['avg_quality']:.2f}, used {tmpl['success_count']}x):",
-                        f"  Tools: {tmpl['tools_sequence']}",
-                    ]
-                    if tmpl.get("code_template"):
-                        hint_parts.append(f"  Code skeleton: {tmpl['code_template'][:300]}")
-                    template_hint = "\n".join(hint_parts)
-                    if verbose:
-                        print(f"Template hint: {tmpl['pattern_name']}")
-            except Exception:
-                pass
-
-        # Build context-budgeted prompt (trims to ~3000 token sweet spot)
-        _, task_context = self.context_budget.build_prompt(
-            system="",  # system is chosen per task type inside Planner
-            knowledge_rules=knowledge_rules,
+        # Q-10.4: All tasks go through _handle_conversation (primary execution path)
+        return await self._handle_conversation(
+            task_id, task,
+            user_context=user_context,
             memory_context=memory_context,
-            task=task,
+            user_id=user_id,
         )
-        if template_hint:
-            task_context = f"{task_context}\n\n{template_hint}"
-        if verbose:
-            u = self.context_budget.last_usage
-            _log.info(
-                f"[{task_id}] Context budget: {u['total']}/{self.context_budget.budget_tokens}t "
-                f"(task={u['task']} rules={u['rules']} memory={u['memory']})"
-            )
-            print(
-                f"Context: {u['total']}/{self.context_budget.budget_tokens} tokens "
-                f"| task={u['task']} rules={u['rules']} memory={u['memory']}"
-            )
-
-        # For temporal queries with memory hits, override task type to "writing" so
-        # the planner uses text_writer to synthesize the answer from memory context
-        # instead of going to web_search (which cannot answer internal-state questions).
-        task_type_hint = None
-        if memory_hits > 0:
-            _mem_intent = SearchPolicy().classify_intent(task)
-            if _mem_intent == "temporal":
-                task_type_hint = "writing"
-                _log.info(f"[{task_id}] Temporal query + memory hits -> task_type_hint=writing")
-
-        try:
-            steps = await self.planner.plan(task, task_context=task_context, user_context=user_context, task_type_hint=task_type_hint)
-            _log.info(f"[{task_id}] Plan created: {len(steps)} steps  {[s.tool for s in steps]}")
-        except Exception as e:
-            # FIX-16: Planner returned text instead of JSON — treat as conversational
-            if "Could not parse plan from response" in str(e):
-                _log.warning(
-                    f"[{task_id}] Planner returned text instead of JSON — "
-                    f"routing to conversation handler. Task: {task[:100]}"
-                )
-                return await self._handle_conversation(task_id, task, user_id=user_id)
-
-            log_exception(_log, f"[{task_id}] Planning failed", e)
-            # MON-1: Capture to ErrorLog for Telegram monitoring
-            try:
-                from src.organism.monitoring.error_notifier import capture_error
-                asyncio.ensure_future(capture_error(
-                    component="core.loop", message=f"Planning failed: {e}",
-                    exception=e, task_id=task_id, task_text=task[:500],
-                ))
-            except Exception:
-                pass
-            return TaskResult(task_id=task_id, task=task, success=False, output="",
-                              error=f"Planning failed: {e}", duration=time.time() - start, memory_hits=memory_hits)
-
-        # Validate plan before execution
-        validation_error = self._validate_plan(steps)
-        if validation_error:
-            _log.warning(f"[{task_id}] Plan validation failed: {validation_error}, re-planning...")
-            if verbose:
-                print(f"  Plan invalid: {validation_error}")
-                print("  Re-planning with generic prompt...")
-            try:
-                avail = self.registry.list_all()
-                replan_hint = (
-                    f"\nIMPORTANT: Only use these tools: {avail}. Do NOT use any other tools."
-                    f"\nIMPORTANT: Maximum {self.MAX_PLAN_STEPS} steps. Consolidate similar steps, combine search+fetch into one step if needed."
-                )
-                steps = await self.planner._fast_plan(task + replan_hint)
-                if not steps:
-                    steps = await self.planner._react_plan(task + replan_hint)
-                validation_error = self._validate_plan(steps)
-                if validation_error:
-                    return TaskResult(task_id=task_id, task=task, success=False, output="",
-                                      error=f"Plan validation failed after retry: {validation_error}",
-                                      duration=time.time() - start, memory_hits=memory_hits)
-                _log.info(f"[{task_id}] Re-plan created: {len(steps)} steps  {[s.tool for s in steps]}")
-            except Exception as e:
-                log_exception(_log, f"[{task_id}] Re-planning failed", e)
-                return TaskResult(task_id=task_id, task=task, success=False, output="",
-                                  error=f"Re-planning failed: {e}", duration=time.time() - start, memory_hits=memory_hits)
-
-        if verbose:
-            print(f"Plan: {len(steps)} step(s)")
-            for s in steps:
-                print(f"  {s.id}. [{s.tool}] {s.description}")
-
-        step_logs: list[StepLog] = []
-        step_outputs: dict[int, str] = {}
-        last_output = ""
-        tools_used: list[str] = []
-        total_tokens = 0
-
-        for step in steps:
-            resolved_input = {}
-            for k, v in step.input.items():
-                if isinstance(v, str):
-                    v = re.sub(r"\{\{step_(\d+)_output\}\}",
-                               lambda m: step_outputs.get(int(m.group(1)), ""), v)
-                resolved_input[k] = v
-
-            resolved_step = PlanStep(id=step.id, tool=step.tool, description=step.description,
-                                     input=resolved_input, depends_on=step.depends_on)
-            log = await self._execute_step(task_id, task, resolved_step, verbose)
-            step_logs.append(log)
-
-            if log.success:
-                step_outputs[step.id] = log.output
-                last_output = log.output
-                if step.tool not in tools_used:
-                    tools_used.append(step.tool)
-            else:
-                # Soft-fail continuation: web_fetch connection/block issues are non-fatal
-                # when a previous step already produced useful output.
-                # FIX-6: check both output and error (blocked/HTTP msgs now in error field)
-                _soft_msg = log.output or log.error or ""
-                _soft_webfetch = (
-                    step.tool == "web_fetch"
-                    and last_output
-                    and _soft_msg
-                    and any(kw in _soft_msg for kw in (
-                        "Use web_search instead",
-                        "not accessible",
-                        "Domain blocked",
-                        "Cannot connect",
-                    ))
-                )
-                if _soft_webfetch:
-                    _log.warning(f"[{task_id}] web_fetch soft-fail at step {step.id} -- continuing with previous output")
-                    step_outputs[step.id] = last_output  # pass prior output downstream
-                    continue
-
-                duration = time.time() - start
-
-                # FIX-5: If previous steps succeeded, return their results instead of error
-                successful_outputs = [sl.output for sl in step_logs if sl.success and sl.output]
-                if successful_outputs:
-                    _final_output = max(successful_outputs, key=len)
-                    # FIX-7: Summarize raw search results before returning
-                    if self._is_raw_search_output(_final_output):
-                        _final_output = await self._summarize_search_results(_final_output, task)
-                    _log.info(f"[{task_id}] Step {step.id} failed but {len(successful_outputs)} previous step(s) succeeded — returning partial results")
-                    if self.memory:
-                        try:
-                            await self.memory.on_task_end(task, _final_output, True, duration, len(step_logs), tools_used, quality_score=0.5, user_id=user_id)
-                        except Exception:
-                            pass
-                    self.logger.log_task_end(task_id, True, duration, total_tokens)
-                    return TaskResult(task_id=task_id, task=task, success=True, output=_final_output,
-                                      answer=_final_output, steps=step_logs, duration=duration,
-                                      memory_hits=memory_hits, quality_score=0.5)
-
-                # All steps failed — return humanized error
-                _log.error(f"[{task_id}] Task FAILED at step {step.id}: {log.error}")
-                if self.memory:
-                    try:
-                        await self.memory.on_task_end(task, last_output, False, duration, len(step_logs), tools_used, quality_score=0.2, user_id=user_id)
-                    except Exception:
-                        pass
-                self.logger.log_task_end(task_id, False, duration, total_tokens)
-                _final_output = self._humanize_error(log.output or log.error, task)
-                # FIX-10: Monitor failed task
-                try:
-                    from src.organism.monitoring.error_notifier import capture_error
-                    asyncio.ensure_future(capture_error(
-                        component="core.loop",
-                        message=f"Task FAILED (quality: 0.00)\nOutput: {_final_output[:300]}",
-                        task_id=task_id,
-                        task_text=task[:500],
-                        level="ERROR",
-                    ))
-                except Exception:
-                    pass
-                # FIX-29: Fallback to conversation handler instead of returning FAILED
-                enriched = f"{task}\n\n[\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u043e\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c: {log.error or log.output or 'unknown'}. \u041e\u0442\u0432\u0435\u0447\u0430\u044e \u043d\u0430\u043f\u0440\u044f\u043c\u0443\u044e.]"
-                return await self._handle_conversation(task_id, enriched, user_id=user_id)
-
-        duration = time.time() - start
-        _log.info(f"[{task_id}] Task SUCCESS in {duration:.1f}s, tools: {tools_used}")
-
-        # Calculate average quality score
-        avg_quality = sum(s.quality_score for s in step_logs if s.success) / max(len([s for s in step_logs if s.success]), 1)
-
-        if self.memory:
-            try:
-                await self.memory.on_task_end(task, last_output, True, duration, len(step_logs), tools_used, quality_score=avg_quality, user_id=user_id)
-            except Exception as e:
-                log_exception(_log, f"[{task_id}] Memory save failed", e)
-            # Q-7.3: Save as few-shot example if high quality
-            try:
-                _plan_dicts = [{"tool": s.tool, "description": s.description} for s in steps]
-                await self.memory.few_shot.save_example(
-                    task_text=task,
-                    task_type=task_type_hint or "mixed",
-                    plan_steps=_plan_dicts,
-                    quality_score=avg_quality,
-                    tools_used=tools_used,
-                )
-            except Exception:
-                pass
-            if cache_hash and canonical_task and avg_quality >= self.cache.MIN_QUALITY:
-                try:
-                    await self.cache.put(cache_hash, canonical_task, task, last_output, avg_quality)
-                    _log.info(f"[{task_id}] Cache stored hash={cache_hash[:8]} quality={avg_quality:.2f}")
-                except Exception as e:
-                    log_exception(_log, f"[{task_id}] Cache store failed", e)
-
-        self.logger.log_task_end(task_id, True, duration, total_tokens)
-
-        if verbose:
-            print(f"\n{'='*50}\nDone in {duration:.1f}s | Quality: {avg_quality:.2f} | Memory hits: {memory_hits}\n{'='*50}")
-
-        # FIX-6: Prefer useful output — skip placeholders/error stubs from last step
-        if not self._is_useful_output(last_output):
-            useful = [s.output for s in step_logs if s.success and self._is_useful_output(s.output)]
-            if useful:
-                last_output = max(useful, key=len)
-        # FIX-7: Summarize raw search results into clean Russian answer
-        if self._is_raw_search_output(last_output):
-            last_output = await self._summarize_search_results(last_output, task)
-        # FIX-4: Humanize output in case a "successful" step returned raw error text
-        _final_output = self._humanize_error(last_output, task)
-        # FIX-10: Monitor low-quality tasks
-        if avg_quality < 0.5:
-            try:
-                from src.organism.monitoring.error_notifier import capture_error
-                asyncio.ensure_future(capture_error(
-                    component="core.loop",
-                    message=f"Task LOW QUALITY (quality: {avg_quality:.2f})\nOutput: {_final_output[:300]}",
-                    task_id=task_id,
-                    task_text=task[:500],
-                    level="WARNING",
-                ))
-            except Exception:
-                pass
-        return TaskResult(task_id=task_id, task=task, success=True, output=_final_output, answer=_final_output,
-                          steps=step_logs, total_tokens=total_tokens, duration=duration, memory_hits=memory_hits,
-                          quality_score=avg_quality)
 
     async def _execute_step(self, task_id: str, task: str, step: PlanStep, verbose: bool) -> StepLog:
         _log.info(f"[{task_id}] Step {step.id} start: [{step.tool}] {step.description[:80]}")

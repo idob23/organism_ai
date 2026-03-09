@@ -650,3 +650,43 @@ critical action") was vague enough that the LLM interpreted uncertainty as a rea
 No system prompt changes, no routing logic \u2014 just a clearer tool description.
 
 File changed: `tools/confirm_user.py`.
+
+## Q-10.4: _handle_conversation as Primary Execution Path
+
+**Problem**: CoreLoop.run() had multiple execution paths: keyword-based writing fast path
+(`WRITE_KEYWORDS` + `_is_writing_task` + `_run_writing_task`), LLM writing gate
+(`_needs_planner`), Planner+Executor pipeline, and conversation handler (FIX-33 fallback).
+This created routing complexity, duplicate context-building, and multiple failure modes.
+
+**Solution**: Make `_handle_conversation` the primary (and only) execution path for all
+non-decomposed tasks. The LLM receives the message + all tools and decides itself whether
+to answer directly, call tools, or combine both.
+
+**What was removed**:
+- `WRITE_KEYWORDS`, `SEARCH_KEYWORDS`, `INTENT_CLASSIFIER_PROMPT` constants
+- `_is_writing_task()` function, `_needs_planner()` method, `_run_writing_task()` method
+- Writing fast path block in `run()` (keyword detection, gate, fast path execution)
+- Planner path in `run()` (plan, validate, re-plan, execute steps, soft-fail, FIX-29 fallback)
+
+**What was kept** (for decomposer and future use):
+- `Planner` class, `_validate_plan()`, `_execute_step()` methods
+- `Evaluator`, `ContextBudget`, `KnowledgeBase` (initialized but not called from run())
+
+**_handle_conversation upgrades**:
+- New `memory_context` parameter: accepts pre-built context from `run()` to avoid double
+  `on_task_start()` calls. Falls back to self-fetch for media-only path.
+- `MAX_TOOL_ROUNDS`: 3 \u2192 7 (handles complex multi-step tasks: search+compute+save+verify)
+- `on_task_end()`: saves results to memory after every response (was missing before)
+- Chat history: saves user message and assistant response after every interaction
+
+**New flow in run()**:
+1. Memory init
+2. Media \u2192 `_handle_conversation` (unchanged)
+3. Memory search + user facts + personality + few-shot (unchanged)
+4. Cache check (unchanged)
+5. Decomposer check for tasks > 100 chars (unchanged)
+6. Everything else \u2192 `_handle_conversation(task_id, task, user_context, memory_context, user_id)`
+
+**Benchmark**: 5/5 quick (100%), no regression. Score 0.93 avg quality.
+
+Files changed: `core/loop.py`.
