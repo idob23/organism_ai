@@ -368,7 +368,7 @@ class CoreLoop:
                               duration=time.time() - start)
 
         # --- Handle tool calls (max 7 rounds) ---
-        MAX_TOOL_ROUNDS = 7
+        MAX_TOOL_ROUNDS = 10
         round_count = 0
         all_tool_calls: list[dict] = []
         created_files: list[str] = []  # FIX-36: track files for gateway delivery
@@ -585,38 +585,9 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Cache check failed", e)
 
-        # Q-9.1: Task Decomposer — check if task needs decomposition before planning
-        if len(task) > 100:  # skip decomposition check for very short tasks
-            try:
-                decomp_plan = await self.decomposer.analyze(task)
-                if decomp_plan.should_decompose:
-                    _log.info(f"[{task_id}] Decomposing into {len(decomp_plan.subtasks)} subtasks")
-                    if verbose:
-                        print(f"Complex task detected \u2014 decomposing into {len(decomp_plan.subtasks)} parts")
-                    result = await self.decomposer.run(
-                        task=task,
-                        subtasks=decomp_plan.subtasks,
-                        loop=self,
-                        user_id=user_id,
-                        user_context=user_context,
-                        progress_callback=progress_callback,
-                    )
-                    result.memory_hits = memory_hits
-                    # Save to memory
-                    if self.memory and result.success:
-                        try:
-                            await self.memory.on_task_end(
-                                task, result.output, True, result.duration,
-                                len(result.steps),
-                                list({s.tool for s in result.steps}),
-                                quality_score=result.quality_score,
-                                user_id=user_id,
-                            )
-                        except Exception:
-                            pass
-                    return result
-            except Exception as e:
-                _log.warning(f"[{task_id}] Decomposer failed, falling back to handler: {e}")
+        # FIX-44: Decomposer disabled — _handle_conversation with 10 tool rounds
+        # handles complex tasks natively. TaskDecomposer kept for future orchestrator.
+        # (was: Q-9.1 decomposition block)
 
         # Q-10.4: All tasks go through _handle_conversation (primary execution path)
         return await self._handle_conversation(

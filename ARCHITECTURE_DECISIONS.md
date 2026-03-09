@@ -802,3 +802,17 @@ chat history, user context) and never invent unseen causes. Includes concrete ex
 of honest vs dishonest answers.
 
 Files changed: `core/loop.py`.
+
+## FIX-44: Disable decomposer from main execution path
+
+**Problem**: TaskDecomposer (Q-9.1) added an extra Haiku LLM call on every task >100
+chars. In practice `_handle_conversation` with tool-use loops handles complex tasks
+natively — the decomposer added latency without clear benefit and could split tasks
+that the LLM handles better as a single conversation.
+
+**Solution**: Commented out the decomposer block in `CoreLoop.run()`. Raised
+`MAX_TOOL_ROUNDS` in `_handle_conversation` from 7 to 10 so the agent has enough
+rounds for genuinely complex tasks. `TaskDecomposer` class and `decomposer.py` are
+kept intact for future orchestrator use.
+
+Files changed: `core/loop.py`.
