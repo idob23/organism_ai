@@ -421,7 +421,11 @@ class TelegramChannel(BaseChannel):
                             if "\x00" not in text_content:
                                 # Readable text document
                                 snippet = text_content[:8000]
-                                task = f"[{fname}]\n{snippet}\n\n{task}"
+                                task = (
+                                    f"[\u0421\u043e\u0434\u0435\u0440\u0436\u0438\u043c\u043e\u0435"
+                                    f" \u0444\u0430\u0439\u043b\u0430 {fname}]:\n"
+                                    f"{snippet}\n\n{task}"
+                                )
                             else:
                                 task = f"[{fname}] {task}"
                         except Exception:
