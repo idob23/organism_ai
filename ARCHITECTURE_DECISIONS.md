@@ -690,3 +690,26 @@ to answer directly, call tools, or combine both.
 **Benchmark**: 5/5 quick (100%), no regression. Score 0.93 avg quality.
 
 Files changed: `core/loop.py`.
+
+## SKILL-1: Technical Skills System
+
+**Problem**: Agent creates basic, unformatted files (Excel without styling, plain text Word docs).
+No expert knowledge about HOW to create professional-quality documents.
+
+**Solution**: Static skill files in `config/skills/*.md` \u2014 expert templates written once by a human.
+`SkillMatcher` in `core/skill_matcher.py` selects relevant skills via Haiku (~50 tokens)
+and injects content into `_handle_conversation` system prompt as `skill_context`.
+
+**Components**:
+- `config/skills/excel.md` \u2014 openpyxl formatting: dark headers, alternating rows, auto-width
+- `config/skills/docx.md` \u2014 Node.js `docx` library: A4, Arial, proper margins
+- `config/skills/pdf.md` \u2014 reportlab: styled tables, A4, branded headers
+- `config/skills/charts.md` \u2014 matplotlib: Agg backend, clean styling, dpi=150
+- `core/skill_matcher.py` \u2014 `SkillMatcher.get_skill_context(task)`: Haiku selects 0-2 skills
+
+**Docker changes**: Node.js + npm `docx` + matplotlib added to `sandbox/Dockerfile`.
+
+**Integration**: `skill_context` injected first in system_parts (before user_context) as
+"## How to create this file" section. Graceful degradation: any failure = empty string.
+
+Files changed: `sandbox/Dockerfile`, `config/skills/*.md`, `core/skill_matcher.py`, `core/loop.py`.

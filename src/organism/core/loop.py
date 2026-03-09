@@ -16,6 +16,7 @@ from src.organism.memory.knowledge_base import KnowledgeBase
 from src.organism.memory.solution_cache import SolutionCache
 from src.organism.memory.user_facts import format_for_prompt
 from src.organism.self_improvement.prompt_versioning import PromptVersionControl
+from src.organism.core.skill_matcher import SkillMatcher
 from src.organism.safety.validator import SafetyValidator
 from src.organism.tools.registry import ToolRegistry
 
@@ -137,6 +138,7 @@ class CoreLoop:
         self.cache = SolutionCache()
         self.knowledge_base = KnowledgeBase()
         self.context_budget = ContextBudget()
+        self.skill_matcher = SkillMatcher(llm)
         self.personality = personality
         self.scheduler = scheduler
         if memory is not None and memory.llm is None:
@@ -267,6 +269,13 @@ class CoreLoop:
             except Exception:
                 pass
 
+        # SKILL-1: Technical skill context
+        skill_context = ""
+        try:
+            skill_context = await self.skill_matcher.get_skill_context(task)
+        except Exception:
+            pass
+
         # Chat history
         chat_history_messages: list[LLMMessage] = []
         if self.memory:
@@ -290,6 +299,8 @@ class CoreLoop:
             "- If a user asks you to do something and you have the right tool, use it",
             "- Respond in the same language as the user",
         ]
+        if skill_context:
+            system_parts.append(f"\n## How to create this file\n{skill_context}")
         if user_context:
             system_parts.append(f"\n{user_context}")
         if recent_work_context:

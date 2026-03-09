@@ -1,17 +1,21 @@
 FROM python:3.11-slim
 
 # MEDIA-1: ffmpeg for video frame extraction
+# SKILL-1: Node.js for quality .docx files
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get install -y --no-install-recommends ffmpeg nodejs npm && \
     rm -rf /var/lib/apt/lists/*
 
-# Только стандартная библиотека + базовые пакеты для вычислений
+RUN npm install -g docx
+
+# Базовые пакеты для вычислений + визуализации
 RUN pip install --no-cache-dir \
     numpy==1.26.4 \
     pandas==2.2.1 \
     openpyxl \
     reportlab \
-    pypdf2
+    pypdf2 \
+    matplotlib
 
 # Рабочая директория
 WORKDIR /sandbox

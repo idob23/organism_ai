@@ -79,7 +79,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 organism_ai/
 ├── src/organism/
 │   ├── core/          # loop.py, planner.py, evaluator.py, context_budget.py, decomposer.py
-│   │                  # scheduler.py, human_approval.py, personality.py
+│   │                  # scheduler.py, human_approval.py, personality.py, skill_matcher.py
 │   ├── tools/         # registry.py, code_executor.py, web_search.py, confirm_user.py
 │   │                  # web_fetch.py, file_manager.py, text_writer.py, pptx_creator.py
 │   │                  # duplicate_finder.py, pdf_tool.py, mcp_client.py
@@ -101,6 +101,7 @@ organism_ai/
 │   └── a2a/           # protocol.py — Agent-to-Agent delegation (Q-8.5)
 ├── config/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
+│   ├── skills/        # excel.md, docx.md, pdf.md, charts.md (SKILL-1)
 │   ├── personality/   # default.md (per-artel personality configs)
 │   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
 │                      # causal_analyzer.txt, template_extractor.txt
@@ -156,7 +157,7 @@ ___
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes: FIX-1 through FIX-30 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
-  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (task decomposer), Q-9.6 ✅ (multi-tenancy artel_id), Q-9.7 ✅ (Docker production), Q-9.9 ✅ (Telegram subtask progress), Q-10.1 ✅ (универсальный планировщик), Q-10.2 ✅ (writing gate), Q-10.3 ✅ (MAX_PLAN_STEPS=10), Q-10.4 ✅ (_handle_conversation as primary path), FIX-33 ✅ (unified conversation+action), FIX-34 ✅ (recent work context in conversation), FIX-35 ✅ (confirm_with_user description fix), MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
+  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (task decomposer), Q-9.6 ✅ (multi-tenancy artel_id), Q-9.7 ✅ (Docker production), Q-9.9 ✅ (Telegram subtask progress), Q-10.1 ✅ (универсальный планировщик), Q-10.2 ✅ (writing gate), Q-10.3 ✅ (MAX_PLAN_STEPS=10), Q-10.4 ✅ (_handle_conversation as primary path), SKILL-1 ✅ (technical skills system), FIX-33 ✅ (unified conversation+action), FIX-34 ✅ (recent work context in conversation), FIX-35 ✅ (confirm_with_user description fix), MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
   - Следующий: Q-10.5 (Agent Factory)
 
 ## Critical Rules for Claude Code
