@@ -298,6 +298,9 @@ class CoreLoop:
             "- When you have relevant knowledge, share it fully",
             "- If a user asks you to do something and you have the right tool, use it",
             "- Respond in the same language as the user",
+            "- FORMATTING: Never use Markdown. No ##, no ---, no |tables|, no **bold**, no ```code blocks``` in text responses. "
+            "Use plain text only. Structure with line breaks and emoji if needed. "
+            "Exception: when creating actual files (Excel, Word, PDF) \u2014 formatting inside files is fine.",
         ]
         if skill_context:
             system_parts.append(f"\n## How to create this file\n{skill_context}")

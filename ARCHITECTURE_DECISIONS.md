@@ -733,3 +733,15 @@ the file as a binary attachment.
 - No changes to gateway.py or telegram.py needed
 
 Files changed: `core/loop.py`.
+
+## FIX-37: Plain text output — no Markdown in Telegram
+
+**Problem**: Agent formats responses with Markdown (##, ---, |tables|, **bold**).
+Telegram renders it partially — looks messy with raw symbols.
+
+**Solution**: Added formatting instruction to `_handle_conversation` system prompt:
+"Never use Markdown. No ##, no ---, no |tables|, no **bold**, no ```code blocks```.
+Use plain text only. Structure with line breaks and emoji if needed."
+Exception for file creation (Excel, Word, PDF) where internal formatting is fine.
+
+Files changed: `core/loop.py`.
