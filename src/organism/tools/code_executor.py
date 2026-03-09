@@ -1,6 +1,8 @@
 ﻿import asyncio
 import ast
+import shutil
 import tempfile
+import threading
 import uuid
 import os
 from typing import Any
@@ -9,7 +11,10 @@ import docker
 import docker.errors
 
 from config.settings import settings
+from src.organism.logging.error_handler import get_logger
 from .base import BaseTool, ToolResult
+
+_log = get_logger("tools.code_executor")
 
 
 class CodeExecutorTool(BaseTool):
@@ -18,6 +23,53 @@ class CodeExecutorTool(BaseTool):
 
     def __init__(self) -> None:
         self._client = docker.from_env()
+        # FIX-50: Warm container pool
+        self._warm = None
+        self._warm_sandbox = None
+        self._warm_output = None
+        self._warm_lock = threading.Lock()
+        self._init_warm()
+
+    def _init_warm(self) -> None:
+        """Start a warm container with sleep infinity for reuse."""
+        try:
+            self._warm_sandbox = tempfile.mkdtemp(prefix="organism_warm_sb_")
+            self._warm_output = tempfile.mkdtemp(prefix="organism_warm_out_")
+            outputs_dir = os.path.join(os.getcwd(), "data", "outputs")
+            os.makedirs(outputs_dir, exist_ok=True)
+            self._warm = self._client.containers.run(
+                image=self.SANDBOX_IMAGE,
+                command=["sleep", "infinity"],
+                name=f"organism-warm-{uuid.uuid4().hex[:6]}",
+                network_mode="none",
+                mem_limit=settings.sandbox_memory,
+                nano_cpus=int(settings.sandbox_cpu * 1e9),
+                volumes={
+                    self._warm_sandbox: {"bind": "/sandbox", "mode": "ro"},
+                    self._warm_output: {"bind": "/output", "mode": "rw"},
+                    outputs_dir: {"bind": "/data/outputs", "mode": "ro"},
+                },
+                working_dir="/output",
+                detach=True,
+                remove=False,
+            )
+            _log.info("Warm container started: %s", self._warm.name)
+        except Exception as e:
+            _log.debug("Warm container init failed (will use cold): %s", e)
+            self._warm = None
+
+    def __del__(self) -> None:
+        try:
+            if self._warm:
+                self._warm.remove(force=True)
+        except Exception:
+            pass
+        for d in (self._warm_sandbox, self._warm_output):
+            try:
+                if d:
+                    shutil.rmtree(d, ignore_errors=True)
+            except Exception:
+                pass
 
     @property
     def name(self) -> str:
@@ -133,7 +185,69 @@ class CodeExecutorTool(BaseTool):
         return code
 
     def _run_container(self, code: str, domains: list[str]) -> ToolResult:
-        import shutil
+        # FIX-50: Try warm container first, fall back to cold
+        if self._warm:
+            try:
+                return self._run_warm(code)
+            except Exception as e:
+                _log.debug("Warm exec failed, falling back to cold: %s", e)
+        return self._run_cold(code, domains)
+
+    def _run_warm(self, code: str) -> ToolResult:
+        """Execute code in the warm container via exec_run."""
+        with self._warm_lock:
+            # Check container is alive
+            self._warm.reload()
+            if self._warm.status != "running":
+                self._warm = None
+                raise RuntimeError("Warm container not running")
+
+            # Clean output dir from previous run
+            for f in os.listdir(self._warm_output):
+                p = os.path.join(self._warm_output, f)
+                try:
+                    os.unlink(p) if os.path.isfile(p) else shutil.rmtree(p)
+                except Exception:
+                    pass
+
+            # Write code to sandbox dir
+            code_path = os.path.join(self._warm_sandbox, "code.py")
+            with open(code_path, "w", encoding="utf-8") as f:
+                f.write(code)
+
+            # Execute with timeout
+            timeout_s = settings.sandbox_timeout
+            exit_code, output = self._warm.exec_run(
+                ["timeout", str(timeout_s), "python", "/sandbox/code.py"],
+                workdir="/output",
+                demux=True,
+            )
+            stdout = (output[0] or b"").decode("utf-8", errors="replace").strip()
+            stderr = (output[1] or b"").decode("utf-8", errors="replace").strip()
+
+            # exit code 124 = timeout killed the process
+            if exit_code == 124:
+                return ToolResult(output="", error=f"Timeout ({timeout_s}s)", exit_code=-1)
+
+            # Copy output files to data/outputs
+            saved_files = []
+            outputs_host = os.path.join(os.getcwd(), "data", "outputs")
+            os.makedirs(outputs_host, exist_ok=True)
+            for fname in os.listdir(self._warm_output):
+                src = os.path.join(self._warm_output, fname)
+                if os.path.isfile(src):
+                    dst = os.path.join(outputs_host, fname)
+                    shutil.copy2(src, dst)
+                    saved_files.append(fname)
+
+            if saved_files:
+                file_note = f"\nSaved files: {', '.join(saved_files)}"
+                stdout = stdout + file_note if stdout else file_note
+
+            return ToolResult(output=stdout, error=stderr, exit_code=exit_code)
+
+    def _run_cold(self, code: str, domains: list[str]) -> ToolResult:
+        """Original: create a new container per execution."""
         container_name = f"organism-sandbox-{uuid.uuid4().hex[:8]}"
         tmp_dir = tempfile.mkdtemp(prefix="organism_")
         code_path = os.path.join(tmp_dir, "code.py")

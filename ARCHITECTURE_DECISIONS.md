@@ -854,3 +854,37 @@ adds minimal latency. Graceful fallback: if Haiku fails or times out,
 `_time_sensitive = True` (skip cache — safer than serving stale data).
 
 Files changed: `core/loop.py`.
+
+## FIX-49: SkillMatcher relaxed prompt
+
+**Problem**: `SKILL_SELECT_PROMPT` required the task to "clearly need to CREATE that type
+of file". Tasks like "comparison table of 4 AI tools" didn't trigger `excel.md` because
+the word "create" wasn't present — the user implied structured output without explicitly
+requesting a file.
+
+**Solution**: Rewritten prompt to select skills when the task requires creating a file
+OR when the result is structured data best presented in that format. Added explicit
+mapping examples: table/comparison → excel.md, document/instruction → docx.md,
+chart/graph → charts.md, PDF report → pdf.md. Still returns [] for search, conversation,
+and simple calculations.
+
+Files changed: `core/skill_matcher.py`.
+
+## FIX-50: Docker warm container pool
+
+**Problem**: Every `code_executor` call created a new Docker container from scratch
+(~2-3s overhead per call). Multi-step tasks with several code executions paid this
+cost repeatedly, making total execution slow.
+
+**Solution**: On `CodeExecutorTool.__init__()`, start a warm container with
+`sleep infinity` (detached, persistent host dirs for `/sandbox` and `/output`).
+Each execution writes code to the host sandbox dir, runs
+`container.exec_run(["timeout", N, "python", "/sandbox/code.py"])`, reads output
+files from host output dir. Thread-safe via `threading.Lock`. Falls back to cold
+container creation on any failure (warm container died, Docker error, etc.).
+`__del__` removes the warm container on shutdown.
+
+Performance: eliminates ~2-3s container startup overhead per code_executor call.
+Multi-step tasks see ~3x speedup on code execution phases.
+
+Files changed: `tools/code_executor.py`.

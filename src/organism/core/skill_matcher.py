@@ -16,9 +16,14 @@ SKILL_SELECT_PROMPT = (
     "You select relevant skill files for a task. "
     "Available skills: {available}. "
     "Return ONLY a JSON array of filenames that are relevant. "
-    "Example: [\"excel.md\"] or [\"docx.md\", \"charts.md\"] or [] if none relevant. "
-    "Select skills only when the task clearly needs to CREATE that type of file. "
-    "Return [] for search, calculation, or conversation tasks."
+    "Example: [\"excel.md\"] or [\"docx.md\", \"charts.md\"] or [] if none relevant.\n"
+    "Select a skill when the task requires creating a specific file type "
+    "OR when the result is structured data best presented in that format:\n"
+    "- Table, comparison, list of items with attributes \u2192 excel.md\n"
+    "- Document, instruction, report, memo \u2192 docx.md\n"
+    "- Chart, graph, visualization \u2192 charts.md\n"
+    "- PDF report, certificate \u2192 pdf.md\n"
+    "Return [] for search, conversation, simple calculations, or Q&A tasks."
 )
 
 
