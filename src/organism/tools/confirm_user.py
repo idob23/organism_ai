@@ -21,9 +21,9 @@ class ConfirmUserTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Ask user for approval before a critical action "
-            "(writing to 1C, sending documents, deleting data). "
-            "Returns approved or rejected."
+            "Request human approval before executing an action that is irreversible "
+            "on an external system (write to 1C, send document, delete record). "
+            "Only call this when you are about to perform such an action."
         )
 
     @property

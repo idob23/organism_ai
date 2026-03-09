@@ -635,3 +635,18 @@ placed before semantic memory hits (more likely relevant for self-referential qu
 Result capped at 3 tasks, preview 300 chars. Wrapped in try/except \u2014 graceful degradation.
 
 Files changed: `memory/longterm.py`, `memory/manager.py`, `core/loop.py`.
+
+## FIX-35: confirm_with_user Description Tightening
+
+**Problem**: After FIX-33 gave `_handle_conversation` access to all tools, the LLM started
+calling `confirm_with_user` for ordinary conversational responses (e.g. "I can't send video")
+where no real action was being taken. The old description ("Ask user for approval before a
+critical action") was vague enough that the LLM interpreted uncertainty as a reason to confirm.
+
+**Solution**: Rewrote the tool description to be precise about the trigger condition:
+"irreversible action on an external system". The LLM now reasons: "I'm explaining a limitation
+\u2192 that's not an action on an external system \u2192 tool not needed."
+
+No system prompt changes, no routing logic \u2014 just a clearer tool description.
+
+File changed: `tools/confirm_user.py`.
