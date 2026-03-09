@@ -604,3 +604,17 @@ uses `text("artel_id = :artel_id")` with `.params()` for ORM queries and raw SQL
 - `solution_cache.py`: get() filters by artel_id; put() sets artel_id on INSERT;
   get_stats() uses raw SQL with artel_id filter
 - `knowledge_base.py`: get_rules() filters by artel_id; add_rule() sets artel_id on INSERT
+
+## FIX-33: Unified conversation+action mode
+Removed hard TASK/CHAT classification (`_classify_intent` deleted). `_handle_conversation`
+upgraded from plain `llm.complete()` to `llm.complete_with_tools()`. Tools obtained via
+`self.registry.to_json_schema()` (all registered tools including MCP). Agentic loop: max 3
+rounds of tool calls before forcing final text response.
+
+Flow after FIX-33: media \u2192 `_handle_conversation` (with tools), everything else \u2192
+planner path. Conversational messages that fail planning are caught by FIX-16 fallback and
+routed to `_handle_conversation` (with tools) \u2014 so they get tool access too.
+`_build_tool_definitions()` wraps `registry.to_json_schema()`.
+
+Impact: eliminates hallucinated actions in conversation mode. Previously the LLM would
+describe actions without executing. Now it can call tools directly via complete_with_tools.

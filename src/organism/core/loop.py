@@ -321,204 +321,195 @@ class CoreLoop:
                           steps=[step_log], duration=duration,
                           error=result.error if result.exit_code != 0 else "")
 
-    async def _classify_intent(self, task: str) -> str:
-        """Classify message as 'task' or 'chat' using Haiku LLM.
-
-        Fast pre-filter handles obvious cases without LLM call.
-        Returns 'chat' or 'task'.
-        """
-        t = task.strip()
-
-        # Pre-filter 1: /commands are always tasks
-        if t.startswith("/"):
-            return "task"
-
-        # Pre-filter 2: very short messages (\u22643 words, no digits) \u2014 classify as chat
-        # This avoids LLM cost for obvious greetings like "\u043f\u0440\u0438\u0432\u0435\u0442", "\u0441\u043f\u0430\u0441\u0438\u0431\u043e", "\u043f\u043e\u043a\u0430"
-        words = t.split()
-        if len(words) <= 3 and not any(c.isdigit() for c in t):
-            # But if it contains a known task file extension \u2014 it's a task
-            if any(ext in t.lower() for ext in ("xlsx", "csv", "pptx", "pdf", "docx")):
-                return "task"
-            return "chat"
-
-        # All other messages \u2014 ask Haiku
+    def _build_tool_definitions(self) -> list[dict]:
+        """Build Anthropic-format tool definitions from registry."""
         try:
-            from src.organism.llm.base import Message as LLMMessage
-            resp = await self.llm.complete(
-                messages=[LLMMessage(role="user", content=task)],
-                system=INTENT_CLASSIFIER_PROMPT,
-                model_tier="fast",
-                max_tokens=5,
-            )
-            result = resp.content.strip().upper()
-            return "chat" if result == "CHAT" else "task"
+            return self.registry.to_json_schema()
         except Exception:
-            # Graceful degradation: if LLM fails, assume task (safer than dropping user request)
-            return "task"
+            return []
 
-    async def _handle_conversation(self, task_id: str, task: str, user_context: str = "", user_id: str = "default", media: list | None = None) -> "TaskResult":
-        """Handle conversational messages with a direct LLM response (no planning, no files)."""
+    async def _handle_conversation(
+        self, task_id: str, task: str,
+        user_context: str = "", user_id: str = "default",
+        media: list | None = None,
+    ) -> "TaskResult":
+        """Unified conversation+action handler (FIX-33).
+
+        LLM receives message + tools, decides itself whether to answer
+        directly or execute tools. No mode switching, no routing.
+        """
+        import json as _json
+        from src.organism.llm.base import Message as LLMMessage
+
         start = time.time()
-
         today = datetime.now().strftime("%d.%m.%Y")
 
-        # Build live system context from actual runtime state
-        tools_available = []
-        try:
-            tools_available = self.registry.list_all()
-        except Exception:
-            pass
-
-        scheduled_jobs = []
-        try:
-            if self.scheduler:
-                scheduled_jobs = [
-                    f"{j.name} ({'ON' if j.enabled else 'OFF'}, {j.schedule_type})"
-                    for j in self.scheduler.list_jobs()
-                ]
-        except Exception:
-            pass
-
+        # --- Build context ---
         memory_available = self.memory is not None
 
-        live_context = (
-            f"Available tools right now: {', '.join(tools_available) if tools_available else 'basic set'}.\n"
-            f"Memory system: {'active (pgvector + PostgreSQL)' if memory_available else 'unavailable'}.\n"
-            f"Scheduled jobs: {', '.join(scheduled_jobs) if scheduled_jobs else 'none configured'}.\n"
-        )
-
-        system = (
-            "You are Organism AI \u2014 a knowledgeable, thoughtful AI assistant and executor. "
-            "Today: " + today + ".\n\n"
-            "## How you communicate\n"
-            "- Think out loud when the question is interesting or complex\n"
-            "- Be direct and honest, including when you're uncertain\n"
-            "- Match the user's tone: casual if they're casual, precise if they're precise\n"
-            "- Give concrete, useful answers \u2014 not generic platitudes\n"
-            "- When you have relevant knowledge, share it fully\n"
-            "- Ask at most one clarifying question if you genuinely need it\n\n"
-            "## What makes you special\n"
-            "Beyond conversation, you can actually execute tasks: create Excel files, "
-            "generate reports, search the web, analyze data, build presentations. "
-            "You have memory of past work with this user. "
-            "When a user asks you to do something, you do it \u2014 not describe what you would do.\n\n"
-            "## Your capabilities right now\n"
-            + live_context +
-            "\n## Important\n"
-            "- Never pretend to create files in conversation \u2014 real tasks are executed separately\n"
-            "- If you're not sure about something, say so directly\n"
-            "- Respond in the same language as the user\n"
-        )
-        if user_context:
-            system += f"\n\n## What you know about this user\n{user_context}"
-
-        # FIX-28: Multi-query longterm memory search
+        # Longterm memory search
         longterm_context = ""
-        if self.memory and user_id != "default":
+        if self.memory:
             try:
-                # Extract key terms from the message using Haiku
-                from src.organism.llm.base import Message as LLMMessage
-                _kw_resp = await self.llm.complete(
-                    messages=[LLMMessage(role="user", content=task)],
-                    system=(
-                        "Extract 2-3 short search queries from the user message to find relevant past work. "
-                        "Return ONLY a JSON array of strings, nothing else. "
-                        'Example: ["excel salary", "salaries Russia", "\u0437\u0430\u0440\u043f\u043b\u0430\u0442\u044b \u0440\u0435\u0433\u0438\u043e\u043d\u044b"]'
-                    ),
-                    model_tier="fast",
-                    max_tokens=60,
-                )
-                import json as _json, re as _re
-                _kw_text = _kw_resp.content.strip()
-                _match = _re.search(r'\[.*?\]', _kw_text, _re.DOTALL)
-                queries = _json.loads(_match.group(0)) if _match else [task]
+                mem_result = await self.memory.on_task_start(task, user_id=user_id)
+                if mem_result and isinstance(mem_result, list) and len(mem_result) > 0:
+                    snippets = []
+                    for t_item in mem_result[:3]:
+                        snippets.append(
+                            f"- {t_item.get('task', '')[:100]}: {t_item.get('result', '')[:200]}"
+                        )
+                    if snippets:
+                        longterm_context = (
+                            "\u041f\u0430\u043c\u044f\u0442\u044c: \u043d\u0430\u0448\u043b\u0438 "
+                            "\u043f\u0440\u043e\u0448\u043b\u044b\u0435 \u0437\u0430\u0434\u0430\u0447\u0438:\n"
+                            + "\n".join(snippets)
+                        )
             except Exception:
-                queries = [task]
+                pass
 
-            # Search memory with each query, collect unique results
-            seen_ids = set()
-            all_similar = []
-            for q in queries[:3]:
-                try:
-                    results = await self.memory.on_task_start(q)
-                    for r in results:
-                        rid = r.get("task", "")[:50]
-                        if rid not in seen_ids:
-                            seen_ids.add(rid)
-                            all_similar.append(r)
-                except Exception:
-                    pass
+        # Chat history
+        chat_history_messages: list[LLMMessage] = []
+        if self.memory:
+            try:
+                recent = await self.memory.chat_history.get_recent(user_id, limit=10)
+                for msg in recent[-10:]:
+                    chat_history_messages.append(
+                        LLMMessage(role=msg["role"], content=msg["content"][:500])
+                    )
+            except Exception:
+                pass
 
-            if all_similar:
-                lines = []
-                for s in all_similar[:5]:  # top 5 unique results
-                    task_str = s.get("task", "")[:100]
-                    result_str = (s.get("result") or "")[:150].replace("\n", " ")
-                    lines.append(f"- Task: {task_str} \u2192 {result_str}")
-                longterm_context = (
-                    "Memory search already completed. You found these relevant past tasks:\n"
-                    + "\n".join(lines)
-                    + "\n\nUse this to answer the user's question directly. Don't say you will search \u2014 report what you found."
-                )
-            else:
-                longterm_context = "Memory search completed. No relevant past tasks found for this query."
-
+        # System prompt
+        system_parts = [
+            "You are Organism AI \u2014 an autonomous AI assistant with access to tools. "
+            "You can answer questions directly OR use tools to take real actions. "
+            f"Today: {today}.",
+            "\n## How you communicate",
+            "- Be direct and honest, match the user's tone",
+            "- When you have relevant knowledge, share it fully",
+            "- If a user asks you to do something and you have the right tool, use it",
+            "- Respond in the same language as the user",
+        ]
+        if user_context:
+            system_parts.append(f"\n{user_context}")
         if longterm_context:
-            system += f"\n\n{longterm_context}"
+            system_parts.append(f"\n{longterm_context}")
+        system = "\n".join(system_parts)
 
-        try:
-            from src.organism.llm.base import Message as LLMMessage
-
-            # HIST-1: Build messages list with recent chat history
-            messages = []
-            if self.memory and user_id != "default":
-                try:
-                    recent = await self.memory.chat_history.get_recent(user_id, limit=10)
-                    for msg in recent[-10:]:
-                        messages.append(LLMMessage(role=msg["role"], content=msg["content"][:500]))
-                except Exception:
-                    pass
-            # MEDIA-1: Build multimodal content for Vision API when media present
-            if media:
-                content_blocks = []
-                for item in media:
+        # --- Build messages ---
+        if media:
+            content_blocks = []
+            for m in media:
+                if m.get("type") == "image" or m.get("data"):
                     content_blocks.append({
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": item.get("media_type", "image/jpeg"),
-                            "data": item["data"],
-                        },
+                            "media_type": m.get("media_type", "image/jpeg"),
+                            "data": m["data"],
+                        }
                     })
+            if task:
                 content_blocks.append({"type": "text", "text": task})
-                messages.append(LLMMessage(role="user", content=content_blocks))
-            else:
-                messages.append(LLMMessage(role="user", content=task))
+            current_message = LLMMessage(role="user", content=content_blocks)
+        else:
+            current_message = LLMMessage(role="user", content=task)
 
-            resp = await self.llm.complete(
-                messages=messages,
-                system=system,
-                model_tier="balanced",
-                max_tokens=2000,
-            )
-            answer = resp.content.strip()
+        messages = chat_history_messages + [current_message]
+
+        # --- Tool definitions ---
+        tool_defs = self._build_tool_definitions()
+
+        # --- First LLM call ---
+        try:
+            if tool_defs:
+                response = await self.llm.complete_with_tools(
+                    messages=messages,
+                    tools=tool_defs,
+                    system=system,
+                    model_tier="balanced",
+                    max_tokens=2000,
+                )
+            else:
+                response = await self.llm.complete(
+                    messages=messages,
+                    system=system,
+                    model_tier="balanced",
+                    max_tokens=2000,
+                )
         except Exception as e:
-            # FIX-10: Monitor conversation handler failures
+            log_exception(_log, f"[{task_id}] Conversation LLM call failed", e)
+            answer = "\u041f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437."
+            return TaskResult(task_id=task_id, task=task, success=False,
+                              output=answer, answer=answer,
+                              duration=time.time() - start)
+
+        # --- Handle tool calls (max 3 rounds) ---
+        MAX_TOOL_ROUNDS = 3
+        round_count = 0
+
+        while response.has_tool_calls and round_count < MAX_TOOL_ROUNDS:
+            round_count += 1
+
+            # Execute each tool call
+            tool_results_content = []
+            assistant_content = []
+
+            if response.content:
+                assistant_content.append({"type": "text", "text": response.content})
+
+            for tc in response.tool_calls:
+                tool_name = tc.get("name", "")
+                tool_input = tc.get("input", {})
+                tool_use_id = tc.get("id", "")
+
+                assistant_content.append({
+                    "type": "tool_use",
+                    "id": tool_use_id,
+                    "name": tool_name,
+                    "input": tool_input,
+                })
+
+                _log.info(f"[{task_id}] Conversation tool call: {tool_name}({str(tool_input)[:80]})")
+
+                tool_output = ""
+                try:
+                    tool = self.registry.get(tool_name)
+                    result = await tool.execute(tool_input)
+                    tool_output = result.output if result.exit_code == 0 else f"Error: {result.error}"
+                except Exception as e:
+                    tool_output = f"Tool error: {e}"
+
+                tool_results_content.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_use_id,
+                    "content": tool_output[:3000],
+                })
+
+            # Continue conversation with tool results
+            messages = messages + [
+                LLMMessage(role="assistant", content=assistant_content),
+                LLMMessage(role="user", content=tool_results_content),
+            ]
+
             try:
-                from src.organism.monitoring.error_notifier import capture_error
-                asyncio.ensure_future(capture_error(
-                    component="core.loop.conversation",
-                    message=f"Conversation handler failed: {e}",
-                    exception=e,
-                    task_text=task[:500],
-                ))
-            except Exception:
-                pass
-            answer = "\u041f\u0440\u0438\u0432\u0435\u0442! \u042f Organism AI. \u041e\u0442\u043f\u0440\u0430\u0432\u044c \u043c\u043d\u0435 \u0437\u0430\u0434\u0430\u0447\u0443 \u0438 \u044f \u043f\u043e\u043c\u043e\u0433\u0443."
+                response = await self.llm.complete_with_tools(
+                    messages=messages,
+                    tools=tool_defs,
+                    system=system,
+                    model_tier="balanced",
+                    max_tokens=2000,
+                )
+            except Exception as e:
+                log_exception(_log, f"[{task_id}] Tool round {round_count} failed", e)
+                break
+
+        answer = response.content.strip() if response.content else \
+            "\u0413\u043e\u0442\u043e\u0432\u043e."
 
         duration = time.time() - start
-        _log.info(f"[{task_id}] Conversational response in {duration:.1f}s")
+        _log.info(f"[{task_id}] Unified handler: {round_count} tool rounds, {duration:.1f}s")
+
         return TaskResult(
             task_id=task_id, task=task, success=True,
             output=answer, answer=answer,
@@ -549,10 +540,8 @@ class CoreLoop:
         if media:
             return await self._handle_conversation(task_id, task, user_id=user_id, media=media)
 
-        # Q-9.0: LLM-based intent classification (replaces keyword matching)
-        _intent = await self._classify_intent(task)
-        if _intent == "chat":
-            return await self._handle_conversation(task_id, task, user_id=user_id)
+        # FIX-33: classification removed — all non-media messages go through planner path
+        # _handle_conversation (with tools) is used for media and FIX-16 fallback only
 
         if self.memory:
             try:
