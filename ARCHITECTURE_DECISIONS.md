@@ -745,3 +745,19 @@ Use plain text only. Structure with line breaks and emoji if needed."
 Exception for file creation (Excel, Word, PDF) where internal formatting is fine.
 
 Files changed: `core/loop.py`.
+
+## FIX-38: Sandbox reads previously created files
+
+**Problem**: `code_executor` sandbox mounts only a temp dir as `/sandbox` (ro) and
+a temp `/output` (rw). Files in `data/outputs/` on the host are invisible inside
+the container. When agent tries to read a previously created file (e.g. to update
+an Excel), it gets `FileNotFoundError`.
+
+**Solution**: Mount `data/outputs/` as an additional read-only volume at `/data/outputs/`
+inside the container. Agent can now read existing files at `/data/outputs/filename.xlsx`
+and write updated versions to `/output/` as before.
+
+**Safety**: Mount is read-only — sandbox cannot modify or delete existing files.
+Tool description updated to inform LLM about the `/data/outputs/` path.
+
+Files changed: `tools/code_executor.py`.

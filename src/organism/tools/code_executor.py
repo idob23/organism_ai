@@ -28,7 +28,8 @@ class CodeExecutorTool(BaseTool):
         return (
             "Execute Python code in an isolated Docker sandbox. "
             "Use for calculations, data processing, file operations, scripting. "
-            "Output via print(). NO internet access inside sandbox."
+            "Output via print(). NO internet access inside sandbox. "
+            "Previously created files are available at /data/outputs/ (read-only)."
         )
 
     @property
@@ -141,6 +142,10 @@ class CodeExecutorTool(BaseTool):
             with open(code_path, "w", encoding="utf-8") as f:
                 f.write(code)
 
+            # FIX-38: mount data/outputs so sandbox can read previously created files
+            outputs_dir = os.path.join(os.getcwd(), "data", "outputs")
+            os.makedirs(outputs_dir, exist_ok=True)
+
             container = self._client.containers.run(
                 image=self.SANDBOX_IMAGE,
                 command=["python", "/sandbox/code.py"],
@@ -151,6 +156,7 @@ class CodeExecutorTool(BaseTool):
                 volumes={
                     tmp_dir: {"bind": "/sandbox", "mode": "ro"},
                     output_dir: {"bind": "/output", "mode": "rw"},
+                    outputs_dir: {"bind": "/data/outputs", "mode": "ro"},
                 },
                 working_dir="/output",
                 detach=True,
