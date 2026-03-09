@@ -135,6 +135,9 @@ class TelegramChannel(BaseChannel):
                     fname = os.path.basename(file_path)
                     is_binary = file_path.lower().endswith(BINARY_EXTENSIONS)
 
+                    # FIX-40: caption for file attachments
+                    _caption = (response.caption or "")[:1024] or None
+
                     if is_binary:
                         await status_msg.edit_text(
                             f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
@@ -143,6 +146,7 @@ class TelegramChannel(BaseChannel):
                         try:
                             await message.answer_document(
                                 FSInputFile(file_path, filename=fname),
+                                caption=_caption,
                             )
                         finally:
                             try:
@@ -278,6 +282,9 @@ class TelegramChannel(BaseChannel):
                     fname = os.path.basename(file_path)
                     is_binary = file_path.lower().endswith(BINARY_EXTENSIONS)
 
+                    # FIX-40: caption for file attachments
+                    _caption = (response.caption or "")[:1024] or None
+
                     if is_binary:
                         await status_msg.edit_text(
                             f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
@@ -286,6 +293,7 @@ class TelegramChannel(BaseChannel):
                         try:
                             await message.answer_document(
                                 FSInputFile(file_path, filename=fname),
+                                caption=_caption,
                             )
                         finally:
                             try:
@@ -476,6 +484,9 @@ class TelegramChannel(BaseChannel):
                     file_path = response.text
                     fname = os.path.basename(file_path)
                     is_binary = file_path.lower().endswith(BINARY_EXTENSIONS)
+                    # FIX-40: caption for file attachments
+                    _caption = (response.caption or "")[:1024] or None
+
                     if is_binary:
                         await status_msg.edit_text(
                             f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}\n\n"
@@ -484,6 +495,7 @@ class TelegramChannel(BaseChannel):
                         try:
                             await message.answer_document(
                                 FSInputFile(file_path, filename=fname),
+                                caption=_caption,
                             )
                         finally:
                             try:
@@ -654,8 +666,10 @@ class TelegramChannel(BaseChannel):
         try:
             if message.is_file:
                 fname = os.path.basename(message.text)
+                _caption = (message.caption or "")[:1024] or None
                 await self.bot.send_document(
                     chat_id, FSInputFile(message.text, filename=fname),
+                    caption=_caption,
                 )
             else:
                 # FIX-3: Try Markdown, fallback to plain text

@@ -20,6 +20,7 @@ class OutgoingMessage:
     channel: str
     is_file: bool = False   # if True, text contains file path
     metadata: dict = field(default_factory=dict)
+    caption: str = ""   # FIX-40: caption for file attachments (Telegram)
 
 
 class BaseChannel(ABC):

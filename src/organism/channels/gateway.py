@@ -139,7 +139,10 @@ class Gateway:
             if os.path.exists(candidate) and candidate.endswith(
                 (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py", ".pdf")
             ):
-                return self._prepare_file_response(candidate, user_id, channel, metadata)
+                # FIX-40: text before "Saved files:" is the agent's caption
+                lines_before = stripped[:_saved_match.start()].strip()
+                caption = lines_before[:1000] if lines_before else ""
+                return self._prepare_file_response(candidate, user_id, channel, metadata, caption=caption)
 
         # Detect file paths in output
         _file_exts = (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py", ".pdf")
@@ -184,6 +187,7 @@ class Gateway:
         user_id: str,
         channel: str,
         metadata: dict,
+        caption: str = "",
     ) -> OutgoingMessage:
         """Read a file and decide: inline text or .txt attachment."""
         try:
@@ -192,7 +196,7 @@ class Gateway:
         except Exception:
             return OutgoingMessage(
                 text=file_path, user_id=user_id, channel=channel,
-                is_file=True, metadata=metadata,
+                is_file=True, metadata=metadata, caption=caption,
             )
 
         if len(content) <= self._TEXT_LIMIT:
@@ -216,7 +220,7 @@ class Gateway:
                 pass  # keep .md if rename fails
         return OutgoingMessage(
             text=file_path, user_id=user_id, channel=channel,
-            is_file=True, metadata=metadata,
+            is_file=True, metadata=metadata, caption=caption,
         )
 
     async def send_to_channel(self, msg: OutgoingMessage) -> None:
