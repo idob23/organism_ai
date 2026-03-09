@@ -775,3 +775,30 @@ save updated files back to `/data/outputs/` — which is read-only. File never w
    path rules and an update-existing-file example
 
 Files changed: `tools/code_executor.py`, `config/skills/excel.md`.
+
+## FIX-41: Decomposer signature mismatch
+
+**Problem**: `TaskDecomposer.run()` passes `user_context` to `loop.run()`, but `run()`
+did not accept it as a parameter. The context built from memory (user facts, personality,
+chat history, few-shot examples) was always rebuilt from scratch for each subtask instead
+of reusing the one already prepared by the parent `run()` call.
+
+**Solution**: Added `user_context: str = ""` to `CoreLoop.run()` signature. When a
+non-empty `user_context` is passed (from decomposer), the memory facts fetch is skipped
+(`if not user_context:`). Personality, chat history, and few-shot are still appended
+since they extend rather than replace.
+
+Files changed: `core/loop.py`.
+
+## FIX-43: Epistemic honesty in system prompt
+
+**Problem**: LLM sometimes fabricated explanations for failures it hadn't observed —
+e.g. "file didn't attach" when it actually received and read the file. This erodes
+user trust.
+
+**Solution**: Added an "Epistemic honesty" section to `_handle_conversation` system
+prompt. Instructs the LLM to only describe what it actually observed (tool results,
+chat history, user context) and never invent unseen causes. Includes concrete examples
+of honest vs dishonest answers.
+
+Files changed: `core/loop.py`.

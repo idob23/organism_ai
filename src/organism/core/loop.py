@@ -301,6 +301,13 @@ class CoreLoop:
             "- FORMATTING: Never use Markdown. No ##, no ---, no |tables|, no **bold**, no ```code blocks``` in text responses. "
             "Use plain text only. Structure with line breaks and emoji if needed. "
             "Exception: when creating actual files (Excel, Word, PDF) \u2014 formatting inside files is fine.",
+            "\n## Epistemic honesty",
+            "\u0422\u044b \u0437\u043d\u0430\u0435\u0448\u044c \u0442\u043e\u043b\u044c\u043a\u043e \u0442\u043e, \u0447\u0442\u043e \u0440\u0435\u0430\u043b\u044c\u043d\u043e \u0432\u0438\u0434\u0435\u043b: \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u044b \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432, \u0438\u0441\u0442\u043e\u0440\u0438\u044e \u0447\u0430\u0442\u0430, "
+            "\u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f. \u0415\u0441\u043b\u0438 \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 \u0432\u0435\u0440\u043d\u0443\u043b \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u2014 \u043e\u043f\u0438\u0441\u044b\u0432\u0430\u0439 \u0438\u043c\u0435\u043d\u043d\u043e \u0435\u0433\u043e, "
+            "\u0434\u0430\u0436\u0435 \u0435\u0441\u043b\u0438 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043d\u0435\u043e\u0436\u0438\u0434\u0430\u043d\u043d\u044b\u0439. \u041d\u0438\u043a\u043e\u0433\u0434\u0430 \u043d\u0435 \u043e\u0431\u044a\u044f\u0441\u043d\u044f\u0439 \u043d\u0435\u0443\u0434\u0430\u0447\u0443 \u043f\u0440\u0438\u0447\u0438\u043d\u0430\u043c\u0438, \u043a\u043e\u0442\u043e\u0440\u044b\u0435 "
+            "\u0442\u044b \u043d\u0435 \u043d\u0430\u0431\u043b\u044e\u0434\u0430\u043b \u0432 \u044d\u0442\u043e\u043c \u0440\u0430\u0437\u0433\u043e\u0432\u043e\u0440\u0435. \u041f\u0440\u0438\u043c\u0435\u0440 \u0447\u0435\u0441\u0442\u043d\u043e\u0433\u043e \u043e\u0442\u0432\u0435\u0442\u0430: '\u041e\u0442\u043a\u0440\u044b\u043b \u0444\u0430\u0439\u043b \u2014 \u044d\u0442\u043e "
+            "HTML-\u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u0431\u0435\u0437 \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u044f, \u043f\u0440\u0438\u0448\u043b\u0438 JPG \u0438\u043b\u0438 PNG.' \u041f\u0440\u0438\u043c\u0435\u0440 \u043d\u0435\u0447\u0435\u0441\u0442\u043d\u043e\u0433\u043e: "
+            "'\u0424\u0430\u0439\u043b \u043d\u0435 \u043f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u043b\u0441\u044f' \u2014 \u0435\u0441\u043b\u0438 \u0442\u044b \u0435\u0433\u043e \u0440\u0435\u0430\u043b\u044c\u043d\u043e \u043f\u043e\u043b\u0443\u0447\u0438\u043b \u0438 \u0447\u0438\u0442\u0430\u043b.",
         ]
         if skill_context:
             system_parts.append(f"\n## How to create this file\n{skill_context}")
@@ -468,7 +475,7 @@ class CoreLoop:
             duration=duration, quality_score=1.0,
         )
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None) -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "") -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -479,7 +486,6 @@ class CoreLoop:
 
         memory_hits = 0
         memory_context = ""
-        user_context = ""
 
         # FIX-24: Initialize memory BEFORE intent classification — needed for chat history in both paths
         if self.memory:
@@ -512,13 +518,14 @@ class CoreLoop:
                     memory_context = "\n".join(lines)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
-            try:
-                user_facts = await self.memory.facts.get_all_facts(user_id=user_id)
-                user_context = format_for_prompt(user_facts)
-                if user_context and verbose:
-                    print(f"User context: {user_context}")
-            except Exception:
-                pass
+            if not user_context:
+                try:
+                    user_facts = await self.memory.facts.get_all_facts(user_id=user_id)
+                    user_context = format_for_prompt(user_facts)
+                    if user_context and verbose:
+                        print(f"User context: {user_context}")
+                except Exception:
+                    pass
 
         if self.personality:
             personality_addition = self.personality.get_system_prompt_addition()
