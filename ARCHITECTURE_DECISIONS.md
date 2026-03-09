@@ -713,3 +713,23 @@ and injects content into `_handle_conversation` system prompt as `skill_context`
 "## How to create this file" section. Graceful degradation: any failure = empty string.
 
 Files changed: `sandbox/Dockerfile`, `config/skills/*.md`, `core/skill_matcher.py`, `core/loop.py`.
+
+## FIX-36: File delivery from _handle_conversation
+
+**Problem**: Tools output "Saved files: filename.xlsx" but the LLM rewrites this as prose
+in its final answer. Gateway's `_prepare_output()` never sees the pattern, so files are
+described in text but never sent as Telegram attachments.
+
+**Solution**: Track `created_files` during tool execution in `_handle_conversation`.
+After each tool call, regex-scan `tool_output` for `Saved files: <filename>`.
+After the agentic loop ends, append `\nSaved files: {last_file}` to the answer.
+Gateway already has detection logic (FIX-23) that picks up this pattern and sends
+the file as a binary attachment.
+
+**Key details**:
+- `created_files: list[str]` initialized alongside `all_tool_calls`
+- Only the last file is appended (most complete result in multi-file scenarios)
+- Gateway's `os.path.exists()` check handles missing files gracefully
+- No changes to gateway.py or telegram.py needed
+
+Files changed: `core/loop.py`.

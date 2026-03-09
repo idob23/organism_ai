@@ -361,6 +361,7 @@ class CoreLoop:
         MAX_TOOL_ROUNDS = 7
         round_count = 0
         all_tool_calls: list[dict] = []
+        created_files: list[str] = []  # FIX-36: track files for gateway delivery
 
         while response.has_tool_calls and round_count < MAX_TOOL_ROUNDS:
             round_count += 1
@@ -396,6 +397,12 @@ class CoreLoop:
                 except Exception as e:
                     tool_output = f"Tool error: {e}"
 
+                # FIX-36: Track created files for gateway delivery
+                import re as _re
+                _saved_match = _re.search(r'Saved files:\s*(\S+)', tool_output)
+                if _saved_match:
+                    created_files.append(_saved_match.group(1).strip())
+
                 tool_results_content.append({
                     "type": "tool_result",
                     "tool_use_id": tool_use_id,
@@ -422,6 +429,10 @@ class CoreLoop:
 
         answer = response.content.strip() if response.content else \
             "\u0413\u043e\u0442\u043e\u0432\u043e."
+
+        # FIX-36: Append file marker so gateway can detect and send the file
+        if created_files:
+            answer = answer + f"\nSaved files: {created_files[-1]}"
 
         duration = time.time() - start
         _log.info(f"[{task_id}] Handler: {round_count} tool rounds, {duration:.1f}s")
