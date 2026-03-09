@@ -4,15 +4,6 @@ from typing import Any
 from .base import BaseTool, ToolResult
 
 
-# Sites that consistently block or misbehave
-BLOCKED_DOMAINS = [
-    "statista.com", "g2.com", "forbes.com",
-    "gartner.com", "capterra.com", "trustradius.com",
-    "fasie.ru",         # FIX-5: blocks bot requests
-    "grants.gov.ru",    # FIX-5: gov sites block bots
-]
-
-
 class WebFetchTool(BaseTool):
 
     @property
@@ -25,7 +16,7 @@ class WebFetchTool(BaseTool):
             "Fetch and parse content from a specific URL. "
             "Use when you have an exact URL to retrieve. "
             "Returns cleaned text content. "
-            "Note: some sites (g2.com, statista.com, forbes.com) block bots  use web_search instead."
+            "Some sites may block bots (403/429) \u2014 if that happens, use web_search instead."
         )
 
     @property
@@ -42,15 +33,6 @@ class WebFetchTool(BaseTool):
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         url: str = input["url"]
         max_chars: int = input.get("max_chars", 3000)
-
-        # Check blocked domains — FIX-6: exit_code=1 so step is marked as failed
-        for blocked in BLOCKED_DOMAINS:
-            if blocked in url:
-                return ToolResult(
-                    output="",
-                    error=f"Domain blocked: {blocked}. Use web_search instead.",
-                    exit_code=1,
-                )
 
         try:
             async with httpx.AsyncClient(

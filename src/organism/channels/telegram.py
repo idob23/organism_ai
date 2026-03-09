@@ -410,9 +410,22 @@ class TelegramChannel(BaseChannel):
                             )
                             return
                     else:
-                        # Non-image document — just mention filename in task
+                        # FIX-45: Universal document handling — try to read as text
                         fname = doc.file_name or "document"
-                        task = f"[{fname}] {task}"
+                        try:
+                            file = await self.bot.get_file(doc.file_id)
+                            buf = io.BytesIO()
+                            await self.bot.download_file(file.file_path, buf)
+                            raw = buf.getvalue()
+                            text_content = raw.decode("utf-8", errors="replace")
+                            if "\x00" not in text_content:
+                                # Readable text document
+                                snippet = text_content[:8000]
+                                task = f"[{fname}]\n{snippet}\n\n{task}"
+                            else:
+                                task = f"[{fname}] {task}"
+                        except Exception:
+                            task = f"[{fname}] {task}"
 
                 elif message.video:
                     # Extract frames via ffmpeg

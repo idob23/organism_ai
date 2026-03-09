@@ -816,3 +816,41 @@ rounds for genuinely complex tasks. `TaskDecomposer` class and `decomposer.py` a
 kept intact for future orchestrator use.
 
 Files changed: `core/loop.py`.
+
+## FIX-45: Universal document handling in Telegram
+
+**Problem**: Non-image, non-PDF documents sent to the Telegram bot (e.g. `.html`,
+`.json`, `.csv`, `.txt`) were handled by only prepending the filename to the task.
+The agent never saw the file content.
+
+**Solution**: Download the document into BytesIO, attempt `decode("utf-8", errors="replace")`.
+If the result contains no null bytes (`\x00`), treat it as readable text and inject
+the first 8000 characters into the task string. Binary files fall back to filename-only.
+Everything wrapped in try/except with the old behavior as fallback.
+
+Files changed: `channels/telegram.py`.
+
+## FIX-47: Remove BLOCKED_DOMAINS from web_fetch
+
+**Problem**: A hardcoded blocklist in `web_fetch.py` prevented fetching from specific
+domains (g2.com, statista.com, forbes.com, etc.). This was over-protective — the agent
+should see real HTTP responses and decide itself how to proceed.
+
+**Solution**: Removed `BLOCKED_DOMAINS` constant and the pre-request check. The existing
+HTTP error handling (403/404/429 → `exit_code=1` with descriptive message) gives the
+agent honest feedback. Updated tool description to mention that some sites may block bots.
+
+Files changed: `tools/web_fetch.py`.
+
+## FIX-48: LLM-based cache time-sensitivity gate
+
+**Problem**: A keyword heuristic (`any(w in task.lower() for w in [...])`) decided
+whether to skip the solution cache. This missed nuanced cases (e.g. "latest best
+practices" should cache, "current gold price" should not) and triggered false positives.
+
+**Solution**: Replace keywords with a Haiku LLM call: "Does this task require real-time
+or current data that would be wrong if cached? Reply only: yes or no." Costs ~5 tokens,
+adds minimal latency. Graceful fallback: if Haiku fails or times out,
+`_time_sensitive = True` (skip cache — safer than serving stale data).
+
+Files changed: `core/loop.py`.

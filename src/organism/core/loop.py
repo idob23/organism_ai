@@ -559,12 +559,19 @@ class CoreLoop:
                 pass
 
         # L1 Solution Cache — check before planning/fast-path
-        # Skip cache for time-sensitive queries
-        _time_sensitive = any(w in task.lower() for w in [
-            "\u0442\u0435\u043a\u0443\u0449", "\u0430\u043a\u0442\u0443\u0430\u043b",  # текущ, актуал
-            "\u0441\u0435\u0439\u0447\u0430\u0441", "\u0441\u0435\u0433\u043e\u0434\u043d",  # сейчас, сегодн
-            "\u0441\u0432\u0435\u0436", "now", "current", "today", "latest",
-        ])
+        # FIX-48: LLM-based time-sensitivity check (replaces keyword heuristic)
+        _time_sensitive = True  # safe default — skip cache
+        try:
+            from src.organism.llm.base import Message as _TSMsg
+            _ts_resp = await self.llm.complete(
+                messages=[_TSMsg(role="user", content=task[:300])],
+                system="Does this task require real-time or current data that would be wrong if cached? Reply only: yes or no.",
+                model_tier="fast",
+                max_tokens=5,
+            )
+            _time_sensitive = "yes" in _ts_resp.content.strip().lower()
+        except Exception:
+            _time_sensitive = True  # on error, skip cache (safer)
         cache_hash: str | None = None
         canonical_task: str | None = None
         if self.memory and not _time_sensitive:
