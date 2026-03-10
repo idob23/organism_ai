@@ -495,7 +495,7 @@ class CoreLoop:
         if self.memory:
             try:
                 await self.memory.chat_history.save_message(user_id, "user", task[:1000])
-                await self.memory.chat_history.save_message(user_id, "assistant", answer[:1000])
+                await self.memory.chat_history.save_message(user_id, "assistant", answer[:3000])
             except Exception:
                 pass
 
@@ -540,7 +540,7 @@ class CoreLoop:
                         tools = s.get("tools_used") or []
                         tool_str = ", ".join(tools) if tools else "unknown"
                         task_str = s.get("task", "")[:70]
-                        result_str = (s.get("result") or "")[:80].replace("\n", " ")
+                        result_str = (s.get("result") or "")[:1000].replace("\n", " ")
                         line = f"- [{tool_str}] {task_str}"
                         if result_str:
                             line += f" -> {result_str}"
@@ -568,9 +568,9 @@ class CoreLoop:
                 recent = await self.memory.chat_history.get_recent(user_id, limit=10)
                 if recent:
                     lines = []
-                    for msg in recent[-6:]:  # last 6 messages (3 user/assistant pairs)
+                    for msg in recent[-20:]:
                         prefix = "User" if msg["role"] == "user" else "Assistant"
-                        lines.append(f"{prefix}: {msg['content'][:200]}")
+                        lines.append(f"{prefix}: {msg['content'][:1000]}")
                     chat_context = "\n".join(lines)
                     user_context += f"\n\nRecent conversation:\n{chat_context}"
             except Exception:
