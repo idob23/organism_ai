@@ -887,3 +887,18 @@ Performance: eliminates ~2-3s container startup overhead per code_executor call.
 Multi-step tasks see ~3x speedup on code execution phases.
 
 Files changed: `tools/code_executor.py`.
+
+## FIX-57c: fpdf2 replaces reportlab for PDF creation
+
+**Problem**: reportlab requires manual TTFont registration for Cyrillic. On Windows
+the system DejaVuSans paths don't exist, so fallback to Helvetica renders all
+Cyrillic as squares. Font path resolution was fragile across OS environments.
+
+**Solution**: Replace reportlab with fpdf2 (`pip install fpdf2`). fpdf2 supports
+Unicode natively via `add_font()` with TTF files. DejaVuSans bundled in
+`config/fonts/` (committed to repo). Font loading: bundled first, then system
+paths, then Helvetica fallback. All `multi_cell()` calls use explicit
+`new_x="LMARGIN", new_y="NEXT"` to prevent cursor position bugs. PDF creation
+runs in executor thread via `run_in_executor`. Read path unchanged (PyPDF2).
+
+Files changed: `tools/pdf_tool.py`, `pyproject.toml`, `config/fonts/*.ttf`.

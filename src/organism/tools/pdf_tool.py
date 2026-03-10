@@ -1,13 +1,68 @@
-"""TOOL-1: PDF creation and reading tool."""
+"""TOOL-1: PDF creation and reading tool (FIX-57c: fpdf2 for Unicode)."""
 from __future__ import annotations
 
-import io
+import asyncio
 from pathlib import Path
 from typing import Any
 
 from .base import BaseTool, ToolResult, OUTPUTS_DIR
 
-_FONTS_DIR = Path(__file__).parent.parent.parent / "config" / "fonts"
+_FONTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config" / "fonts"
+
+
+def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) -> None:
+    """Synchronous PDF creation via fpdf2."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.set_margin(20)
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+
+    # FIX-57c: DejaVuSans for Cyrillic, Helvetica fallback
+    font_name = "Helvetica"
+    try:
+        regular = _FONTS_DIR / "DejaVuSans.ttf"
+        bold = _FONTS_DIR / "DejaVuSans-Bold.ttf"
+        if regular.exists() and bold.exists():
+            pdf.add_font("DejaVu", fname=str(regular))
+            pdf.add_font("DejaVu", style="B", fname=str(bold))
+            font_name = "DejaVu"
+    except Exception:
+        font_name = "Helvetica"
+
+    _mc = dict(w=0, new_x="LMARGIN", new_y="NEXT")
+
+    # Title
+    if title:
+        pdf.set_font(font_name, style="B", size=16)
+        pdf.set_text_color(30, 58, 95)  # #1E3A5F
+        pdf.multi_cell(**_mc, h=10, text=title, align="C")
+        pdf.ln(5)
+
+    # Body
+    pdf.set_font(font_name, size=11)
+    pdf.set_text_color(0, 0, 0)
+
+    for line in content.split("\n"):
+        line = line.strip()
+        if not line:
+            pdf.ln(4)
+            continue
+        if line.startswith("## "):
+            pdf.set_font(font_name, style="B", size=13)
+            pdf.multi_cell(**_mc, h=8, text=line[3:])
+            pdf.set_font(font_name, size=11)
+        elif line.startswith("# "):
+            pdf.set_font(font_name, style="B", size=15)
+            pdf.multi_cell(**_mc, h=10, text=line[2:])
+            pdf.set_font(font_name, size=11)
+        elif line.startswith("- ") or line.startswith("* "):
+            pdf.multi_cell(**_mc, h=7, text=f"\u2022 {line[2:]}")
+        else:
+            pdf.multi_cell(**_mc, h=7, text=line)
+
+    pdf.output(str(out_path))
 
 
 class PdfTool(BaseTool):
@@ -65,110 +120,17 @@ class PdfTool(BaseTool):
             return ToolResult(output="", error=f"Unknown action: {action}", exit_code=1)
 
     async def _create_pdf(self, filename: str, content: str, title: str) -> ToolResult:
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.units import cm
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-            from reportlab.lib.enums import TA_LEFT
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
-        except ImportError:
-            return ToolResult(
-                output="",
-                error="Install reportlab: pip install reportlab",
-                exit_code=1,
-            )
-
         if not filename.endswith(".pdf"):
             filename += ".pdf"
 
         out_path = OUTPUTS_DIR / filename
 
         try:
-            # FIX-57b: Register DejaVuSans for Cyrillic (bundled first, then system)
-            FONT_NAME = "DejaVuSans"
-            FONT_BOLD = "DejaVuSans-Bold"
-            _bundled = (_FONTS_DIR / "DejaVuSans.ttf", _FONTS_DIR / "DejaVuSans-Bold.ttf")
-            _system_paths = [
-                ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-            ]
-            font_registered = False
-            candidates = [_bundled] + [tuple(Path(p) for p in pair) for pair in _system_paths]
-            for regular, bold in candidates:
-                if Path(regular).exists() and Path(bold).exists():
-                    pdfmetrics.registerFont(TTFont(FONT_NAME, str(regular)))
-                    pdfmetrics.registerFont(TTFont(FONT_BOLD, str(bold)))
-                    font_registered = True
-                    break
-            if not font_registered:
-                FONT_NAME = "Helvetica"
-                FONT_BOLD = "Helvetica-Bold"
-
-            doc = SimpleDocTemplate(
-                str(out_path),
-                pagesize=A4,
-                rightMargin=2 * cm,
-                leftMargin=2 * cm,
-                topMargin=2 * cm,
-                bottomMargin=2 * cm,
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None, _create_pdf_sync, filename, content, title, out_path,
             )
-
-            styles = getSampleStyleSheet()
-            story = []
-
-            if title:
-                title_style = ParagraphStyle(
-                    "CustomTitle",
-                    parent=styles["Title"],
-                    fontName=FONT_BOLD,
-                    fontSize=16,
-                    spaceAfter=20,
-                )
-                story.append(Paragraph(title, title_style))
-                story.append(Spacer(1, 0.5 * cm))
-
-            body_style = ParagraphStyle(
-                "CustomBody",
-                parent=styles["Normal"],
-                fontName=FONT_NAME,
-                fontSize=11,
-                leading=16,
-                spaceAfter=8,
-            )
-
-            for line in content.split("\n"):
-                line = line.strip()
-                if not line:
-                    story.append(Spacer(1, 0.3 * cm))
-                    continue
-                # Basic markdown: ## headers
-                if line.startswith("## "):
-                    h_style = ParagraphStyle(
-                        "H2", parent=styles["Heading2"],
-                        fontName=FONT_BOLD, fontSize=13,
-                    )
-                    story.append(Paragraph(line[3:], h_style))
-                elif line.startswith("# "):
-                    h_style = ParagraphStyle(
-                        "H1", parent=styles["Heading1"],
-                        fontName=FONT_BOLD, fontSize=15,
-                    )
-                    story.append(Paragraph(line[2:], h_style))
-                elif line.startswith("- ") or line.startswith("* "):
-                    bullet_style = ParagraphStyle(
-                        "Bullet", parent=styles["Normal"],
-                        fontName=FONT_NAME,
-                        fontSize=11, leftIndent=20, spaceAfter=4,
-                    )
-                    story.append(Paragraph(f"\u2022 {line[2:]}", bullet_style))
-                else:
-                    story.append(Paragraph(line, body_style))
-
-            doc.build(story)
             return ToolResult(output=f"Saved files: {filename}")
-
         except Exception as e:
             return ToolResult(output="", error=f"PDF creation failed: {e}", exit_code=1)
 
