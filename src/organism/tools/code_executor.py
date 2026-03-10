@@ -190,7 +190,7 @@ class CodeExecutorTool(BaseTool):
             try:
                 return self._run_warm(code)
             except Exception as e:
-                _log.debug("Warm exec failed, falling back to cold: %s", e)
+                _log.warning("Warm exec failed (falling back to cold): %s", e)
         return self._run_cold(code, domains)
 
     def _run_warm(self, code: str) -> ToolResult:
@@ -224,6 +224,9 @@ class CodeExecutorTool(BaseTool):
             )
             stdout = (output[0] or b"").decode("utf-8", errors="replace").strip()
             stderr = (output[1] or b"").decode("utf-8", errors="replace").strip()
+            # FIX-52: Log warm exec result for debugging
+            _log.warning("Warm exec: exit=%s stdout=%r stderr=%r",
+                exit_code, stdout[:150], stderr[:150])
 
             # exit code 124 = timeout killed the process
             if exit_code == 124:

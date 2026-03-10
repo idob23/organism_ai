@@ -404,9 +404,9 @@ class CoreLoop:
                     tool = self.registry.get(tool_name)
                     result = await tool.execute(tool_input)
                     tool_output = result.output if result.exit_code == 0 else f"Error: {result.error}"
-                    # FIX-51: Log tool result for production debugging
-                    _log.info("[%s] Tool result: exit=%s output=%s error=%s",
-                        task_id,
+                    # FIX-52: Log tool result at WARNING to ensure visibility
+                    _log.warning("[%s] Tool result: %s exit=%s out=%s err=%s",
+                        task_id, tool_name,
                         getattr(result, "exit_code", "?"),
                         (result.output or "")[:200],
                         (result.error or "")[:200],
