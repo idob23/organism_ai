@@ -7,6 +7,8 @@ from typing import Any
 
 from .base import BaseTool, ToolResult, OUTPUTS_DIR
 
+_FONTS_DIR = Path(__file__).parent.parent.parent / "config" / "fonts"
+
 
 class PdfTool(BaseTool):
 
@@ -84,20 +86,20 @@ class PdfTool(BaseTool):
         out_path = OUTPUTS_DIR / filename
 
         try:
-            # FIX-57: Register DejaVuSans for Cyrillic support
+            # FIX-57b: Register DejaVuSans for Cyrillic (bundled first, then system)
             FONT_NAME = "DejaVuSans"
             FONT_BOLD = "DejaVuSans-Bold"
-            _FONT_PATHS = [
+            _bundled = (_FONTS_DIR / "DejaVuSans.ttf", _FONTS_DIR / "DejaVuSans-Bold.ttf")
+            _system_paths = [
                 ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-                ("/usr/share/fonts/dejavu/DejaVuSans.ttf",
-                 "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
             ]
             font_registered = False
-            for regular, bold in _FONT_PATHS:
+            candidates = [_bundled] + [tuple(Path(p) for p in pair) for pair in _system_paths]
+            for regular, bold in candidates:
                 if Path(regular).exists() and Path(bold).exists():
-                    pdfmetrics.registerFont(TTFont(FONT_NAME, regular))
-                    pdfmetrics.registerFont(TTFont(FONT_BOLD, bold))
+                    pdfmetrics.registerFont(TTFont(FONT_NAME, str(regular)))
+                    pdfmetrics.registerFont(TTFont(FONT_BOLD, str(bold)))
                     font_registered = True
                     break
             if not font_registered:
