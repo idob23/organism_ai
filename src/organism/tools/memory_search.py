@@ -21,11 +21,14 @@ class MemorySearchTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Search your long-term memory for past tasks, agreements, files, and conversations. "
-            "Use when the user references something from the past: "
-            "'remember we agreed', 'that file you made', 'last time', 'as discussed'. "
-            "Try different query phrasings if first search returns nothing. "
-            "Returns: list of past tasks with their results."
+            "Search long-term memory for past tasks, calculations, and results. "
+            "Use proactively when: "
+            "(1) creating reports/summaries that need previously calculated numbers "
+            "\u2014 search BEFORE generating content to use real data instead of estimates; "
+            "(2) user references past work: 'remember we agreed', 'that file', 'last time'; "
+            "(3) task mentions specific quantities (fuel, payroll, costs) that may have been "
+            "calculated before. "
+            "Always try memory first when building documents with financial or operational data."
         )
 
     @property
