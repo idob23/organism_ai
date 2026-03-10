@@ -84,6 +84,26 @@ class PdfTool(BaseTool):
         out_path = OUTPUTS_DIR / filename
 
         try:
+            # FIX-57: Register DejaVuSans for Cyrillic support
+            FONT_NAME = "DejaVuSans"
+            FONT_BOLD = "DejaVuSans-Bold"
+            _FONT_PATHS = [
+                ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+                ("/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                 "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+            ]
+            font_registered = False
+            for regular, bold in _FONT_PATHS:
+                if Path(regular).exists() and Path(bold).exists():
+                    pdfmetrics.registerFont(TTFont(FONT_NAME, regular))
+                    pdfmetrics.registerFont(TTFont(FONT_BOLD, bold))
+                    font_registered = True
+                    break
+            if not font_registered:
+                FONT_NAME = "Helvetica"
+                FONT_BOLD = "Helvetica-Bold"
+
             doc = SimpleDocTemplate(
                 str(out_path),
                 pagesize=A4,
@@ -100,6 +120,7 @@ class PdfTool(BaseTool):
                 title_style = ParagraphStyle(
                     "CustomTitle",
                     parent=styles["Title"],
+                    fontName=FONT_BOLD,
                     fontSize=16,
                     spaceAfter=20,
                 )
@@ -109,6 +130,7 @@ class PdfTool(BaseTool):
             body_style = ParagraphStyle(
                 "CustomBody",
                 parent=styles["Normal"],
+                fontName=FONT_NAME,
                 fontSize=11,
                 leading=16,
                 spaceAfter=8,
@@ -121,14 +143,21 @@ class PdfTool(BaseTool):
                     continue
                 # Basic markdown: ## headers
                 if line.startswith("## "):
-                    h_style = ParagraphStyle("H2", parent=styles["Heading2"], fontSize=13)
+                    h_style = ParagraphStyle(
+                        "H2", parent=styles["Heading2"],
+                        fontName=FONT_BOLD, fontSize=13,
+                    )
                     story.append(Paragraph(line[3:], h_style))
                 elif line.startswith("# "):
-                    h_style = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=15)
+                    h_style = ParagraphStyle(
+                        "H1", parent=styles["Heading1"],
+                        fontName=FONT_BOLD, fontSize=15,
+                    )
                     story.append(Paragraph(line[2:], h_style))
                 elif line.startswith("- ") or line.startswith("* "):
                     bullet_style = ParagraphStyle(
                         "Bullet", parent=styles["Normal"],
+                        fontName=FONT_NAME,
                         fontSize=11, leftIndent=20, spaceAfter=4,
                     )
                     story.append(Paragraph(f"\u2022 {line[2:]}", bullet_style))
