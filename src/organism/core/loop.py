@@ -144,6 +144,12 @@ class CoreLoop:
         if memory is not None and memory.llm is None:
             memory.llm = llm
         self.memory = memory
+        # FIX-53: inject memory into memory_search tool if registered
+        try:
+            mem_tool = registry.get("memory_search")
+            mem_tool.set_memory(memory)
+        except KeyError:
+            pass
 
     def _validate_plan(self, steps: list[PlanStep]) -> str | None:
         """Validate plan before execution. Returns error message or None if valid."""

@@ -26,7 +26,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | MemoryManager | src/organism/memory/manager.py | pgvector, on_task_start / on_task_end |
 | SafetyValidator | src/organism/safety/validator.py | Block dangerous operations |
 
-### Tools (8 built-in + MCP dynamic + A2A conditional)
+### Tools (9 built-in + MCP dynamic + A2A conditional)
 | Tool | File | Notes |
 |------|------|-------|
 | code_executor | tools/code_executor.py | Docker sandbox, tmpfile + volume mount |
@@ -38,6 +38,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | confirm_with_user | tools/confirm_user.py | Human approval via Telegram (Q-6.3), only in Telegram mode |
 | pdf_tool | tools/pdf_tool.py | Create/read PDF files via reportlab/pypdf2 (TOOL-1) |
 | duplicate_finder | tools/duplicate_finder.py | Semantic duplicate search in 1C entities via embeddings (Q-8.3) |
+| memory_search | tools/memory_search.py | Search long-term memory for past tasks/agreements/files (FIX-53) |
 | mcp_* | tools/mcp_client.py | Dynamic tools from MCP servers (MCP_SERVERS env) |
 | delegate_to_agent | a2a/protocol.py | Peer delegation (A2A_PEERS env), only when peers configured |
 
@@ -82,7 +83,7 @@ organism_ai/
 │   │                  # scheduler.py, human_approval.py, personality.py, skill_matcher.py
 │   ├── tools/         # registry.py, code_executor.py, web_search.py, confirm_user.py
 │   │                  # web_fetch.py, file_manager.py, text_writer.py, pptx_creator.py
-│   │                  # duplicate_finder.py, pdf_tool.py, mcp_client.py
+│   │                  # duplicate_finder.py, pdf_tool.py, memory_search.py, mcp_client.py
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
@@ -155,9 +156,9 @@ ___
 - Benchmark: 26 tasks total (25/26 success with Docker+DB, #9 multi-agent requires --multi)
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes: FIX-1 through FIX-30 ✅, FIX-33–FIX-41 ✅, FIX-43–FIX-45 ✅, FIX-47–FIX-52 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
+- Fixes: FIX-1 through FIX-30 ✅, FIX-33–FIX-41 ✅, FIX-43–FIX-45 ✅, FIX-47–FIX-53 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
-  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (task decomposer), Q-9.6 ✅ (multi-tenancy artel_id), Q-9.7 ✅ (Docker production), Q-9.9 ✅ (Telegram subtask progress), Q-10.1 ✅ (универсальный планировщик), Q-10.2 ✅ (writing gate), Q-10.3 ✅ (MAX_PLAN_STEPS=10), Q-10.4 ✅ (_handle_conversation as primary path), SKILL-1 ✅ (technical skills system), FIX-33 ✅ (unified conversation+action), FIX-34 ✅ (recent work context in conversation), FIX-35 ✅ (confirm_with_user description fix), FIX-36 ✅ (file delivery from _handle_conversation), FIX-37 ✅ (plain text output, no Markdown), FIX-38 ✅ (sandbox reads data/outputs), FIX-39 ✅ (sandbox save path fix), FIX-40 ✅ (file caption in Telegram), FIX-41 ✅ (decomposer user_context passthrough), FIX-43 ✅ (epistemic honesty in system prompt), FIX-44 ✅ (disable decomposer, MAX_TOOL_ROUNDS=10), FIX-45 ✅ (universal document handling in Telegram), FIX-47 ✅ (web_fetch unblock), FIX-48 ✅ (LLM cache gate), FIX-49 ✅ (SkillMatcher relaxed prompt), FIX-50 ✅ (Docker warm container), FIX-51 ✅ (tool result logging), FIX-52 ✅ (WARNING-level diagnostic logs), MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
+  - Завершено: Q-9.0 ✅ (LLM intent classifier), Q-9.1 ✅ (task decomposer), Q-9.6 ✅ (multi-tenancy artel_id), Q-9.7 ✅ (Docker production), Q-9.9 ✅ (Telegram subtask progress), Q-10.1 ✅ (универсальный планировщик), Q-10.2 ✅ (writing gate), Q-10.3 ✅ (MAX_PLAN_STEPS=10), Q-10.4 ✅ (_handle_conversation as primary path), SKILL-1 ✅ (technical skills system), FIX-33 ✅ (unified conversation+action), FIX-34 ✅ (recent work context in conversation), FIX-35 ✅ (confirm_with_user description fix), FIX-36 ✅ (file delivery from _handle_conversation), FIX-37 ✅ (plain text output, no Markdown), FIX-38 ✅ (sandbox reads data/outputs), FIX-39 ✅ (sandbox save path fix), FIX-40 ✅ (file caption in Telegram), FIX-41 ✅ (decomposer user_context passthrough), FIX-43 ✅ (epistemic honesty in system prompt), FIX-44 ✅ (disable decomposer, MAX_TOOL_ROUNDS=10), FIX-45 ✅ (universal document handling in Telegram), FIX-47 ✅ (web_fetch unblock), FIX-48 ✅ (LLM cache gate), FIX-49 ✅ (SkillMatcher relaxed prompt), FIX-50 ✅ (Docker warm container), FIX-51 ✅ (tool result logging), FIX-52 ✅ (WARNING-level diagnostic logs), FIX-53 ✅ (memory_search tool), MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, FIX-29 ✅, FIX-30 ✅
   - Следующий: Q-10.5 (Agent Factory)
 
 ## Critical Rules for Claude Code
