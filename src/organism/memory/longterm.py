@@ -174,7 +174,6 @@ class LongTermMemory:
                     TaskMemory.quality_score >= min_quality,
                     TaskMemory.created_at >= cutoff,
                     TaskMemory.embedding.isnot(None),
-                    dist_expr < self.SIMILARITY_THRESHOLD,
                     text("artel_id = :artel_id"),  # Q-9.6
                 )
                 .params(artel_id=_artel)
@@ -251,13 +250,9 @@ class LongTermMemory:
 
         best_score = scored[0][0]
 
-        # Adaptive K: near-exact match → only 1 result
+        # FIX-58: Only keep upper adaptive K; let LLM judge relevance
         if best_score > 0.9:
             return [_to_dict(scored[0][1])]
-
-        # Adaptive K: nothing relevant → skip memory entirely
-        if best_score < 0.6:
-            return []
 
         candidates = [_to_dict(m) for _, m in scored[:limit * 2]]
         if llm and len(candidates) > 3:

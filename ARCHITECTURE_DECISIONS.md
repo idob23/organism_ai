@@ -902,3 +902,19 @@ paths, then Helvetica fallback. All `multi_cell()` calls use explicit
 runs in executor thread via `run_in_executor`. Read path unchanged (PyPDF2).
 
 Files changed: `tools/pdf_tool.py`, `pyproject.toml`, `config/fonts/*.ttf`.
+
+## FIX-58: Remove hard cutoff in memory search
+
+**Problem**: `search_similar()` had two filters that silently dropped results:
+1. `dist_expr < SIMILARITY_THRESHOLD` in SQL WHERE — cut results before scoring
+2. `best_score < 0.6 → return []` — discarded all results below arbitrary threshold
+
+Both prevented the LLM reranker from seeing potentially relevant memories when
+embedding similarity was moderate (common for paraphrased or loosely related tasks).
+
+**Solution**: Remove both hard cutoffs. Keep only the upper adaptive K
+(`best_score > 0.9 → return 1` for near-exact matches). Otherwise return up to
+`limit` results sorted by hybrid score. The LLM reranker (`_rerank`) and the
+agent itself are better judges of relevance than a fixed numeric threshold.
+
+Files changed: `memory/longterm.py`.
