@@ -703,7 +703,6 @@ and injects content into `_handle_conversation` system prompt as `skill_context`
 **Components**:
 - `config/skills/excel.md` \u2014 openpyxl formatting: dark headers, alternating rows, auto-width
 - `config/skills/docx.md` \u2014 Node.js `docx` library: A4, Arial, proper margins
-- `config/skills/pdf.md` \u2014 reportlab: styled tables, A4, branded headers
 - `config/skills/charts.md` \u2014 matplotlib: Agg backend, clean styling, dpi=150
 - `core/skill_matcher.py` \u2014 `SkillMatcher.get_skill_context(task)`: Haiku selects 0-2 skills
 

@@ -136,7 +136,7 @@ class PdfTool(BaseTool):
                     story.append(Paragraph(line, body_style))
 
             doc.build(story)
-            return ToolResult(output=f"PDF created: {out_path}\nFile: {filename}")
+            return ToolResult(output=f"Saved files: {filename}")
 
         except Exception as e:
             return ToolResult(output="", error=f"PDF creation failed: {e}", exit_code=1)

@@ -1,10 +1,12 @@
 ﻿import asyncio
 import ast
+import platform
 import shutil
 import tempfile
 import threading
 import uuid
 import os
+from pathlib import Path
 from typing import Any
 
 import docker
@@ -15,6 +17,22 @@ from src.organism.logging.error_handler import get_logger
 from .base import BaseTool, ToolResult
 
 _log = get_logger("tools.code_executor")
+
+IS_WINDOWS = platform.system() == "Windows"
+
+
+def _docker_host_path(path: str) -> str:
+    """Convert a host path to Docker-compatible mount path on Windows.
+
+    Docker Desktop on Windows requires /c/Users/... format instead of C:\\Users\\...
+    On Linux/macOS the path is returned unchanged.
+    """
+    if not IS_WINDOWS:
+        return path
+    p = Path(path).as_posix()          # C:/Users/ID/AppData/...
+    if len(p) >= 2 and p[1] == ":":
+        p = "/" + p[0].lower() + p[2:]  # /c/Users/ID/AppData/...
+    return p
 
 
 class CodeExecutorTool(BaseTool):
@@ -45,9 +63,9 @@ class CodeExecutorTool(BaseTool):
                 mem_limit=settings.sandbox_memory,
                 nano_cpus=int(settings.sandbox_cpu * 1e9),
                 volumes={
-                    self._warm_sandbox: {"bind": "/sandbox", "mode": "ro"},
-                    self._warm_output: {"bind": "/output", "mode": "rw"},
-                    outputs_dir: {"bind": "/data/outputs", "mode": "ro"},
+                    _docker_host_path(self._warm_sandbox): {"bind": "/sandbox", "mode": "ro"},
+                    _docker_host_path(self._warm_output): {"bind": "/output", "mode": "rw"},
+                    _docker_host_path(outputs_dir): {"bind": "/data/outputs", "mode": "ro"},
                 },
                 working_dir="/output",
                 detach=True,
@@ -273,9 +291,9 @@ class CodeExecutorTool(BaseTool):
                 mem_limit=settings.sandbox_memory,
                 nano_cpus=int(settings.sandbox_cpu * 1e9),
                 volumes={
-                    tmp_dir: {"bind": "/sandbox", "mode": "ro"},
-                    output_dir: {"bind": "/output", "mode": "rw"},
-                    outputs_dir: {"bind": "/data/outputs", "mode": "ro"},
+                    _docker_host_path(tmp_dir): {"bind": "/sandbox", "mode": "ro"},
+                    _docker_host_path(output_dir): {"bind": "/output", "mode": "rw"},
+                    _docker_host_path(outputs_dir): {"bind": "/data/outputs", "mode": "ro"},
                 },
                 working_dir="/output",
                 detach=True,
