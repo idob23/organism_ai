@@ -918,3 +918,13 @@ embedding similarity was moderate (common for paraphrased or loosely related tas
 agent itself are better judges of relevance than a fixed numeric threshold.
 
 Files changed: `memory/longterm.py`.
+
+### FORMATTER-1 (deferred — waiting for real 1C data)
+Problem: queries spanning >90 days cause 1C MCP tools to return hundreds of time-series
+rows. 730 rows of fuel data = ~15-20k tokens, overloading the agent context window.
+Solution: `tools/formatter.py` — semantic aggregation (period averages + anomalies).
+NOT to be confused with FIX-60 (removed arbitrary data truncation) — this is a
+signal-preserving transformation, not data loss.
+Activate when: real artel data with >90-day periods becomes available.
+Affects: `src/organism/tools/mcp_client.py` (post-processing), `src/organism/mcp_1c/server.py`.
+Estimate: 1-2 days, does not touch CoreLoop or Planner.
