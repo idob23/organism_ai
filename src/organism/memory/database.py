@@ -181,6 +181,20 @@ class ChatMessage(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class PendingInsight(Base):
+    __tablename__ = "pending_insights"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pattern = Column(Text, nullable=False, unique=True)
+    rule_text = Column(Text, nullable=False)
+    confidence = Column(Float, default=0.70)
+    confirmations = Column(Integer, default=1)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    artel_id = Column(String, default="default")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class SchemaMigration(Base):
     __tablename__ = "schema_migrations"
 
@@ -491,6 +505,26 @@ async def _m009_chat_history(conn) -> None:
     ))
 
 
+async def _m010_pending_insights(conn) -> None:
+    """Pending insights table for Memory Verification Loop (INSIGHT-1)."""
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS pending_insights (
+            id SERIAL PRIMARY KEY,
+            pattern TEXT NOT NULL UNIQUE,
+            rule_text TEXT NOT NULL,
+            confidence FLOAT DEFAULT 0.70,
+            confirmations INTEGER DEFAULT 1,
+            status VARCHAR DEFAULT 'pending',
+            artel_id VARCHAR DEFAULT 'default',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_pi_status ON pending_insights (artel_id, status)"
+    ))
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -503,4 +537,5 @@ _MIGRATIONS = [
     (7, "few_shot_indexes", _m007_few_shot_indexes),
     (8, "user_id_profile", _m008_user_id_profile),
     (9, "chat_history", _m009_chat_history),
+    (10, "pending_insights", _m010_pending_insights),
 ]

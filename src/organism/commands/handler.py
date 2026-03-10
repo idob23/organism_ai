@@ -25,6 +25,7 @@ HELP_TEXT = (
     "  /reject <id>             \u2014 reject a pending action\n"
     "  /personality             \u2014 show current personality config\n"
     "  /reset                   \u2014 reset all saved profile data\n"
+    "  /insights                \u2014 show insights awaiting verification\n"
     "  /cleanup                \u2014 run database cleanup (expired cache, old reflections, old errors)\n"
     "  /test_error              \u2014 send a test error to monitoring\n"
     "  /help                    \u2014 show this help\n"
@@ -98,6 +99,8 @@ class CommandHandler:
             return await self._handle_reset(memory, user_id)
         elif cmd == "/cleanup":
             return await self._handle_cleanup(memory)
+        elif cmd == "/insights":
+            return await self._handle_insights()
         else:
             return f"Unknown command: {cmd}\n\n{HELP_TEXT}"
 
@@ -210,15 +213,19 @@ class CommandHandler:
         improver = AutoImprover()
         kb = KnowledgeBase()
 
-        summary = await improver.run_cycle(memory, llm, kb, days=days)
+        summary = await improver.run_cycle(
+            memory, llm, kb, days=days, human_approval=self.approval,
+        )
 
         lines = [
             f"Improvement cycle complete (last {days} days):",
             f"  Failed tasks found:   {summary['failures_found']}",
             f"  Patterns analyzed:    {summary['patterns_analyzed']}",
+            f"  Insights pending:     {summary.get('insights_pending', 0)}",
+            f"  Sent for approval:    {summary.get('insights_sent', 0)}",
             f"  Rules saved:          {summary['rules_saved']}",
         ]
-        if summary["rules_saved"] == 0:
+        if summary["rules_saved"] == 0 and summary.get("insights_pending", 0) == 0:
             lines.append("  (not enough repeating failure patterns yet)")
         return "\n".join(lines)
 
@@ -358,6 +365,47 @@ class CommandHandler:
             await session.commit()
 
         return "Database cleanup:\n" + "\n".join(f"  {r}" for r in results)
+
+    async def _handle_insights(self) -> str:
+        """Show pending and approved insights: /insights."""
+        from src.organism.memory.database import PendingInsight, AsyncSessionLocal
+        from sqlalchemy import select
+        from config.settings import settings
+
+        try:
+            async with AsyncSessionLocal() as session:
+                # Pending
+                pending_result = await session.execute(
+                    select(PendingInsight)
+                    .where(PendingInsight.artel_id == settings.artel_id)
+                    .where(PendingInsight.status == "pending")
+                    .order_by(PendingInsight.confirmations.desc())
+                )
+                pending = pending_result.scalars().all()
+
+                # Approved
+                approved_result = await session.execute(
+                    select(PendingInsight)
+                    .where(PendingInsight.artel_id == settings.artel_id)
+                    .where(PendingInsight.status == "approved")
+                    .order_by(PendingInsight.updated_at.desc())
+                )
+                approved = approved_result.scalars().all()
+        except Exception as e:
+            return f"Failed to query insights: {e}"
+
+        lines = [f"\U0001f4ca Awaiting verification: {len(pending)}"]
+        if pending:
+            lines.append("")
+            for p in pending:
+                lines.append(f"\u2022 [{p.confirmations}x] {p.rule_text[:100]}")
+
+        lines.append(f"\n\u2705 Approved insights: {len(approved)}")
+        if approved:
+            for a in approved:
+                lines.append(f"\u2022 {a.rule_text[:100]}")
+
+        return "\n".join(lines)
 
     async def _handle_prompts(self, memory: "MemoryManager") -> str:
         """Show active prompt versions and their quality stats."""

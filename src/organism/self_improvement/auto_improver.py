@@ -20,6 +20,7 @@ from src.organism.logging.error_handler import get_logger, log_exception
 if TYPE_CHECKING:
     from src.organism.memory.manager import MemoryManager
     from src.organism.memory.knowledge_base import KnowledgeBase
+    from src.organism.core.human_approval import HumanApproval
 
 _log = get_logger("self_improvement.auto_improver")
 
@@ -180,35 +181,115 @@ class AutoImprover:
         llm: LLMProvider,
         knowledge_base: "KnowledgeBase",
         days: int = 7,
+        human_approval: "HumanApproval | None" = None,
     ) -> dict:
-        """Full improvement cycle: failures → patterns → rules → KnowledgeBase.
+        """Full improvement cycle: failures \u2192 patterns \u2192 pending insights \u2192 KnowledgeBase.
 
-        Returns summary {failures_found, patterns_analyzed, rules_saved}.
+        INSIGHT-1: Rules accumulate confirmations in pending_insights.
+        At 3 confirmations, sent to user for verification via Telegram.
+        Only approved insights enter knowledge_rules.
+
+        Returns summary {failures_found, patterns_analyzed, rules_saved,
+                         insights_pending, insights_sent}.
         """
+        from sqlalchemy import select
+        from src.organism.memory.database import PendingInsight, AsyncSessionLocal
+        from config.settings import settings as _settings
+
         _log.info(f"Auto-improvement cycle started (window={days}d)")
 
         failures = await self.analyze_failures(memory, llm, days=days)
         rules = await self.generate_rules(failures, llm)
 
         saved = 0
+        insights_pending = 0
+        insights_sent = 0
+
         for rule in rules:
             try:
-                await knowledge_base.add_rule(
-                    rule_text=rule["rule_text"],
-                    confidence=rule["confidence"],
-                    source_task_hash="auto_improve",
-                )
-                _log.info(
-                    f"Rule saved (conf={rule['confidence']:.2f}): {rule['rule_text'][:80]}"
-                )
-                saved += 1
+                async with AsyncSessionLocal() as session:
+                    # Check if pattern already exists
+                    stmt = select(PendingInsight).where(
+                        PendingInsight.pattern == rule["rule_text"]
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        if existing.status in ("approved", "rejected"):
+                            continue  # Already processed — skip
+                        # Increment confirmations
+                        existing.confirmations += 1
+                        await session.commit()
+                        _log.info(
+                            "Insight confirmed (%dx): %s",
+                            existing.confirmations, rule["rule_text"][:80],
+                        )
+
+                        # At 3+ confirmations — send for verification
+                        if existing.confirmations >= 3:
+                            if human_approval:
+                                try:
+                                    desc = (
+                                        "\U0001f4a1 \u041e\u0431\u043d\u0430\u0440\u0443\u0436\u0435\u043d "
+                                        "\u0438\u043d\u0441\u0430\u0439\u0442 "
+                                        f"(\u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043d "
+                                        f"{existing.confirmations} "
+                                        f"\u0440\u0430\u0437\u0430):\n\n"
+                                        f"{existing.rule_text}\n\n"
+                                        "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c "
+                                        "\u0432 \u0431\u0430\u0437\u0443 "
+                                        "\u0437\u043d\u0430\u043d\u0438\u0439?"
+                                    )
+                                    approved = await human_approval.request_approval(desc)
+                                    insights_sent += 1
+                                    if approved:
+                                        await knowledge_base.add_rule(
+                                            rule_text=existing.rule_text,
+                                            confidence=existing.confidence,
+                                            source_task_hash="auto_improve",
+                                        )
+                                        existing.status = "approved"
+                                        saved += 1
+                                        _log.info("Insight approved: %s", existing.rule_text[:80])
+                                    else:
+                                        existing.status = "rejected"
+                                        _log.info("Insight rejected: %s", existing.rule_text[:80])
+                                    await session.commit()
+                                except Exception as e:
+                                    log_exception(_log, "Approval request failed", e)
+                            else:
+                                _log.warning(
+                                    "Insight has %d confirmations but no approval channel: %s",
+                                    existing.confirmations, rule["rule_text"][:80],
+                                )
+                            insights_pending += 1
+                    else:
+                        # New pattern — create pending insight
+                        insight = PendingInsight(
+                            pattern=rule["rule_text"],
+                            rule_text=rule["rule_text"],
+                            confidence=rule["confidence"],
+                            confirmations=1,
+                            status="pending",
+                            artel_id=_settings.artel_id,
+                        )
+                        session.add(insight)
+                        await session.commit()
+                        insights_pending += 1
+                        _log.info(
+                            "New insight pending (conf=%.2f): %s",
+                            rule["confidence"], rule["rule_text"][:80],
+                        )
             except Exception as e:
-                log_exception(_log, "Failed to save rule to KnowledgeBase", e)
+                log_exception(_log, "Failed to process insight", e)
 
         summary = {
             "failures_found": sum(f["count"] for f in failures),
             "patterns_analyzed": len(failures),
             "rules_saved": saved,
+            "insights_pending": insights_pending,
+            "insights_sent": insights_sent,
         }
         _log.info(f"Auto-improvement cycle complete: {summary}")
         return summary

@@ -285,12 +285,14 @@ async def run_improve(days: int = 7) -> None:
     await memory.initialize()
     kb = KnowledgeBase()
     print(f"Running auto-improvement cycle (last {days} days)...")
-    summary = await AutoImprover().run_cycle(memory, llm, kb, days=days)
+    summary = await AutoImprover().run_cycle(memory, llm, kb, days=days, human_approval=None)
     print(f"Done:")
     print(f"  Failed tasks found:   {summary['failures_found']}")
     print(f"  Patterns analyzed:    {summary['patterns_analyzed']}")
+    print(f"  Insights pending:     {summary.get('insights_pending', 0)}")
+    print(f"  Sent for approval:    {summary.get('insights_sent', 0)}")
     print(f"  Rules saved:          {summary['rules_saved']}")
-    if summary["rules_saved"] == 0:
+    if summary["rules_saved"] == 0 and summary.get("insights_pending", 0) == 0:
         print("  (not enough repeating failure patterns yet)")
 
 
