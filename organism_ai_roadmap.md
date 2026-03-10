@@ -1,108 +1,75 @@
 # Organism AI — Roadmap
 
-## Фаза 1: Sprints 1–8 (завершены)
+## Статус: Март 2026
 
-Базовая платформа: CoreLoop, Planner, Evaluator, Memory (pgvector), 8 инструментов, 4 агента, MCP клиент/сервер, A2A протокол, self-improvement, benchmark (26 задач).
+### Завершено (Спринты 1–9)
 
-## Фаза 2: Sprint 9 — Universal Planner + Agent Factory
+- Sprint 1–2: CoreLoop, Planner, Evaluator, Memory (pgvector + BM25 hybrid search), Solution Cache, Knowledge Base
+- Sprint 3–4: Agent specialization (Coder/Researcher/Writer/Analyst), User Facts, Commands, Auto-improvement, Prompt Versioning
+- Sprint 5: Memory Graph (temporal edges, CausalAnalyzer, ProceduralTemplates, SearchPolicy)
+- Sprint 6: Orchestrator state machine, ProactiveScheduler, Human-in-the-loop approval, Personality, Gateway
+- Sprint 7: Structured reflections, Benchmark-driven prompt optimization, Few-shot store, Evolutionary prompt search, Cross-agent knowledge sharing
+- Sprint 8: MCP client/server, 1C MCP server (demo), Duplicate finder, Organism as MCP server, A2A protocol
+- Sprint 9 (Universal Planner): Q-9.0, Q-9.1, Q-9.6, Q-9.7, Q-9.9, Q-10.1–Q-10.4 ✅
+- Sprint 9 (Skills): SKILL-1 (technical skills system) ✅
+- Sprint 9 (Fixes): FIX-33 — FIX-61 ✅
+- Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
+- Memory Verification Loop: INSIGHT-1 ✅
+- Benchmark: 26/26 задач, quality 0.93 ✅
 
-### Блок A: Универсальный планировщик (приоритет 1, предусловие для всего)
+### Текущие расходы (тестирование, 3 человека)
 
-- Q-10.1: Универсальный промпт планировщика — заменить 6 специализированных шаблонов (PLAN_WRITING/CODE/RESEARCH/PRESENTATION/MIXED) на один универсальный со всеми инструментами. Классификатор оставить только для few-shot labeling и task_type_hint.
-- Q-10.2: Writing fast path под LLM-контроль — перед _run_writing_task() добавить Haiku-проверку: нужна ли задача только text_writer или требует данных/нескольких шагов. Если требует — передать планировщику.
-- Q-10.3: MAX_PLAN_STEPS=10 — постоянное решение FIX-17 (было временно поднято до 7).
+| Статья | Стоимость | Период |
+|--------|-----------|--------|
+| Anthropic API (Claude) | ~$30–50/мес | при активном тестировании |
+| OpenAI Embeddings | ~$2–5/мес | text-embedding-3-small |
+| Tavily Search API | бесплатный tier | 1000 запросов/мес |
+| PostgreSQL (Docker) | $0 | локально |
+| Telegram Bot API | $0 | бесплатный |
 
-### Блок B: Task Decomposer (приоритет 2)
+---
 
-- Q-9.1: Task Decomposer — если задача требует >10 шагов, автоматически разбивается на подзадачи через оркестратор с передачей контекста. Пользователь получает финальный результат прозрачно.
-- Q-9.9: Прогресс по подзадачам — "Часть 1/3 готова..." в Telegram.
+## Открытые задачи
 
-### Блок C: Production (приоритет 2)
-
-- Q-9.7: Docker production deployment — docker-compose: PostgreSQL + бот + мониторинг. Нужно для первого клиента.
-- Q-9.6: Multi-tenancy — включить фильтрацию по artel_id. Готовность к нескольким клиентам.
-
-### Блок D: Agent Factory (приоритет 3, поверх готового фундамента)
+### Блок 1: Agent Factory (приоритет 1)
 
 - Q-9.2: Шаблоны ролей агентов — маркетолог, аналитик, закупщик, юрист, HR
 - Q-9.3: Автогенерация PERSONALITY.md — описание роли → конфиг агента за 30 секунд
 - Q-9.4: Мета-оркестратор — умная маршрутизация задач по специализации агентов
 - Q-9.5: Команды /agents, /create_agent <роль>, /assign <агент> <задача>
 
-### Блок E: Технический долг
+### Блок 2: Технический долг (приоритет 2)
 
-- Q-9.8: MCP протокол JSON-RPC 2.0 — совместимость с Cursor, Claude Desktop
-- Q-9.10: /errors команда — просмотр последних WARNING без захода на сервер
-- Node.js в sandbox/Dockerfile — нужен для SKILL-1 (качественные .docx через npm docx)
+- Q-9.8: MCP JSON-RPC 2.0 — совместимость с Cursor, Claude Desktop
+- Q-9.10: /errors команда — просмотр ошибок без SSH
+- Node.js в sandbox/Dockerfile — для качественных .docx
+- FORMATTER-1: предагрегация данных 1C (отложено до реальных данных, см. ARCHITECTURE_DECISIONS.md)
 
-### Порядок выполнения
-1. Q-10.1 → Q-10.2 → Q-10.3 (универсальный планировщик — фундамент)
-2. Q-9.1 + Q-9.9 (декомпозиция задач)
-3. Q-9.7 + Q-9.6 (production для клиента)
-4. Q-9.2 → Q-9.5 (Agent Factory)
-5. Q-9.8, Q-9.10 (долг и UX)
+### Блок 3: Docker Compose для первого клиента (приоритет 1)
 
-### Архитектурная основа (уже готова)
-- PERSONALITY.md (Q-6.4) — конфигурация роли агента
-- Gateway (Q-6.5) — канал-агностичный интерфейс
-- Agent-to-Agent (Q-8.5) — межагентное общение через MCP
-- ProactiveScheduler (Q-6.2) — задачи по расписанию для каждого агента
-- Orchestrator state-machine (Q-6.1) — основа для мета-оркестратора
+Одна задача: docker-compose production (PostgreSQL + бот + мониторинг).
+Нужно до онбординга первого клиента.
 
-## Фаза 2.5: Skills System — экспертное знание для агента
+---
 
-### Концепция
+## Фаза 3: Интеграции
 
-Агент имеет два типа знания:
-- **Динамическое** (уже есть): KnowledgeBase, few-shot store, templates — накапливается автоматически из опыта
-- **Статическое** (Skills): экспертное знание которое пишет человек один раз — как делать файлы, отраслевая специфика, типовые документы
+- Email MCP сервер — приём/отправка писем, парсинг вложений
+- Google Calendar MCP — управление расписанием артели
+- Документооборот — шаблоны путевых листов, актов, табелей
 
-Skills — это то что превращает "умного AI" в "AI-специалиста по конкретной отрасли".
+---
 
-### Три компонента
+## Фаза 4: Инвестиции
 
-**SKILL-1: Технические skills** — КАК делать (не зависит от клиента, делать раньше)
-config/skills/
-excel.md      — форматирование таблиц, структура производственных отчётов
-docx.md       — создание документов (Node.js docx lib, качество как у claude.ai)
-pdf.md        — структура PDF отчётов
-charts.md     — графики для производственных данных
-Требует: добавить Node.js в sandbox/Dockerfile (одна строка)
+- РВФ Казань: 8–10 апреля 2026 — ближайший дедлайн
+- Гранты (ФСИ, Сколково): подавать параллельно с первым клиентом
+- Seed (Kama Flow, Malina VC): после первого клиента с измеримыми метриками
 
-**SKILL-2: Доменные skills** — ЧТО знать об отрасли (писать после первого клиента)
-config/skills/
-gold_mining.md      — терминология, единицы измерения, типовые процессы артели
-artel_documents.md  — структура путевых листов, актов, табелей, нарядов
-calculations.md     — нормы расхода ГСМ, расчёт ФОТ, себестоимость добычи
-regulations.md      — российское законодательство, обязательная отчётность
-Для нового клиента (логистика, строительство) — новый набор domain skills.
-Агент сразу становится специалистом в отрасли. Без изменений кода.
+---
 
-**SKILL-3: SkillMatcher** — механизм подбора (маленький компонент)
-- Haiku анализирует задачу (~50 токенов) и выбирает подходящие skill файлы
-- Содержимое инжектируется в system prompt _handle_conversation как `skill_context`
-- Встраивается в уже готовое место рядом с memory_context, user_context
+## Критерии перехода к первому клиенту
 
-### Интеграция в архитектуру
-
-Skills встраиваются в `_handle_conversation` system prompt — туда где уже собирается контекст.
-Новый слой `skill_context` добавляется рядом с existing: user_context, recent_work_context, longterm_context.
-Никакие существующие компоненты не меняются.
-
-### Порядок выполнения
-
-1. **После тестирования Q-10.4** — собрать паттерны: какие задачи плохо, какие файлы не такие
-2. **SKILL-1 (технические)** — Node.js в Docker + excel.md + docx.md. Даёт результат сразу.
-3. **После первого визита к клиенту-артели** — понять реальную терминологию и процессы
-4. **SKILL-2 (доменные)** — gold_mining.md, artel_documents.md под конкретные боли
-5. **SKILL-3 (SkillMatcher)** — после того как накопится 3+ skill файлов
-
-### Стратегическая ценность
-
-Skills — единственная часть системы которую нельзя автоматизировать полностью.
-Роль Technical Director: формализовать экспертное знание об отрасли в skill файлы.
-Агент превращает это знание в действия.
-
-Для инвестора: "Механизм быстрого онбординга в новую отрасль — domain skills пишутся
-за день, агент сразу работает как отраслевой специалист. Масштабирование на новую
-отрасль = новый набор skill файлов, не переписывание кода."
+- Agent Factory готов (Q-9.2–Q-9.5)
+- Docker Compose production готов
+- 2+ недели стабильной работы у 3 тестеров без критических багов ✅

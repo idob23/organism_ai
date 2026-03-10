@@ -159,7 +159,7 @@ ___
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes applied: FIX-1 through FIX-61 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
-- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
+- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Следующий: Q-9.2 (Agent Factory — роли агентов)
 
