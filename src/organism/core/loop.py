@@ -123,7 +123,7 @@ class CoreLoop:
             return "\u041f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0437\u0430\u043f\u0440\u043e\u0441."
         return output
 
-    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None) -> None:
+    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None, orchestrator=None) -> None:
         self.llm = llm
         self.registry = registry
         pvc = PromptVersionControl() if memory is not None else None
@@ -134,6 +134,7 @@ class CoreLoop:
         self.skill_matcher = SkillMatcher(llm)
         self.personality = personality
         self.scheduler = scheduler
+        self._orchestrator = orchestrator
         if memory is not None and memory.llm is None:
             memory.llm = llm
         self.memory = memory
@@ -517,6 +518,22 @@ class CoreLoop:
             duration=duration, quality_score=quality_score,
         )
 
+    async def _classify_complex(self, task: str) -> bool:
+        """ARCH-1.4: Haiku classifier — does this task need multiple agents?"""
+        from src.organism.llm.base import Message as _CMsg
+        resp = await self.llm.complete(
+            messages=[_CMsg(role="user", content=task[:300])],
+            system=(
+                "Does this task require multiple specialized agents working together "
+                "(e.g., research + write + calculate in one request)? "
+                "A task that can be solved by a single tool call or a single text answer is NOT complex. "
+                "Reply: yes or no."
+            ),
+            model_tier="fast",
+            max_tokens=5,
+        )
+        return "yes" in resp.content.strip().lower()
+
     async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "") -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
@@ -634,8 +651,37 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Cache check failed", e)
 
-        # FIX-44/ARCH-1.2: Planner/Decomposer removed from CoreLoop.
-        # Use PlannerModule if needed (e.g. Orchestrator).
+        # ARCH-1.4: Route complex multi-agent tasks to Orchestrator if available
+        if self._orchestrator is not None:
+            try:
+                is_complex = await self._classify_complex(task)
+            except Exception:
+                is_complex = False
+            if is_complex:
+                _log.info(f"[{task_id}] Routing to Orchestrator (complex task)")
+                try:
+                    orch_result = await self._orchestrator.run(task, verbose=verbose)
+                    quality = 0.85 if orch_result.success else 0.3
+                    tr = TaskResult(
+                        task_id=task_id, task=task,
+                        success=orch_result.success,
+                        output=orch_result.output,
+                        answer=orch_result.output,
+                        duration=time.time() - start,
+                        quality_score=quality,
+                        error=orch_result.error,
+                    )
+                    if self.memory and cache_hash and canonical_task:
+                        try:
+                            await self.memory.cache.put(
+                                cache_hash, canonical_task, task,
+                                tr.answer, tr.quality_score,
+                            )
+                        except Exception:
+                            pass
+                    return tr
+                except Exception as e:
+                    log_exception(_log, f"[{task_id}] Orchestrator failed, falling back", e)
 
         # Q-10.4: All tasks go through _handle_conversation (primary execution path)
         conv_result = await self._handle_conversation(

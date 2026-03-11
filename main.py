@@ -88,12 +88,16 @@ def _load_personality():
     return p
 
 
-def build_loop(registry: ToolRegistry | None = None, personality=None) -> CoreLoop:
+def build_loop(registry: ToolRegistry | None = None, personality=None, with_orchestrator: bool = False) -> CoreLoop:
     llm = ClaudeProvider()
     reg = registry or build_registry()
     memory = MemoryManager() if settings.database_url else None
     p = personality if personality is not None else _load_personality()
-    return CoreLoop(llm, reg, memory=memory, personality=p)
+    orch = None
+    if with_orchestrator:
+        from src.organism.agents.orchestrator import Orchestrator
+        orch = Orchestrator(llm, reg, memory=memory)
+    return CoreLoop(llm, reg, memory=memory, personality=p, orchestrator=orch)
 
 
 async def run_single(task: str, use_orchestrator: bool = False) -> None:
@@ -205,7 +209,7 @@ async def run_telegram() -> None:
     approval = HumanApproval(send_fn=_send_approval)
     registry.register(ConfirmUserTool(approval=approval))
 
-    loop = build_loop(registry)
+    loop = build_loop(registry, with_orchestrator=True)
 
     # --- Proactive scheduler ---
     async def _notify(artel_id: str, message: str) -> None:

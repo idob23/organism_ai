@@ -958,3 +958,15 @@ All references repointed: `self.cache.*` -> `self.memory.cache.*` (already insid
 `self.knowledge_base` was dead code in CoreLoop (created but never read after Q-10.4) — simply removed.
 Graceful degradation: when memory=None, cache check and kb rules are skipped (existing guards).
 Files: `src/organism/memory/manager.py`, `src/organism/core/loop.py`.
+
+### ARCH-1.4: Orchestrator accessible from Telegram without --multi (2026-03-11)
+Problem: Orchestrator only worked via `--multi` CLI flag. Telegram users had no access
+to multi-agent mode.
+Fix: CoreLoop.__init__ accepts optional `orchestrator` param. New `_classify_complex(task)`
+method uses Haiku (5 tokens) to detect tasks requiring multiple agents. In `run()`, after
+cache check but before `_handle_conversation`, complex tasks route to Orchestrator.
+Fallback: if classifier or Orchestrator fails, falls through to `_handle_conversation`.
+`build_loop()` in main.py gains `with_orchestrator` param. `run_telegram()` calls
+`build_loop(registry, with_orchestrator=True)` — Telegram gets auto-routing.
+Gateway/TelegramChannel unchanged — routing is internal to CoreLoop.
+Files: `src/organism/core/loop.py`, `main.py`.
