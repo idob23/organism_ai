@@ -103,7 +103,7 @@ class AgentFactory:
         if role_template is None:
             return None
 
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         agent_id = f"{role_id}_{ts}"
 
         personality_md = await self._generate_personality(
@@ -145,13 +145,18 @@ class AgentFactory:
         except Exception as exc:
             _log.warning(f"Failed to write agent config: {exc}")
 
+        # FIX-62: verify agent config was actually written
+        if not (self.AGENTS_DIR / f"{agent_id}.json").is_file():
+            _log.error(f"Agent config not written for {agent_id}")
+            return None
+
         return agent_data
 
     async def create_from_description(
         self, description: str, agent_name: str, llm: LLMProvider,
-    ) -> dict:
+    ) -> dict | None:
         """Create an agent from a free-text description (no role template)."""
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         agent_id = f"custom_{ts}"
 
         personality_md = await self._generate_personality(
@@ -184,6 +189,11 @@ class AgentFactory:
             )
         except Exception as exc:
             _log.warning(f"Failed to write agent config: {exc}")
+
+        # FIX-62: verify agent config was actually written
+        if not (self.AGENTS_DIR / f"{agent_id}.json").is_file():
+            _log.error(f"Agent config not written for {agent_id}")
+            return None
 
         return agent_data
 

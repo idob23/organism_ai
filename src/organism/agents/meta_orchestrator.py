@@ -120,7 +120,7 @@ class MetaOrchestrator:
             enhanced_task += f"\u0417\u0430\u0434\u0430\u0447\u0430: {task}"
 
             if self._loop is not None:
-                result = await self._loop.run(enhanced_task, verbose=verbose)
+                result = await self._loop.run(enhanced_task, verbose=verbose, skip_orchestrator=True)
                 return OrchestratorResult(
                     task=task,
                     success=result.success,
@@ -149,7 +149,18 @@ class MetaOrchestrator:
             agent_id = a.get("agent_id", "?")
             name = a.get("name", "?")
             role_id = a.get("role_id", "?")
-            agent_lines.append(f"- {agent_id}: {name} ({role_id})")
+            # FIX-62: include role description so Haiku can route intelligently
+            description = ""
+            tmpl = self.factory.get_role_template(role_id)
+            if tmpl:
+                desc_match = re.search(
+                    r"^## Description\s*\n(.*?)(?=^## |\Z)",
+                    tmpl, re.MULTILINE | re.DOTALL,
+                )
+                if desc_match:
+                    description = desc_match.group(1).strip()[:100]
+            suffix = f" \u2014 {description}" if description else ""
+            agent_lines.append(f"- {agent_id}: {name} ({role_id}){suffix}")
 
         agent_list = "\n".join(agent_lines)
         system = _ROUTER_SYSTEM.replace("{agent_list}", agent_list)

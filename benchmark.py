@@ -532,6 +532,13 @@ async def run_command_task(
     try:
         output = await handler.handle(task_text, memory)
         duration = time.time() - t0
+        # FIX-62: clean up agent files created by /create_agent benchmark test
+        if task_text.startswith("/create_agent") and factory:
+            for a in factory.list_created_agents():
+                try:
+                    factory.delete_agent(a["agent_id"])
+                except Exception:
+                    pass
         # Consider it a success if output is non-empty and doesn't start with an error
         success = bool(output and not output.lower().startswith("memory error"))
         return BenchmarkResult(

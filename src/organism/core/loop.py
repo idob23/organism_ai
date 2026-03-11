@@ -534,7 +534,7 @@ class CoreLoop:
         )
         return "yes" in resp.content.strip().lower()
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "") -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False) -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -652,7 +652,8 @@ class CoreLoop:
                 log_exception(_log, f"[{task_id}] Cache check failed", e)
 
         # ARCH-1.4: Route complex multi-agent tasks to Orchestrator if available
-        if self._orchestrator is not None:
+        # FIX-62: skip_orchestrator prevents recursion when MetaOrchestrator calls loop.run()
+        if self._orchestrator is not None and not skip_orchestrator:
             try:
                 is_complex = await self._classify_complex(task)
             except Exception:
