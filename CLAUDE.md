@@ -165,6 +165,7 @@ ___
 - Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
+  - Q-9.3 ✅ (Auto-generate PERSONALITY.md from role template via LLM)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
