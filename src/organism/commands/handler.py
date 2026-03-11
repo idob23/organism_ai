@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.organism.memory.manager import MemoryManager
+    from src.organism.agents.factory import AgentFactory
+    from src.organism.core.loop import CoreLoop
 
 VALID_STYLES = {"formal", "informal", "technical", "brief"}
 
@@ -28,16 +30,28 @@ HELP_TEXT = (
     "  /insights                \u2014 show insights awaiting verification\n"
     "  /cleanup                \u2014 run database cleanup (expired cache, old reflections, old errors)\n"
     "  /test_error              \u2014 send a test error to monitoring\n"
+    "  /agents                  \u2014 list role templates and created agents\n"
+    "  /create_agent <role> [name] \u2014 create an agent from a role template\n"
+    "  /assign <agent> <task>   \u2014 assign a task to a specific agent\n"
     "  /help                    \u2014 show this help\n"
 )
 
 
 class CommandHandler:
 
-    def __init__(self, scheduler=None, approval=None, personality=None) -> None:
+    def __init__(
+        self,
+        scheduler=None,
+        approval=None,
+        personality=None,
+        factory: "AgentFactory | None" = None,
+        loop: "CoreLoop | None" = None,
+    ) -> None:
         self.scheduler = scheduler
         self.approval = approval
         self.personality = personality
+        self.factory = factory
+        self.loop = loop
 
     def is_command(self, text: str) -> bool:
         return text.strip().startswith("/")
@@ -70,6 +84,14 @@ class CommandHandler:
         # Test error — no memory required
         if cmd == "/test_error":
             return await self._handle_test_error()
+
+        # Agent commands (Q-9.5) — no memory required
+        if cmd == "/agents":
+            return self._handle_agents()
+        elif cmd == "/create_agent":
+            return await self._handle_create_agent(parts)
+        elif cmd == "/assign":
+            return await self._handle_assign(parts)
 
         if memory is None:
             return "Memory not available (DATABASE_URL not configured)."
@@ -434,3 +456,127 @@ class CommandHandler:
                 f"tasks={v.task_count:<5} avg_quality={quality}"
             )
         return "\n".join(lines)
+
+    # ── Agent commands (Q-9.5) ───────────────────────────────────────────
+
+    def _handle_agents(self) -> str:
+        """List role templates and created agents: /agents."""
+        if self.factory is None:
+            return "AgentFactory \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d"
+
+        lines = ["\U0001f4cb \u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 "
+                 "\u0448\u0430\u0431\u043b\u043e\u043d\u044b \u0440\u043e\u043b\u0435\u0439:"]
+        templates = self.factory.list_role_templates()
+        if templates:
+            for t in templates:
+                desc = t["description"][:80] if t["description"] else ""
+                lines.append(f"  \u2022 {t['role_id']} \u2014 {desc}")
+        else:
+            lines.append("  (\u043d\u0435\u0442 \u0448\u0430\u0431\u043b\u043e\u043d\u043e\u0432)")
+
+        lines.append("")
+        lines.append("\U0001f916 \u0421\u043e\u0437\u0434\u0430\u043d\u043d\u044b\u0435 "
+                     "\u0430\u0433\u0435\u043d\u0442\u044b:")
+        agents = self.factory.list_created_agents()
+        if agents:
+            for a in agents:
+                lines.append(
+                    f"  \u2022 {a.get('name', '?')} ({a.get('role_id', '?')}) "
+                    f"\u2014 ID: {a.get('agent_id', '?')}"
+                )
+        else:
+            lines.append(
+                "  \u0410\u0433\u0435\u043d\u0442\u044b \u0435\u0449\u0451 \u043d\u0435 "
+                "\u0441\u043e\u0437\u0434\u0430\u043d\u044b. \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 "
+                "/create_agent <\u0440\u043e\u043b\u044c>"
+            )
+
+        return "\n".join(lines)
+
+    async def _handle_create_agent(self, parts: list[str]) -> str:
+        """Create an agent from a role template: /create_agent <role> [name]."""
+        if self.factory is None:
+            return "AgentFactory \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d"
+
+        if len(parts) < 2:
+            templates = self.factory.list_role_templates()
+            roles = ", ".join(t["role_id"] for t in templates) if templates else "(\u043d\u0435\u0442)"
+            return (
+                "Usage: /create_agent <\u0440\u043e\u043b\u044c> [\u0438\u043c\u044f]\n"
+                f"\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0440\u043e\u043b\u0438: {roles}"
+            )
+
+        role_id = parts[1].lower().strip()
+
+        # Verify role exists
+        if self.factory.get_role_template(role_id) is None:
+            templates = self.factory.list_role_templates()
+            roles = ", ".join(t["role_id"] for t in templates) if templates else "(\u043d\u0435\u0442)"
+            return (
+                f"\u0420\u043e\u043b\u044c '{role_id}' \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. "
+                f"\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435: {roles}"
+            )
+
+        name = " ".join(parts[2:]).strip() if len(parts) > 2 else role_id.capitalize()
+
+        if self.loop is None:
+            return "\u041e\u0448\u0438\u0431\u043a\u0430: CoreLoop \u043d\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0434\u043b\u044f \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438"
+
+        try:
+            result = await self.factory.create_from_role(role_id, name, self.loop.llm)
+            if result is None:
+                return f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430: \u0440\u043e\u043b\u044c '{role_id}' \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+            return (
+                f"\u2705 \u0410\u0433\u0435\u043d\u0442 {name} ({role_id}) "
+                f"\u0441\u043e\u0437\u0434\u0430\u043d!\n"
+                f"ID: {result['agent_id']}\n"
+                f"Personality: {result['personality_file']}"
+            )
+        except Exception as exc:
+            return f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u044f \u0430\u0433\u0435\u043d\u0442\u0430: {exc}"
+
+    async def _handle_assign(self, parts: list[str]) -> str:
+        """Assign a task to a specific agent: /assign <agent> <task>."""
+        if self.factory is None:
+            return "AgentFactory \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d"
+
+        if len(parts) < 3:
+            return "Usage: /assign <\u0430\u0433\u0435\u043d\u0442> <\u0437\u0430\u0434\u0430\u0447\u0430>"
+
+        agent_ref = parts[1].strip()
+        task_text = parts[2].strip()
+
+        # Find agent by ID or name
+        agents = self.factory.list_created_agents()
+        agent_dict = None
+        for a in agents:
+            if a.get("agent_id") == agent_ref:
+                agent_dict = a
+                break
+        if agent_dict is None:
+            ref_lower = agent_ref.lower()
+            for a in agents:
+                if a.get("name", "").lower() == ref_lower:
+                    agent_dict = a
+                    break
+
+        if agent_dict is None:
+            return (
+                f"\u0410\u0433\u0435\u043d\u0442 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d: "
+                f"{agent_ref}\n\u0421\u043f\u0438\u0441\u043e\u043a \u0430\u0433\u0435\u043d\u0442\u043e\u0432: /agents"
+            )
+
+        if self.loop is None or getattr(self.loop, "_orchestrator", None) is None:
+            return "MetaOrchestrator \u043d\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d"
+
+        if not hasattr(self.loop._orchestrator, "run_as_agent"):
+            return "MetaOrchestrator \u043d\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d"
+
+        try:
+            result = await self.loop._orchestrator.run_as_agent(task_text, agent_dict)
+            agent_name = agent_dict.get("name", agent_ref)
+            if result.success:
+                return f"\U0001f916 {agent_name}:\n\n{result.output}"
+            return f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f: {result.error}"
+        except Exception as exc:
+            return f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f: {exc}"

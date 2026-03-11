@@ -33,10 +33,14 @@ class Gateway:
         self.loop = loop
         self.scheduler = scheduler
         self.approval = approval
+        from src.organism.agents.factory import AgentFactory
+        self.factory = AgentFactory()
         self.cmd_handler = CommandHandler(
             scheduler=scheduler,
             approval=approval,
             personality=getattr(loop, "personality", None),
+            factory=self.factory,
+            loop=loop,
         )
         self._channels: dict[str, BaseChannel] = {}
 

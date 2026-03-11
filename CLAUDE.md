@@ -155,11 +155,14 @@ ___
 /insights                 — show insights awaiting verification
 /cleanup                  — run database cleanup (expired cache, old reflections, old errors)
 /test_error               — send a test error to monitoring
+/agents                   — list role templates and created agents
+/create_agent <role> [name] — create an agent from a role template
+/assign <agent> <task>    — assign a task to a specific agent
 /help                     — show available commands
 ```
 
 ## Current Metrics (March 2026)
-- Benchmark: 26 tasks total (25/26 success with Docker+DB, #9 multi-agent requires --multi)
+- Benchmark: 28 tasks total (28/28 success with Docker+DB)
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes applied: FIX-1 through FIX-61 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
@@ -168,6 +171,7 @@ ___
   - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
   - Q-9.3 ✅ (Auto-generate PERSONALITY.md from role template via LLM)
   - Q-9.4 ✅ (MetaOrchestrator — routes tasks by agent specialization)
+  - Q-9.5 ✅ (/agents, /create_agent, /assign commands — Agent Factory complete)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

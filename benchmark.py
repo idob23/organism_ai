@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 26 task types and reports a formatted summary.
+Measures quality across 28 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
@@ -12,10 +12,11 @@ Tasks 15-19: Sprint 6 coverage (orchestrator-sm, cmd-schedule, cmd-personality,
 Tasks 20-23: Sprint 7 coverage (cross-agent, structured reflections, few-shot,
              evolutionary)
 Tasks 24-26: Sprint 8 coverage (duplicate-search, mcp-serve, a2a-infra)
+Tasks 27-28: Sprint 9 coverage (cmd-agents, cmd-create-agent)
 
 Usage:
-    python benchmark.py           # run all 26 tasks
-    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8 (no web / multi-agent)
+    python benchmark.py           # run all 28 tasks
+    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8, 27 (no web / multi-agent)
 """
 import argparse
 import asyncio
@@ -380,11 +381,26 @@ TASKS = [
         "task": "/help",
         "mode": "command",
     },
+    # ── Sprint 9 tasks (Q-9.2 through Q-9.5) ─────────────────────────────────
+    {
+        "id": 27,
+        "type": "cmd-agents",
+        # /agents command (Q-9.5): list role templates and created agents
+        "task": "/agents",
+        "mode": "command",
+    },
+    {
+        "id": 28,
+        "type": "cmd-create-agent",
+        # /create_agent command (Q-9.5): creates agent from role template via LLM
+        "task": "/create_agent marketer",
+        "mode": "command",
+    },
 ]
 
 # Task IDs included in --quick mode
 # Sprint 5 tasks (11-14) are excluded — they require a warm DB with memory/graph data
-QUICK_IDS = {1, 2, 3, 7, 8}
+QUICK_IDS = {1, 2, 3, 7, 8, 27}
 
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
@@ -504,9 +520,13 @@ async def run_orchestrator_task(
 async def run_command_task(
     task_def: dict, memory: MemoryManager | None,
     scheduler=None, personality=None,
+    factory=None, loop=None,
 ) -> BenchmarkResult:
     """Run a slash command through CommandHandler."""
-    handler = CommandHandler(scheduler=scheduler, personality=personality)
+    handler = CommandHandler(
+        scheduler=scheduler, personality=personality,
+        factory=factory, loop=loop,
+    )
     task_text = task_def["task"]
     t0 = time.time()
     try:
@@ -702,6 +722,10 @@ async def run_benchmark(quick: bool) -> None:
         scheduler.add_job(job)
     loop.scheduler = scheduler
 
+    # Q-9.5: AgentFactory for /agents and /create_agent command tests
+    from src.organism.agents.factory import AgentFactory
+    benchmark_factory = AgentFactory()
+
     results: list[BenchmarkResult] = []
 
     for i, task_def in enumerate(tasks, 1):
@@ -712,7 +736,10 @@ async def run_benchmark(quick: bool) -> None:
         if task_mode == "orchestrator":
             bm = await run_orchestrator_task(task_def, llm, registry, memory)
         elif task_mode == "command":
-            bm = await run_command_task(task_def, memory, scheduler=scheduler, personality=personality)
+            bm = await run_command_task(
+                task_def, memory, scheduler=scheduler, personality=personality,
+                factory=benchmark_factory, loop=loop,
+            )
         else:
             bm = await run_loop_task(task_def, loop)
 
@@ -732,14 +759,14 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python benchmark.py            # full suite (26 tasks)\n"
-            "  python benchmark.py --quick    # fast check (5 tasks, no web/multi-agent)\n"
+            "  python benchmark.py            # full suite (28 tasks)\n"
+            "  python benchmark.py --quick    # fast check (6 tasks, no web/multi-agent)\n"
         ),
     )
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Run only tasks 1, 2, 3, 7, 8 (code + writing + analysis + cache)",
+        help="Run only tasks 1, 2, 3, 7, 8, 27 (code + writing + analysis + cache + agents)",
     )
     args = parser.parse_args()
 
