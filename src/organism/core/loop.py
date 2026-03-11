@@ -628,6 +628,18 @@ class CoreLoop:
                         quality = eval_result.quality_score
                     except Exception:
                         pass
+                    # FIX-68: Save orchestrator result to long-term memory
+                    if self.memory:
+                        try:
+                            await self.memory.on_task_end(
+                                task, orch_result.output or "", orch_result.success,
+                                time.time() - start,
+                                tools_used=["orchestrator"],
+                                quality_score=quality,
+                                user_id=user_id,
+                            )
+                        except Exception:
+                            pass
                     tr = TaskResult(
                         task_id=task_id, task=task,
                         success=orch_result.success,

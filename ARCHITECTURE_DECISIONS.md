@@ -1033,3 +1033,10 @@ _handle_conversation. Memory search and chat history remain in the text-only pat
 (media path handles its own memory search internally).
 Also removed `context_budget.py` from CLAUDE.md File Structure (unused since FIX-66).
 Files: `core/loop.py`, `CLAUDE.md`.
+
+### FIX-68: Orchestrator path — save result to long-term memory (2026-03-11)
+Problem: orchestrator path in CoreLoop.run() skipped on_task_end(). Results from multi-agent
+tasks were not saved to task_memories, invisible to semantic search, missing from causal
+graph and few-shot store.
+Fix: Added on_task_end() call after Evaluator scoring, before TaskResult construction.
+Files: `core/loop.py`.
