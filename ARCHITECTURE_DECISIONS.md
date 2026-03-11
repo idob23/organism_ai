@@ -1040,3 +1040,8 @@ tasks were not saved to task_memories, invisible to semantic search, missing fro
 graph and few-shot store.
 Fix: Added on_task_end() call after Evaluator scoring, before TaskResult construction.
 Files: `core/loop.py`.
+
+### Q-9.10: /errors command (2026-03-12)
+New command: /errors [N] shows last N errors from error_log table. Default 5, max 20.
+No new benchmark task — infrastructure utility command.
+Files: `commands/handler.py`.

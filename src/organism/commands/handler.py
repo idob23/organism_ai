@@ -29,6 +29,7 @@ HELP_TEXT = (
     "  /reset                   \u2014 reset all saved profile data\n"
     "  /insights                \u2014 show insights awaiting verification\n"
     "  /cleanup                \u2014 run database cleanup (expired cache, old reflections, old errors)\n"
+    "  /errors [N]              \u2014 show last N errors (default 5)\n"
     "  /test_error              \u2014 send a test error to monitoring\n"
     "  /agents                  \u2014 list role templates and created agents\n"
     "  /create_agent <role> [name] \u2014 create an agent from a role template\n"
@@ -123,6 +124,8 @@ class CommandHandler:
             return await self._handle_cleanup(memory)
         elif cmd == "/insights":
             return await self._handle_insights()
+        elif cmd == "/errors":
+            return await self._handle_errors(parts, memory)
         else:
             return f"Unknown command: {cmd}\n\n{HELP_TEXT}"
 
@@ -425,6 +428,42 @@ class CommandHandler:
         if approved:
             for a in approved:
                 lines.append(f"\u2022 {a.rule_text[:100]}")
+
+        return "\n".join(lines)
+
+    async def _handle_errors(self, parts: list[str], memory: "MemoryManager") -> str:
+        """Show recent errors from error_log: /errors [N]."""
+        limit = 5
+        if len(parts) > 1:
+            try:
+                limit = min(int(parts[1]), 20)
+            except ValueError:
+                return "Usage: /errors [N]\nExample: /errors 10"
+
+        from src.organism.memory.database import AsyncSessionLocal
+        from sqlalchemy import text as sa_text
+
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(sa_text(
+                    "SELECT component, message, task_text, created_at "
+                    "FROM error_log ORDER BY created_at DESC LIMIT :n"
+                ), {"n": limit})
+                rows = result.fetchall()
+        except Exception as e:
+            return f"Error reading error_log: {e}"
+
+        if not rows:
+            return "No errors found"
+
+        lines = [f"Last {len(rows)} error(s):"]
+        for row in rows:
+            ts = row.created_at.strftime("%Y-%m-%d %H:%M") if row.created_at else "?"
+            msg = (row.message or "")[:200]
+            line = f"\n[{ts}] {row.component}\n{msg}"
+            if row.task_text:
+                line += f"\nTask: {row.task_text[:100]}"
+            lines.append(line)
 
         return "\n".join(lines)
 

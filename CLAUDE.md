@@ -154,6 +154,7 @@ ___
 /reset                    — reset all saved profile data
 /insights                 — show insights awaiting verification
 /cleanup                  — run database cleanup (expired cache, old reflections, old errors)
+/errors [N]               — show last N errors (default 5)
 /test_error               — send a test error to monitoring
 /agents                   — list role templates and created agents
 /create_agent <role> [name] — create an agent from a role template
@@ -165,7 +166,7 @@ ___
 - Benchmark: 28 tasks total (28/28 success with Docker+DB)
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes applied: FIX-1 through FIX-68 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
+- Fixes applied: FIX-1 through FIX-68 complete, Q-9.10 ✅. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
 - Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
