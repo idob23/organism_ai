@@ -12,10 +12,11 @@
 - Sprint 8: MCP client/server, 1C MCP server (demo), Duplicate finder, Organism as MCP server, A2A protocol
 - Sprint 9 (Universal Planner): Q-9.0, Q-9.1, Q-9.6, Q-9.7, Q-9.9, Q-10.1–Q-10.4 ✅
 - Sprint 9 (Skills): SKILL-1 (technical skills system) ✅
-- Sprint 9 (Fixes): FIX-33 — FIX-61 ✅
+- Sprint 9 (Agent Factory): Q-9.2 (role templates + AgentFactory), Q-9.3 (personality generation), Q-9.4 (MetaOrchestrator), Q-9.5 (commands) ✅
+- Sprint 9 (Fixes): FIX-33 — FIX-64 ✅
 - Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
 - Memory Verification Loop: INSIGHT-1 ✅
-- Benchmark: 26/26 задач, quality 0.93 ✅
+- Benchmark: 28/28 задач, quality 0.89–0.93 ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 
@@ -31,14 +32,7 @@
 
 ## Открытые задачи
 
-### Блок 1: Agent Factory (приоритет 1)
-
-- Q-9.2: Шаблоны ролей агентов — маркетолог, аналитик, закупщик, юрист, HR
-- Q-9.3: Автогенерация PERSONALITY.md — описание роли → конфиг агента за 30 секунд
-- Q-9.4: Мета-оркестратор — умная маршрутизация задач по специализации агентов
-- Q-9.5: Команды /agents, /create_agent <роль>, /assign <агент> <задача>
-
-### Блок 2: Технический долг (приоритет 2)
+### Блок 1: Технический долг (приоритет 2)
 
 - Q-9.8: MCP JSON-RPC 2.0 — совместимость с Cursor, Claude Desktop
 - Q-9.10: /errors команда — просмотр ошибок без SSH
@@ -70,6 +64,6 @@
 
 ## Критерии перехода к первому клиенту
 
-- Agent Factory готов (Q-9.2–Q-9.5)
+- Agent Factory готов (Q-9.2–Q-9.5) ✅
 - Docker Compose production готов
 - 2+ недели стабильной работы у 3 тестеров без критических багов ✅

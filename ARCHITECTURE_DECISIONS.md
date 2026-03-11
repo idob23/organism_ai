@@ -970,3 +970,31 @@ Fallback: if classifier or Orchestrator fails, falls through to `_handle_convers
 `build_loop(registry, with_orchestrator=True)` — Telegram gets auto-routing.
 Gateway/TelegramChannel unchanged — routing is internal to CoreLoop.
 Files: `src/organism/core/loop.py`, `main.py`.
+
+### FIX-62: Agent Factory code review fixes (2026-03-11)
+Four fixes after code review:
+1. Recursion guard: `skip_orchestrator` param in CoreLoop.run(). MetaOrchestrator.run_as_agent()
+   passes skip_orchestrator=True so _classify_complex() is skipped, preventing infinite recursion.
+2. Routing descriptions: _route_choice() loads ## Description from role templates so Haiku
+   can distinguish between roles when routing tasks.
+3. Write verification: create_from_role/create_from_description check is_file() after writing
+   agent JSON. Return None if file not written (instead of silent success).
+4. Timestamp precision: agent_id uses %Y%m%d_%H%M%S (seconds) instead of %H%M (minutes)
+   to prevent collisions on fast creation.
+Bonus: benchmark.py cleans up agent artifacts after test #28.
+Files: `core/loop.py`, `agents/meta_orchestrator.py`, `agents/factory.py`, `benchmark.py`.
+
+### FIX-63: Agent personality via system prompt (2026-03-11)
+Problem: run_as_agent() injected personality into task text. This contaminated memory
+(on_task_start/on_task_end stored personality blob) and broke cache (personality+timestamp
+made every cache key unique).
+Fix: Added `extra_system_context` param to CoreLoop.run() and _handle_conversation().
+MetaOrchestrator passes clean task + personality as extra_system_context. Memory and cache
+receive only the original user task.
+Files: `core/loop.py`, `agents/meta_orchestrator.py`.
+
+### FIX-64: Skip artel personality when agent personality present (2026-03-11)
+Problem: CoreLoop.run() injected artel personality (PersonalityConfig) AND agent personality
+(extra_system_context) simultaneously. Two conflicting style instructions confused the LLM.
+Fix: Skip PersonalityConfig injection when extra_system_context is non-empty.
+Files: `core/loop.py`.

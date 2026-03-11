@@ -590,7 +590,8 @@ class CoreLoop:
                 except Exception:
                     pass
 
-        if self.personality:
+        # FIX-64: Skip artel personality when agent personality is provided
+        if self.personality and not extra_system_context:
             personality_addition = self.personality.get_system_prompt_addition()
             if personality_addition:
                 user_context = user_context + personality_addition
