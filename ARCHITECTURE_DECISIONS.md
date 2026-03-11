@@ -928,3 +928,13 @@ signal-preserving transformation, not data loss.
 Activate when: real artel data with >90-day periods becomes available.
 Affects: `src/organism/tools/mcp_client.py` (post-processing), `src/organism/mcp_1c/server.py`.
 Estimate: 1-2 days, does not touch CoreLoop or Planner.
+
+### ARCH-1.1: Evaluator in _handle_conversation (2026-03-11)
+Problem: `_handle_conversation` used binary `quality_score = 1.0 if success else 0.0`,
+bypassing the Evaluator entirely. SolutionCache stored incorrect scores, PVC got garbage data.
+Fix: After final answer is obtained, call `self.evaluator.evaluate()` with a ToolResult
+constructed from the answer. quality_score from Evaluator replaces binary placeholder.
+Fallback on Evaluator failure: `0.8 if success else 0.2` (non-binary, better than 1.0/0.0).
+SolutionCache storing added in `run()` after `_handle_conversation` returns — stores only
+when `quality_score >= 0.8` (enforced by `SolutionCache.put()`).
+Files: `src/organism/core/loop.py`.

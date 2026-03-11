@@ -477,6 +477,25 @@ class CoreLoop:
         success = not exhausted
         _log.info(f"[{task_id}] Handler: {round_count} tool rounds, {duration:.1f}s, success={success}")
 
+        # ARCH-1.1: Evaluate quality via Evaluator (not binary)
+        quality_score = 0.8 if success else 0.2  # fallback default
+        try:
+            from src.organism.tools.base import ToolResult as _TR
+            _eval_tr = _TR(
+                output=answer,
+                exit_code=0 if success else 1,
+                error="" if success else "exhausted tool rounds",
+            )
+            eval_result = await self.evaluator.evaluate(
+                task=task,
+                step_description=f"\u0412\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438: {task[:100]}",
+                result=_eval_tr,
+            )
+            quality_score = eval_result.quality_score
+            _log.info(f"[{task_id}] quality_score={eval_result.quality_score:.2f}")
+        except Exception as e:
+            log_exception(_log, f"[{task_id}] Evaluator failed, using fallback", e)
+
         # Save to memory
         if self.memory:
             try:
@@ -485,7 +504,7 @@ class CoreLoop:
                     task, answer, success, duration,
                     steps_count=round_count,
                     tools_used=tools_used,
-                    quality_score=1.0 if success else 0.0,
+                    quality_score=quality_score,
                     user_id=user_id,
                 )
             except Exception:
@@ -502,7 +521,7 @@ class CoreLoop:
         return TaskResult(
             task_id=task_id, task=task, success=success,
             output=answer, answer=answer,
-            duration=duration, quality_score=1.0 if success else 0.0,
+            duration=duration, quality_score=quality_score,
         )
 
     async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "") -> "TaskResult":
@@ -627,12 +646,24 @@ class CoreLoop:
         # (was: Q-9.1 decomposition block)
 
         # Q-10.4: All tasks go through _handle_conversation (primary execution path)
-        return await self._handle_conversation(
+        conv_result = await self._handle_conversation(
             task_id, task,
             user_context=user_context,
             memory_context=memory_context,
             user_id=user_id,
         )
+
+        # ARCH-1.1: Store to SolutionCache if quality >= 0.8
+        if self.memory and cache_hash and canonical_task:
+            try:
+                await self.cache.put(
+                    cache_hash, canonical_task, task,
+                    conv_result.answer, conv_result.quality_score,
+                )
+            except Exception as e:
+                log_exception(_log, f"[{task_id}] Cache store failed", e)
+
+        return conv_result
 
     async def _execute_step(self, task_id: str, task: str, step: PlanStep, verbose: bool) -> StepLog:
         _log.info(f"[{task_id}] Step {step.id} start: [{step.tool}] {step.description[:80]}")
