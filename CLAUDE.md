@@ -85,6 +85,7 @@ organism_ai/
 │   │                  # web_fetch.py, file_manager.py, text_writer.py, pptx_creator.py
 │   │                  # duplicate_finder.py, pdf_tool.py, memory_search.py, mcp_client.py
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
+│   │                  # factory.py — AgentFactory (role templates + agent configs)
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
 │   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
@@ -104,6 +105,8 @@ organism_ai/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
 │   ├── skills/        # excel.md, docx.md, charts.md (SKILL-1)
 │   ├── fonts/         # DejaVuSans.ttf, DejaVuSans-Bold.ttf (FIX-57b)
+│   ├── roles/         # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md (Q-9.2)
+│   ├── agents/        # {agent_id}.json — created agent configs (Q-9.2)
 │   ├── personality/   # default.md (per-artel personality configs)
 │   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
 │                      # causal_analyzer.txt, template_extractor.txt
@@ -161,7 +164,7 @@ ___
 - Fixes applied: FIX-1 through FIX-61 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
 - Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
-  - Следующий: Q-9.2 (Agent Factory — роли агентов)
+  - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
