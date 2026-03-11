@@ -94,6 +94,7 @@ def build_loop(registry: ToolRegistry | None = None, personality=None, with_orch
     memory = MemoryManager() if settings.database_url else None
     p = personality if personality is not None else _load_personality()
     orch = None
+    factory = None
     if with_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
         from src.organism.agents.factory import AgentFactory
@@ -101,7 +102,7 @@ def build_loop(registry: ToolRegistry | None = None, personality=None, with_orch
         base_orch = Orchestrator(llm, reg, memory=memory)
         factory = AgentFactory()
         orch = MetaOrchestrator(base_orch, llm, factory)
-    loop = CoreLoop(llm, reg, memory=memory, personality=p, orchestrator=orch)
+    loop = CoreLoop(llm, reg, memory=memory, personality=p, orchestrator=orch, factory=factory)
     if orch is not None and hasattr(orch, "set_loop"):
         orch.set_loop(loop)
     return loop
@@ -111,8 +112,17 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
     from src.organism.commands.handler import CommandHandler
     handler = CommandHandler()
     if handler.is_command(task):
+        loop = build_loop(with_orchestrator=True)
+        await _connect_mcp(loop.registry)
+        from src.organism.agents.factory import AgentFactory
+        factory = getattr(loop, 'factory', None) or AgentFactory()
+        handler = CommandHandler(
+            personality=loop.personality,
+            factory=factory,
+            loop=loop,
+        )
         memory = MemoryManager() if settings.database_url else None
-        print(await handler.handle(task, memory))
+        print(await handler.handle(task, memory, user_id="local"))
         return
 
     if use_orchestrator:

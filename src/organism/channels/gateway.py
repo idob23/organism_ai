@@ -34,7 +34,7 @@ class Gateway:
         self.scheduler = scheduler
         self.approval = approval
         from src.organism.agents.factory import AgentFactory
-        self.factory = AgentFactory()
+        self.factory = getattr(loop, 'factory', None) or AgentFactory()
         self.cmd_handler = CommandHandler(
             scheduler=scheduler,
             approval=approval,

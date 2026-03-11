@@ -1009,3 +1009,16 @@ Three bugs found in code review #4:
 3. Orchestrator quality bypass: orchestrator path in run() used hardcoded quality=0.85,
    skipping Evaluator. Now calls `self.evaluator.evaluate()` for calibrated quality_score.
 Files: `core/loop.py`, `commands/handler.py`.
+
+### FIX-66: Architecture cleanup — dead code extraction, single factory, CLI commands (2026-03-11)
+Three cleanup changes:
+1. Dead code extraction: `_validate_plan()`, `_execute_step()`, `MAX_RETRIES`, `MAX_PLAN_STEPS`
+   moved from CoreLoop to PlannerModule (`core/planner_module.py`). These were dead since Q-10.4
+   made `_handle_conversation` the primary path. Also removed unused `ContextBudget` and
+   `PlanStep` imports from loop.py.
+2. Single AgentFactory: CoreLoop.__init__ gains `factory` param. `build_loop()` creates one
+   AgentFactory and passes it to both MetaOrchestrator and CoreLoop. Gateway reuses
+   `loop.factory` instead of creating a new instance.
+3. CLI commands: `run_single()` now creates a full CommandHandler with factory/loop/personality
+   so /agents, /create_agent, /assign work from CLI (not just Telegram).
+Files: `core/loop.py`, `core/planner_module.py`, `channels/gateway.py`, `main.py`.

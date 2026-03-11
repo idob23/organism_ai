@@ -5,11 +5,9 @@ from datetime import datetime
 from dataclasses import dataclass, field
 
 from src.organism.core.evaluator import Evaluator
-from src.organism.core.planner import PlanStep
 from src.organism.llm.base import LLMProvider
 from src.organism.logging.logger import Logger
 from src.organism.logging.error_handler import get_logger, log_exception
-from src.organism.core.context_budget import ContextBudget
 from src.organism.memory.manager import MemoryManager
 from src.organism.memory.user_facts import format_for_prompt
 from src.organism.self_improvement.prompt_versioning import PromptVersionControl
@@ -48,9 +46,6 @@ class TaskResult:
 
 
 class CoreLoop:
-
-    MAX_RETRIES = 3
-    MAX_PLAN_STEPS = 10
 
     @staticmethod
     def _is_useful_output(output: str) -> bool:
@@ -123,18 +118,18 @@ class CoreLoop:
             return "\u041f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0437\u0430\u043f\u0440\u043e\u0441."
         return output
 
-    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None, orchestrator=None) -> None:
+    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None, orchestrator=None, factory=None) -> None:
         self.llm = llm
         self.registry = registry
         pvc = PromptVersionControl() if memory is not None else None
         self.evaluator = Evaluator(llm, pvc=pvc)
         self.validator = SafetyValidator()
         self.logger = Logger()
-        self.context_budget = ContextBudget()
         self.skill_matcher = SkillMatcher(llm)
         self.personality = personality
         self.scheduler = scheduler
         self._orchestrator = orchestrator
+        self.factory = factory
         if memory is not None and memory.llm is None:
             memory.llm = llm
         self.memory = memory
@@ -144,58 +139,6 @@ class CoreLoop:
             mem_tool.set_memory(memory)
         except KeyError:
             pass
-
-    def _validate_plan(self, steps: list[PlanStep]) -> str | None:
-        """Validate plan before execution. Returns error message or None if valid."""
-        if not steps:
-            return "Empty plan — no steps generated"
-
-        if len(steps) > self.MAX_PLAN_STEPS:
-            return f"Plan has {len(steps)} steps, maximum is {self.MAX_PLAN_STEPS}"
-
-        available_tools = self.registry.list_all()
-        step_ids = {s.id for s in steps}
-
-        for step in steps:
-            if step.tool not in available_tools:
-                return f"Step {step.id}: tool '{step.tool}' not found. Available: {available_tools}"
-
-            inp = step.input or {}
-
-            if step.tool == "code_executor" and "code" not in inp:
-                return f"Step {step.id}: code_executor requires 'code' in input"
-
-            if step.tool == "web_search" and "query" not in inp:
-                return f"Step {step.id}: web_search requires 'query' in input"
-
-            if step.tool == "web_fetch" and "url" not in inp:
-                return f"Step {step.id}: web_fetch requires 'url' in input"
-
-            if step.tool == "text_writer" and "prompt" not in inp:
-                return f"Step {step.id}: text_writer requires 'prompt' in input"
-
-            if step.tool == "pptx_creator" and "topic" not in inp:
-                return f"Step {step.id}: pptx_creator requires 'topic' in input"
-
-            if step.tool == "duplicate_finder":
-                # entities can be empty (will return error asking for data)
-                continue
-
-            if step.tool == "delegate_to_agent":
-                if "peer_name" not in inp or "task" not in inp:
-                    return f"Step {step.id}: delegate_to_agent requires 'peer_name' and 'task'"
-                continue
-
-            # MCP tools (mcp_*): input validation skipped — schema is dynamic.
-            # Known-tool checks above won't match mcp_ prefix, so they pass through.
-
-            for dep in step.depends_on:
-                if dep not in step_ids:
-                    return f"Step {step.id}: depends_on references non-existent step {dep}"
-                if dep >= step.id:
-                    return f"Step {step.id}: depends_on step {dep} which comes after (circular)"
-
-        return None
 
     def _build_tool_definitions(self) -> list[dict]:
         """Build Anthropic-format tool definitions from registry."""
@@ -717,104 +660,3 @@ class CoreLoop:
                 log_exception(_log, f"[{task_id}] Cache store failed", e)
 
         return conv_result
-
-    async def _execute_step(self, task_id: str, task: str, step: PlanStep, verbose: bool) -> StepLog:
-        _log.info(f"[{task_id}] Step {step.id} start: [{step.tool}] {step.description[:80]}")
-        if verbose:
-            print(f"\nStep {step.id}: {step.description}")
-
-        if step.tool == "code_executor":
-            code = step.input.get("code", "")
-            val = self.validator.validate_code(code)
-            if not val.allowed:
-                return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                               output="", error=f"Safety block: {val.reason}", success=False, duration=0.0)
-
-        try:
-            tool = self.registry.get(step.tool)
-        except KeyError:
-            error = f"Tool '{step.tool}' not found in registry. Available: {self.registry.list_all()}"
-            _log.error(f"[{task_id}] {error}")
-            return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                           output="", error=error, success=False, duration=0.0)
-
-        step_input = dict(step.input)
-        result = None
-        eval_result = None
-
-        for attempt in range(1, self.MAX_RETRIES + 1):
-            step_start = time.time()
-            if verbose and attempt > 1:
-                print(f"  Retry {attempt}/{self.MAX_RETRIES}...")
-
-            # FIX-10: Monitor step retries
-            if attempt > 1:
-                try:
-                    from src.organism.monitoring.error_notifier import capture_error
-                    _prev_error = result.error[:200] if result and result.error else "unknown"
-                    asyncio.ensure_future(capture_error(
-                        component=f"core.loop.step.{step.tool}",
-                        message=f"Step {step.id} retry {attempt}/{self.MAX_RETRIES}: {_prev_error}",
-                        task_id=task_id,
-                        task_text=task[:300],
-                        level="WARNING",
-                    ))
-                except Exception:
-                    pass
-
-            try:
-                result = await tool.execute(step_input)
-            except Exception as e:
-                error = log_exception(_log, f"[{task_id}] Step {step.id} crashed", e)
-                # MON-1: Capture to ErrorLog for Telegram monitoring
-                try:
-                    from src.organism.monitoring.error_notifier import capture_error
-                    asyncio.ensure_future(capture_error(
-                        component=f"core.loop.{step.tool}", message=f"Step {step.id} crashed: {e}",
-                        exception=e, task_id=task_id, task_text=task[:500],
-                    ))
-                except Exception:
-                    pass
-                return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                               output="", error=error, success=False,
-                               duration=time.time() - step_start, attempts=attempt)
-
-            duration = time.time() - step_start
-            if verbose:
-                status = "OK" if result.success else "FAIL"
-                print(f"  [{status}] {duration:.1f}s | output: {result.output[:80] if result.output else '(empty)'}")
-                if result.error:
-                    print(f"  Error: {result.error[:120]}")
-
-            if not result.success:
-                _log.warning(f"[{task_id}] Step {step.id} attempt {attempt} failed: {result.error[:200]}")
-
-            try:
-                eval_result = await self.evaluator.evaluate(task=task, step_description=step.description, result=result)
-            except Exception as e:
-                log_exception(_log, f"[{task_id}] Evaluator crashed", e)
-                from src.organism.core.evaluator import EvalResult
-                eval_result = EvalResult(success=result.exit_code == 0, reason="Evaluator unavailable")
-
-            self.logger.log_step(task_id, step.id, step.tool, eval_result.success, duration, error=result.error)
-
-            if eval_result.success:
-                 _log.info(f"[{task_id}] Step {step.id} SUCCESS on attempt {attempt} (quality: {eval_result.quality_score:.2f})")
-                 return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                                output=result.output, error="", success=True,
-                                duration=duration, attempts=attempt,
-                                quality_score=eval_result.quality_score)
-
-            if eval_result.retry_hint and step.tool == "code_executor":
-                step_input["code"] = f"# Previous failed: {eval_result.retry_hint}\n{step_input.get('code', '')}"
-            elif eval_result.retry_hint and step.tool == "web_search" and "query" in step_input:
-                step_input["query"] = f"{step_input['query']} {eval_result.retry_hint}"
-
-            if verbose:
-                print(f"  Eval: {eval_result.reason}")
-
-        _log.error(f"[{task_id}] Step {step.id} FAILED after {self.MAX_RETRIES} attempts")
-        return StepLog(step_id=step.id, tool=step.tool, description=step.description,
-                       output=result.output if result else "",
-                       error=eval_result.reason if eval_result else "Max retries exceeded",
-                       success=False, duration=duration, attempts=self.MAX_RETRIES)
