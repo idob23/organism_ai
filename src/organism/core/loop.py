@@ -210,6 +210,7 @@ class CoreLoop:
         memory_context: str = "",
         user_id: str = "default",
         media: list | None = None,
+        extra_system_context: str = "",
     ) -> "TaskResult":
         """Q-10.4: Primary execution path — LLM with tools.
 
@@ -317,6 +318,9 @@ class CoreLoop:
             system_parts.append(f"\n{recent_work_context}")
         if longterm_context:
             system_parts.append(f"\n{longterm_context}")
+        # FIX-63: Extra system context from MetaOrchestrator (agent personality)
+        if extra_system_context:
+            system_parts.append(f"\n{extra_system_context}")
         system = "\n".join(system_parts)
 
         # --- Build messages ---
@@ -534,7 +538,7 @@ class CoreLoop:
         )
         return "yes" in resp.content.strip().lower()
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False) -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False, extra_system_context: str = "") -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -690,6 +694,7 @@ class CoreLoop:
             user_context=user_context,
             memory_context=memory_context,
             user_id=user_id,
+            extra_system_context=extra_system_context,
         )
 
         # ARCH-1.1: Store to SolutionCache if quality >= 0.8

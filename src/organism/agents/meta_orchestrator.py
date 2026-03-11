@@ -106,21 +106,26 @@ class MetaOrchestrator:
             agent_name = agent.get("name", agent.get("agent_id", "agent"))
             role_id = agent.get("role_id", "custom")
 
-            enhanced_task = (
+            # FIX-63: Inject personality via system prompt, not task text
+            # This keeps memory/cache clean — only the real task is stored
+            agent_context = (
                 f"[\u0410\u0433\u0435\u043d\u0442: {agent_name}, "
-                f"\u0420\u043e\u043b\u044c: {role_id}]\n\n"
+                f"\u0420\u043e\u043b\u044c: {role_id}]\n"
             )
             if personality_content:
-                enhanced_task += (
+                agent_context += (
                     "\u0418\u043d\u0441\u0442\u0440\u0443\u043a\u0446\u0438\u0438 "
                     "\u043f\u043e \u0441\u0442\u0438\u043b\u044e "
                     "\u0438 \u043f\u043e\u0432\u0435\u0434\u0435\u043d\u0438\u044e:\n"
-                    f"{personality_content}\n\n"
+                    f"{personality_content}"
                 )
-            enhanced_task += f"\u0417\u0430\u0434\u0430\u0447\u0430: {task}"
 
             if self._loop is not None:
-                result = await self._loop.run(enhanced_task, verbose=verbose, skip_orchestrator=True)
+                result = await self._loop.run(
+                    task, verbose=verbose,
+                    skip_orchestrator=True,
+                    extra_system_context=agent_context,
+                )
                 return OrchestratorResult(
                     task=task,
                     success=result.success,
@@ -130,6 +135,7 @@ class MetaOrchestrator:
                 )
 
             # Fallback: no loop reference, use base orchestrator
+            enhanced_task = f"{agent_context}\n\n\u0417\u0430\u0434\u0430\u0447\u0430: {task}"
             return await self.base.run(enhanced_task, verbose=verbose)
 
         except Exception as exc:
