@@ -948,3 +948,13 @@ Removed unused imports (Planner, TaskDecomposer) from loop.py. Kept PlanStep imp
 (used by _validate_plan and _execute_step which remain in CoreLoop).
 Orchestrator unchanged — it already has its own routing logic, never used CoreLoop's planner.
 Files: `src/organism/core/loop.py`, `src/organism/core/planner_module.py`.
+
+### ARCH-1.3: SolutionCache and KnowledgeBase moved to MemoryManager (2026-03-11)
+Problem: CoreLoop created SolutionCache and KnowledgeBase directly, bypassing MemoryManager.
+Two unrelated places managing memory, blurred boundary.
+Fix: Added `self.cache = SolutionCache()` and `self.kb = KnowledgeBase()` to MemoryManager.__init__.
+Removed `self.cache` and `self.knowledge_base` from CoreLoop.__init__ and their imports.
+All references repointed: `self.cache.*` -> `self.memory.cache.*` (already inside `if self.memory` guards).
+`self.knowledge_base` was dead code in CoreLoop (created but never read after Q-10.4) — simply removed.
+Graceful degradation: when memory=None, cache check and kb rules are skipped (existing guards).
+Files: `src/organism/memory/manager.py`, `src/organism/core/loop.py`.

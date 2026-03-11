@@ -11,8 +11,6 @@ from src.organism.logging.logger import Logger
 from src.organism.logging.error_handler import get_logger, log_exception
 from src.organism.core.context_budget import ContextBudget
 from src.organism.memory.manager import MemoryManager
-from src.organism.memory.knowledge_base import KnowledgeBase
-from src.organism.memory.solution_cache import SolutionCache
 from src.organism.memory.user_facts import format_for_prompt
 from src.organism.self_improvement.prompt_versioning import PromptVersionControl
 from src.organism.core.skill_matcher import SkillMatcher
@@ -132,8 +130,6 @@ class CoreLoop:
         self.evaluator = Evaluator(llm, pvc=pvc)
         self.validator = SafetyValidator()
         self.logger = Logger()
-        self.cache = SolutionCache()
-        self.knowledge_base = KnowledgeBase()
         self.context_budget = ContextBudget()
         self.skill_matcher = SkillMatcher(llm)
         self.personality = personality
@@ -622,9 +618,9 @@ class CoreLoop:
         canonical_task: str | None = None
         if self.memory and not _time_sensitive:
             try:
-                canonical_task = await self.cache.normalize_task(task, self.llm)
-                cache_hash = self.cache.hash_task(canonical_task)
-                cached = await self.cache.get(cache_hash)
+                canonical_task = await self.memory.cache.normalize_task(task, self.llm)
+                cache_hash = self.memory.cache.hash_task(canonical_task)
+                cached = await self.memory.cache.get(cache_hash)
                 if cached:
                     if verbose:
                         print(f"Cache HIT (quality={cached['quality_score']:.2f}, hits={cached['hits']})")
@@ -652,7 +648,7 @@ class CoreLoop:
         # ARCH-1.1: Store to SolutionCache if quality >= 0.8
         if self.memory and cache_hash and canonical_task:
             try:
-                await self.cache.put(
+                await self.memory.cache.put(
                     cache_hash, canonical_task, task,
                     conv_result.answer, conv_result.quality_score,
                 )
