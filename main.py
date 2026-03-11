@@ -96,8 +96,15 @@ def build_loop(registry: ToolRegistry | None = None, personality=None, with_orch
     orch = None
     if with_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
-        orch = Orchestrator(llm, reg, memory=memory)
-    return CoreLoop(llm, reg, memory=memory, personality=p, orchestrator=orch)
+        from src.organism.agents.factory import AgentFactory
+        from src.organism.agents.meta_orchestrator import MetaOrchestrator
+        base_orch = Orchestrator(llm, reg, memory=memory)
+        factory = AgentFactory()
+        orch = MetaOrchestrator(base_orch, llm, factory)
+    loop = CoreLoop(llm, reg, memory=memory, personality=p, orchestrator=orch)
+    if orch is not None and hasattr(orch, "set_loop"):
+        orch.set_loop(loop)
+    return loop
 
 
 async def run_single(task: str, use_orchestrator: bool = False) -> None:

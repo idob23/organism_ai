@@ -86,6 +86,7 @@ organism_ai/
 │   │                  # duplicate_finder.py, pdf_tool.py, memory_search.py, mcp_client.py
 │   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
 │   │                  # factory.py — AgentFactory (role templates + agent configs)
+│   │                  # meta_orchestrator.py — MetaOrchestrator (routes to custom agents)
 │   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
 │   │                  # solution_cache.py, knowledge_base.py, user_facts.py
 │   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
@@ -166,6 +167,7 @@ ___
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
   - Q-9.3 ✅ (Auto-generate PERSONALITY.md from role template via LLM)
+  - Q-9.4 ✅ (MetaOrchestrator — routes tasks by agent specialization)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
