@@ -112,6 +112,77 @@ class OrganismMCPServer:
                 status=500,
             )
 
+    # ── JSON-RPC 2.0 (Q-9.8: Cursor / Claude Desktop) ──────────────────
+
+    async def handle_jsonrpc(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
+        """JSON-RPC 2.0 endpoint for MCP protocol (Cursor, Claude Desktop)."""
+        try:
+            body = await request.json()
+        except Exception:
+            return aiohttp.web.json_response({
+                "jsonrpc": "2.0", "id": None,
+                "error": {"code": -32700, "message": "Parse error"},
+            }, status=400)
+
+        rpc_id = body.get("id")
+        method = body.get("method", "")
+
+        # Notifications (no id) — just 200 OK
+        if rpc_id is None:
+            return aiohttp.web.Response(status=200)
+
+        if method == "initialize":
+            return aiohttp.web.json_response({
+                "jsonrpc": "2.0", "id": rpc_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "organism-ai", "version": "9.0"},
+                },
+            })
+
+        if method == "tools/list":
+            return aiohttp.web.json_response({
+                "jsonrpc": "2.0", "id": rpc_id,
+                "result": {"tools": ORGANISM_TOOLS},
+            })
+
+        if method == "tools/call":
+            params = body.get("params", {})
+            tool_name = params.get("name", "")
+            arguments = params.get("arguments", {})
+            handler = self._handlers.get(tool_name)
+            if not handler:
+                return aiohttp.web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"Unknown tool: {tool_name}"}],
+                        "isError": True,
+                    },
+                })
+            try:
+                result_text = await handler(arguments)
+                return aiohttp.web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {"content": [{"type": "text", "text": result_text}]},
+                })
+            except Exception as e:
+                log_exception(_log, f"JSON-RPC tool error: {tool_name}", e)
+                return aiohttp.web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"Error: {e}"}],
+                        "isError": True,
+                    },
+                })
+
+        return aiohttp.web.json_response({
+            "jsonrpc": "2.0", "id": rpc_id,
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+        })
+
+    # ── Tool handlers ─────────────────────────────────────────────────
+
     async def _h_execute_task(self, args: dict) -> str:
         task = args.get("task", "")
         mode = args.get("mode", "single")
@@ -197,4 +268,5 @@ def create_organism_app(
     app = aiohttp.web.Application()
     app.router.add_post("/tools/list", server.handle_tools_list)
     app.router.add_post("/tools/call", server.handle_tools_call)
+    app.router.add_post("/jsonrpc", server.handle_jsonrpc)
     return app

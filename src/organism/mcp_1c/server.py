@@ -443,6 +443,84 @@ class MCP1CServer:
                 status=500,
             )
 
+    # ── JSON-RPC 2.0 (Q-9.8: Cursor / Claude Desktop) ──────────────────
+
+    async def handle_jsonrpc(self, request: web.Request) -> web.Response:
+        """JSON-RPC 2.0 endpoint for MCP protocol (Cursor, Claude Desktop)."""
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({
+                "jsonrpc": "2.0", "id": None,
+                "error": {"code": -32700, "message": "Parse error"},
+            }, status=400)
+
+        rpc_id = body.get("id")
+        method = body.get("method", "")
+
+        # Notifications (no id) — just 200 OK
+        if rpc_id is None:
+            return web.Response(status=200)
+
+        if method == "initialize":
+            return web.json_response({
+                "jsonrpc": "2.0", "id": rpc_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "organism-1c", "version": "9.0"},
+                },
+            })
+
+        if method == "tools/list":
+            return web.json_response({
+                "jsonrpc": "2.0", "id": rpc_id,
+                "result": {"tools": MCP_TOOLS},
+            })
+
+        if method == "tools/call":
+            params = body.get("params", {})
+            tool_name = params.get("name", "")
+            arguments = params.get("arguments", {})
+            handler = self._handlers.get(tool_name)
+            if not handler:
+                return web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"Unknown tool: {tool_name}"}],
+                        "isError": True,
+                    },
+                })
+            try:
+                result = handler(arguments)
+                text = json.dumps(result, ensure_ascii=False, indent=2)
+                return web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {"content": [{"type": "text", "text": text}]},
+                })
+            except NotImplementedError as e:
+                return web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {
+                        "content": [{"type": "text", "text": str(e)}],
+                        "isError": True,
+                    },
+                })
+            except Exception as e:
+                _log.error(f"JSON-RPC tool error: {tool_name} — {e}")
+                return web.json_response({
+                    "jsonrpc": "2.0", "id": rpc_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"Error: {e}"}],
+                        "isError": True,
+                    },
+                })
+
+        return web.json_response({
+            "jsonrpc": "2.0", "id": rpc_id,
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+        })
+
     # \u2500\u2500 Handler adapters \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
     def _h_counterparties(self, args: dict) -> list[dict]:
@@ -480,6 +558,7 @@ def create_app(mode: str = "demo", odata_url: str = "") -> web.Application:
     app = web.Application()
     app.router.add_post("/tools/list", server.handle_tools_list)
     app.router.add_post("/tools/call", server.handle_tools_call)
+    app.router.add_post("/jsonrpc", server.handle_jsonrpc)
     return app
 
 

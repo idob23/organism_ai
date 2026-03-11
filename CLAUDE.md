@@ -173,6 +173,7 @@ ___
   - Q-9.3 ✅ (Auto-generate PERSONALITY.md from role template via LLM)
   - Q-9.4 ✅ (MetaOrchestrator — routes tasks by agent specialization)
   - Q-9.5 ✅ (/agents, /create_agent, /assign commands — Agent Factory complete)
+  - Q-9.8 ✅ (MCP JSON-RPC 2.0 — /jsonrpc endpoint for Cursor/Claude Desktop)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

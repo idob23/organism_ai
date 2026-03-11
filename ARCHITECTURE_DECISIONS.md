@@ -1045,3 +1045,11 @@ Files: `core/loop.py`.
 New command: /errors [N] shows last N errors from error_log table. Default 5, max 20.
 No new benchmark task — infrastructure utility command.
 Files: `commands/handler.py`.
+
+### Q-9.8: MCP JSON-RPC 2.0 (2026-03-12)
+Added `/jsonrpc` endpoint to both MCP servers for Cursor/Claude Desktop compatibility.
+JSON-RPC 2.0 methods: `initialize`, `tools/list`, `tools/call`, notifications (no id → 200 OK).
+`mcp_serve/server.py`: serverInfo.name = "organism-ai", async handlers.
+`mcp_1c/server.py`: serverInfo.name = "organism-1c", sync handlers wrapped in JSON-RPC envelope.
+Error codes: -32700 (parse error), -32601 (method not found). Tool errors via `isError` in result.
+Files: `mcp_serve/server.py`, `mcp_1c/server.py`.
