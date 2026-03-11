@@ -938,3 +938,13 @@ Fallback on Evaluator failure: `0.8 if success else 0.2` (non-binary, better tha
 SolutionCache storing added in `run()` after `_handle_conversation` returns — stores only
 when `quality_score >= 0.8` (enforced by `SolutionCache.put()`).
 Files: `src/organism/core/loop.py`.
+
+### ARCH-1.2: Extract dead code from CoreLoop (2026-03-11)
+Problem: CoreLoop.__init__ created Planner and TaskDecomposer, but neither was called
+from run() or _handle_conversation after Q-10.4. Dead code making CoreLoop a God Object.
+Fix: Created `src/organism/core/planner_module.py` with `PlannerModule` class that groups
+Planner + TaskDecomposer. Removed `self.planner` and `self.decomposer` from CoreLoop.__init__.
+Removed unused imports (Planner, TaskDecomposer) from loop.py. Kept PlanStep import
+(used by _validate_plan and _execute_step which remain in CoreLoop).
+Orchestrator unchanged — it already has its own routing logic, never used CoreLoop's planner.
+Files: `src/organism/core/loop.py`, `src/organism/core/planner_module.py`.

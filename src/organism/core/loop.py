@@ -4,9 +4,8 @@ import uuid
 from datetime import datetime
 from dataclasses import dataclass, field
 
-from src.organism.core.decomposer import TaskDecomposer
 from src.organism.core.evaluator import Evaluator
-from src.organism.core.planner import PlanStep, Planner
+from src.organism.core.planner import PlanStep
 from src.organism.llm.base import LLMProvider
 from src.organism.logging.logger import Logger
 from src.organism.logging.error_handler import get_logger, log_exception
@@ -129,8 +128,6 @@ class CoreLoop:
     def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None) -> None:
         self.llm = llm
         self.registry = registry
-        self.planner = Planner(llm)
-        self.decomposer = TaskDecomposer(llm)
         pvc = PromptVersionControl() if memory is not None else None
         self.evaluator = Evaluator(llm, pvc=pvc)
         self.validator = SafetyValidator()
@@ -641,9 +638,8 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Cache check failed", e)
 
-        # FIX-44: Decomposer disabled — _handle_conversation with 10 tool rounds
-        # handles complex tasks natively. TaskDecomposer kept for future orchestrator.
-        # (was: Q-9.1 decomposition block)
+        # FIX-44/ARCH-1.2: Planner/Decomposer removed from CoreLoop.
+        # Use PlannerModule if needed (e.g. Orchestrator).
 
         # Q-10.4: All tasks go through _handle_conversation (primary execution path)
         conv_result = await self._handle_conversation(

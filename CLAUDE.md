@@ -79,8 +79,8 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 ```
 organism_ai/
 ├── src/organism/
-│   ├── core/          # loop.py, planner.py, evaluator.py, context_budget.py, decomposer.py
-│   │                  # scheduler.py, human_approval.py, personality.py, skill_matcher.py
+│   ├── core/          # loop.py, planner.py, planner_module.py, evaluator.py, context_budget.py
+│   │                  # decomposer.py, scheduler.py, human_approval.py, personality.py, skill_matcher.py
 │   ├── tools/         # registry.py, code_executor.py, web_search.py, confirm_user.py
 │   │                  # web_fetch.py, file_manager.py, text_writer.py, pptx_creator.py
 │   │                  # duplicate_finder.py, pdf_tool.py, memory_search.py, mcp_client.py
@@ -159,7 +159,7 @@ ___
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes applied: FIX-1 through FIX-61 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
-- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅
+- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Следующий: Q-9.2 (Agent Factory — роли агентов)
 
