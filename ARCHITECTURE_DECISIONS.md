@@ -998,3 +998,14 @@ Problem: CoreLoop.run() injected artel personality (PersonalityConfig) AND agent
 (extra_system_context) simultaneously. Two conflicting style instructions confused the LLM.
 Fix: Skip PersonalityConfig injection when extra_system_context is non-empty.
 Files: `core/loop.py`.
+
+### FIX-65: Critical data bugs — chat history duplication, stats cache, orchestrator quality (2026-03-11)
+Three bugs found in code review #4:
+1. Chat history duplication: both _handle_conversation() and gateway.handle_message() saved
+   user+assistant messages. Removed save from _handle_conversation() — Gateway is the single
+   source of truth (it knows the final processed response).
+2. /stats cache instance: _handle_stats() created `SolutionCache()` directly instead of using
+   `memory.cache` (moved there in ARCH-1.3). Replaced with `memory.cache.get_stats()`.
+3. Orchestrator quality bypass: orchestrator path in run() used hardcoded quality=0.85,
+   skipping Evaluator. Now calls `self.evaluator.evaluate()` for calibrated quality_score.
+Files: `core/loop.py`, `commands/handler.py`.

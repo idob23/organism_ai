@@ -508,14 +508,6 @@ class CoreLoop:
             except Exception:
                 pass
 
-        # Save chat history
-        if self.memory:
-            try:
-                await self.memory.chat_history.save_message(user_id, "user", task[:1000])
-                await self.memory.chat_history.save_message(user_id, "assistant", answer[:3000])
-            except Exception:
-                pass
-
         return TaskResult(
             task_id=task_id, task=task, success=success,
             output=answer, answer=answer,
@@ -667,7 +659,23 @@ class CoreLoop:
                 _log.info(f"[{task_id}] Routing to Orchestrator (complex task)")
                 try:
                     orch_result = await self._orchestrator.run(task, verbose=verbose)
-                    quality = 0.85 if orch_result.success else 0.3
+                    # FIX-65: Evaluate orchestrator result via Evaluator
+                    quality = 0.8 if orch_result.success else 0.2
+                    try:
+                        from src.organism.tools.base import ToolResult as _TR
+                        _eval_tr = _TR(
+                            output=orch_result.output or "",
+                            exit_code=0 if orch_result.success else 1,
+                            error=orch_result.error or "",
+                        )
+                        eval_result = await self.evaluator.evaluate(
+                            task=task,
+                            step_description=f"Orchestrator: {task[:100]}",
+                            result=_eval_tr,
+                        )
+                        quality = eval_result.quality_score
+                    except Exception:
+                        pass
                     tr = TaskResult(
                         task_id=task_id, task=task,
                         success=orch_result.success,

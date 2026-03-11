@@ -209,8 +209,7 @@ class CommandHandler:
             f"  Avg quality:   {stats.get('avg_quality_score', 0)}",
         ]
         try:
-            from src.organism.memory.solution_cache import SolutionCache
-            cache_stats = await SolutionCache().get_stats()
+            cache_stats = await memory.cache.get_stats()
             lines.append(f"  Cache entries: {cache_stats['cache_entries']}")
             lines.append(f"  Cache hits:    {cache_stats['total_cache_hits']}")
             lines.append(f"  Cache quality: {cache_stats['avg_cached_quality']}")
