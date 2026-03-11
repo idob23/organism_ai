@@ -492,10 +492,45 @@ class CoreLoop:
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory init failed", e)
 
-        # MEDIA-1: Messages with media always go to conversation handler (Vision API)
-        if media:
-            return await self._handle_conversation(task_id, task, user_id=user_id, media=media)
+        # --- Build user_context (needed for ALL paths including media) ---
 
+        if self.memory:
+            if not user_context:
+                try:
+                    user_facts = await self.memory.facts.get_all_facts(user_id=user_id)
+                    user_context = format_for_prompt(user_facts)
+                    if user_context and verbose:
+                        print(f"User context: {user_context}")
+                except Exception:
+                    pass
+
+        # FIX-64: Skip artel personality when agent personality is provided
+        if self.personality and not extra_system_context:
+            personality_addition = self.personality.get_system_prompt_addition()
+            if personality_addition:
+                user_context = user_context + personality_addition
+
+        # Q-7.3: Inject few-shot examples into planner context
+        if self.memory:
+            try:
+                _fs_examples = await self.memory.few_shot.get_examples(task)
+                _fs_section = self.memory.few_shot.format_for_prompt(_fs_examples)
+                if _fs_section:
+                    user_context = user_context + "\n" + _fs_section if user_context else _fs_section
+                    if verbose:
+                        print(f"Few-shot: {len(_fs_examples)} examples injected")
+            except Exception:
+                pass
+
+        # FIX-67: Media path now receives full user_context (personality, user_facts, few-shot)
+        if media:
+            return await self._handle_conversation(
+                task_id, task, user_context=user_context,
+                user_id=user_id, media=media,
+                extra_system_context=extra_system_context,
+            )
+
+        # --- Memory search (text-only path) ---
         if self.memory:
             try:
                 similar = await self.memory.on_task_start(task)
@@ -516,20 +551,6 @@ class CoreLoop:
                     memory_context = "\n".join(lines)
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Memory lookup failed", e)
-            if not user_context:
-                try:
-                    user_facts = await self.memory.facts.get_all_facts(user_id=user_id)
-                    user_context = format_for_prompt(user_facts)
-                    if user_context and verbose:
-                        print(f"User context: {user_context}")
-                except Exception:
-                    pass
-
-        # FIX-64: Skip artel personality when agent personality is provided
-        if self.personality and not extra_system_context:
-            personality_addition = self.personality.get_system_prompt_addition()
-            if personality_addition:
-                user_context = user_context + personality_addition
 
         # HIST-1: Load recent chat history for task context
         if self.memory and user_id != "default":
@@ -542,18 +563,6 @@ class CoreLoop:
                         lines.append(f"{prefix}: {msg['content'][:1000]}")
                     chat_context = "\n".join(lines)
                     user_context += f"\n\nRecent conversation:\n{chat_context}"
-            except Exception:
-                pass
-
-        # Q-7.3: Inject few-shot examples into planner context
-        if self.memory:
-            try:
-                _fs_examples = await self.memory.few_shot.get_examples(task)
-                _fs_section = self.memory.few_shot.format_for_prompt(_fs_examples)
-                if _fs_section:
-                    user_context = user_context + "\n" + _fs_section if user_context else _fs_section
-                    if verbose:
-                        print(f"Few-shot: {len(_fs_examples)} examples injected")
             except Exception:
                 pass
 

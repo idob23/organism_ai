@@ -1022,3 +1022,14 @@ Three cleanup changes:
 3. CLI commands: `run_single()` now creates a full CommandHandler with factory/loop/personality
    so /agents, /create_agent, /assign work from CLI (not just Telegram).
 Files: `core/loop.py`, `core/planner_module.py`, `channels/gateway.py`, `main.py`.
+
+### FIX-67: Media path context injection — personality, user_facts, few-shot (2026-03-11)
+Problem: MEDIA-1 early return in CoreLoop.run() happened before user_context was built.
+When users sent photos/PDFs, the agent lost artel personality, user facts, and few-shot
+examples because those blocks were below the `if media: return` line.
+Fix: Reordered run() so user_context is built first (user_facts → personality → few-shot),
+then media early return passes full user_context + extra_system_context to
+_handle_conversation. Memory search and chat history remain in the text-only path
+(media path handles its own memory search internally).
+Also removed `context_budget.py` from CLAUDE.md File Structure (unused since FIX-66).
+Files: `core/loop.py`, `CLAUDE.md`.
