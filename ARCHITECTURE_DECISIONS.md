@@ -1060,3 +1060,9 @@ Python code for Excel/chart generation needs 3000+ tokens. Truncation produced e
 tool input → code_executor({}) → 10 retries → Task failed after 240s.
 Fix: max_tokens raised from 2000 to 4096 in both LLM call sites within _handle_conversation.
 Files: core/loop.py.
+
+### FIX-70: Increase max_tokens to 8192 — safety margin (2026-03-12)
+Problem: 4096 tokens (FIX-69) still marginal for complex file generation (large openpyxl
+spreadsheets, multi-chart matplotlib scripts). Raised to 8192 for comfortable headroom.
+Fix: max_tokens 4096 → 8192 in all three LLM call sites within _handle_conversation.
+Files: core/loop.py.
