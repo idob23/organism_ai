@@ -298,14 +298,14 @@ class CoreLoop:
                     tools=tool_defs,
                     system=system,
                     model_tier="balanced",
-                    max_tokens=2000,
+                    max_tokens=4096,
                 )
             else:
                 response = await self.llm.complete(
                     messages=messages,
                     system=system,
                     model_tier="balanced",
-                    max_tokens=2000,
+                    max_tokens=4096,
                 )
         except Exception as e:
             log_exception(_log, f"[{task_id}] Conversation LLM call failed", e)
@@ -385,7 +385,7 @@ class CoreLoop:
                     tools=tool_defs,
                     system=system,
                     model_tier="balanced",
-                    max_tokens=2000,
+                    max_tokens=4096,
                 )
             except Exception as e:
                 log_exception(_log, f"[{task_id}] Tool round {round_count} failed", e)

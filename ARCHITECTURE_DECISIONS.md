@@ -1053,3 +1053,10 @@ JSON-RPC 2.0 methods: `initialize`, `tools/list`, `tools/call`, notifications (n
 `mcp_1c/server.py`: serverInfo.name = "organism-1c", sync handlers wrapped in JSON-RPC envelope.
 Error codes: -32700 (parse error), -32601 (method not found). Tool errors via `isError` in result.
 Files: `mcp_serve/server.py`, `mcp_1c/server.py`.
+
+### FIX-69: Increase max_tokens in _handle_conversation (2026-03-12)
+Problem: max_tokens=2000 truncated LLM responses containing code_executor tool calls.
+Python code for Excel/chart generation needs 3000+ tokens. Truncation produced empty
+tool input → code_executor({}) → 10 retries → Task failed after 240s.
+Fix: max_tokens raised from 2000 to 4096 in both LLM call sites within _handle_conversation.
+Files: core/loop.py.
