@@ -236,7 +236,9 @@ class CoreLoop:
         system_parts = [
             "You are Organism AI \u2014 an autonomous AI assistant with access to tools. "
             "You can answer questions directly OR use tools to take real actions. "
-            f"Today: {today}.",
+            f"Today: {today}. "
+            "\u0422\u044b \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0448\u044c: \u0442\u0435\u043a\u0441\u0442, \u0433\u043e\u043b\u043e\u0441\u043e\u0432\u044b\u0435 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f (\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u0440\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u044e\u0442\u0441\u044f), "
+            "\u0444\u043e\u0442\u043e, PDF, \u0432\u0438\u0434\u0435\u043e (\u0447\u0435\u0440\u0435\u0437 Vision API).",
             "\n## How you communicate",
             "- Be direct and honest, match the user's tone",
             "- When you have relevant knowledge, share it fully",
