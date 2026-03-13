@@ -58,6 +58,13 @@ class Gateway:
             except Exception as exc:
                 _log.error("gateway.cmd_error: %s: %s", type(exc).__name__, exc)
                 result_text = f"Command error: {exc}"
+            # FIX-71: Save /assign results to chat history (agent responses are conversational)
+            if msg.text.strip().lower().startswith("/assign") and self.loop.memory and msg.user_id:
+                try:
+                    await self.loop.memory.chat_history.save_message(msg.user_id, "user", msg.text)
+                    await self.loop.memory.chat_history.save_message(msg.user_id, "assistant", result_text[:2000])
+                except Exception:
+                    pass
             return OutgoingMessage(
                 text=result_text, user_id=msg.user_id, channel=msg.channel,
             )

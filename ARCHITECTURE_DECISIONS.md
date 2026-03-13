@@ -1066,3 +1066,14 @@ Problem: 4096 tokens (FIX-69) still marginal for complex file generation (large 
 spreadsheets, multi-chart matplotlib scripts). Raised to 8192 for comfortable headroom.
 Fix: max_tokens 4096 → 8192 in all three LLM call sites within _handle_conversation.
 Files: core/loop.py.
+
+### FIX-71: /assign chat history + documentation sync (2026-03-13)
+Two fixes from code review #3:
+1. /assign chat history: Gateway.handle_message() saved chat history only for regular tasks,
+   not commands. /assign produces conversational agent output that should be in history.
+   Added targeted save for /assign commands only (not /help, /stats etc. — those are utility).
+2. Documentation sync: MAX_TOOL_ROUNDS was raised from 7 to 10 but not documented.
+   Roadmap had Q-9.8 and Q-9.10 still in "open tasks" despite being completed.
+   CLAUDE.md missing Q-9.10 entry.
+Note: MAX_TOOL_ROUNDS was 3 (original) → 7 (Q-10.4) → 10 (undocumented change).
+Files: `channels/gateway.py`, `organism_ai_roadmap.md`, `ARCHITECTURE_DECISIONS.md`, `CLAUDE.md`.

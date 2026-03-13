@@ -13,7 +13,8 @@
 - Sprint 9 (Universal Planner): Q-9.0, Q-9.1, Q-9.6, Q-9.7, Q-9.9, Q-10.1–Q-10.4 ✅
 - Sprint 9 (Skills): SKILL-1 (technical skills system) ✅
 - Sprint 9 (Agent Factory): Q-9.2 (role templates + AgentFactory), Q-9.3 (personality generation), Q-9.4 (MetaOrchestrator), Q-9.5 (commands) ✅
-- Sprint 9 (Fixes): FIX-33 — FIX-64 ✅
+- Sprint 9 (Fixes): FIX-33 — FIX-71 ✅
+- Sprint 9 (Tech debt): Q-9.8 (MCP JSON-RPC 2.0), Q-9.10 (/errors command) ✅
 - Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
 - Memory Verification Loop: INSIGHT-1 ✅
 - Benchmark: 28/28 задач, quality 0.89–0.93 ✅
@@ -34,8 +35,6 @@
 
 ### Блок 1: Технический долг (приоритет 2)
 
-- Q-9.8: MCP JSON-RPC 2.0 — совместимость с Cursor, Claude Desktop
-- Q-9.10: /errors команда — просмотр ошибок без SSH
 - Node.js в sandbox/Dockerfile — для качественных .docx
 - FORMATTER-1: предагрегация данных 1C (отложено до реальных данных, см. ARCHITECTURE_DECISIONS.md)
 
