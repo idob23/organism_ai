@@ -26,7 +26,7 @@ def _enrich_for_embedding(task: str, tools_used: list[str] = None, outcome: str 
 
 
 def _to_dict(m: TaskMemory) -> dict:
-    return {
+    d = {
         "id": m.id,  # Q-5.3: included for CausalAnalyzer edge creation
         "task": m.task,
         "result": m.result,
@@ -35,6 +35,10 @@ def _to_dict(m: TaskMemory) -> dict:
         "steps_count": m.steps_count,
         "quality_score": m.quality_score,
     }
+    # MEM-1: include created_at for temporal display
+    if hasattr(m, "created_at") and m.created_at is not None:
+        d["created_at"] = m.created_at.isoformat(timespec="seconds")
+    return d
 
 
 class LongTermMemory:
@@ -258,6 +262,90 @@ class LongTermMemory:
         if llm and len(candidates) > 3:
             return await self._rerank(task, candidates, llm, top_k=limit)
         return candidates[:limit]
+
+    async def get_tasks_by_date_range(
+        self, date_from: str, date_to: str, limit: int = 20,
+    ) -> list[dict]:
+        """Return tasks within a date range, newest first.
+
+        date_from, date_to: ISO format strings (YYYY-MM-DD).
+        """
+        from datetime import date as date_type
+        d_from = date_type.fromisoformat(date_from)
+        d_to = date_type.fromisoformat(date_to)
+        _artel = settings.artel_id
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(TaskMemory)
+                .where(
+                    TaskMemory.success == True,  # noqa: E712
+                    text("created_at::date >= :d_from"),
+                    text("created_at::date <= :d_to"),
+                    text("artel_id = :artel_id"),
+                )
+                .params(d_from=d_from, d_to=d_to, artel_id=_artel)
+                .order_by(TaskMemory.created_at.desc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [_to_dict(m) for m in result.scalars().all()]
+
+    async def search_similar_in_date_range(
+        self, query: str, date_from: str, date_to: str,
+        limit: int = 10, min_quality: float = 0.6,
+        llm: LLMProvider | None = None,
+    ) -> list[dict]:
+        """Semantic search filtered by date range (MEM-1c).
+
+        Same hybrid logic as search_similar(), but with additional
+        WHERE created_at::date BETWEEN date_from AND date_to.
+        """
+        from datetime import date as date_type
+        d_from = date_type.fromisoformat(date_from)
+        d_to = date_type.fromisoformat(date_to)
+
+        search_text = _enrich_for_embedding(task=query)
+        embedding = await get_embedding(search_text)
+
+        _artel = settings.artel_id
+        async with AsyncSessionLocal() as session:
+            if not embedding:
+                # Fallback: date filter only, ordered by recency
+                stmt = (
+                    select(TaskMemory)
+                    .where(
+                        TaskMemory.success == True,  # noqa: E712
+                        TaskMemory.quality_score >= min_quality,
+                        text("created_at::date >= :d_from"),
+                        text("created_at::date <= :d_to"),
+                        text("artel_id = :artel_id"),
+                    )
+                    .params(d_from=d_from, d_to=d_to, artel_id=_artel)
+                    .order_by(TaskMemory.created_at.desc())
+                    .limit(limit)
+                )
+                result = await session.execute(stmt)
+                return [_to_dict(m) for m in result.scalars().all()]
+
+            # Vector search within date range
+            dist_expr = TaskMemory.embedding.l2_distance(embedding)
+            stmt = (
+                select(TaskMemory, dist_expr.label("l2_dist"))
+                .where(
+                    TaskMemory.success == True,  # noqa: E712
+                    TaskMemory.quality_score >= min_quality,
+                    TaskMemory.embedding.isnot(None),
+                    text("created_at::date >= :d_from"),
+                    text("created_at::date <= :d_to"),
+                    text("artel_id = :artel_id"),
+                )
+                .params(d_from=d_from, d_to=d_to, artel_id=_artel)
+                .order_by(dist_expr)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            rows = result.all()
+            return [_to_dict(m) for m, dist in rows]
 
     async def get_recent_tasks(self, limit: int = 3) -> list[dict]:
         """Return the last N completed tasks, newest first (FIX-34)."""

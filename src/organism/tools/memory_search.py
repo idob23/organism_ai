@@ -22,13 +22,15 @@ class MemorySearchTool(BaseTool):
     def description(self) -> str:
         return (
             "Search long-term memory for past tasks, calculations, and results. "
-            "Use proactively when: "
-            "(1) creating reports/summaries that need previously calculated numbers "
-            "\u2014 search BEFORE generating content to use real data instead of estimates; "
-            "(2) user references past work: 'remember we agreed', 'that file', 'last time'; "
-            "(3) task mentions specific quantities (fuel, payroll, costs) that may have been "
-            "calculated before. "
-            "Always try memory first when building documents with financial or operational data."
+            "Three search modes:\n"
+            "(1) Semantic: provide query to find similar tasks by meaning.\n"
+            "(2) Date: provide date_from (and optionally date_to) to get ALL tasks for a period. "
+            "Date search returns all tasks (no need to specify limit).\n"
+            "(3) Combined: provide both query AND date_from to find specific tasks "
+            "within a date range.\n"
+            "Use proactively when creating reports that need previously calculated numbers, "
+            "when user references past work, or when task mentions quantities "
+            "that may have been calculated before."
         )
 
     @property
@@ -45,16 +47,32 @@ class MemorySearchTool(BaseTool):
                     "description": "Maximum number of results (default 5)",
                     "default": 5,
                 },
+                "date_from": {
+                    "type": "string",
+                    "description": (
+                        "Start date filter (YYYY-MM-DD). "
+                        "Use when user asks about specific date or period."
+                    ),
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": (
+                        "End date filter (YYYY-MM-DD). "
+                        "Defaults to date_from if only one date mentioned."
+                    ),
+                },
             },
-            "required": ["query"],
+            "required": [],
         }
 
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         query = input.get("query", "")
         limit = input.get("limit", 5)
+        date_from = input.get("date_from", "")
+        date_to = input.get("date_to", "")
 
-        if not query:
-            return ToolResult(output="", error="Query is required", exit_code=1)
+        if not query and not date_from:
+            return ToolResult(output="", error="Provide query or date_from", exit_code=1)
 
         if not self._memory:
             return ToolResult(
@@ -64,9 +82,25 @@ class MemorySearchTool(BaseTool):
             )
 
         try:
-            results = await self._memory.longterm.search_similar(
-                query, limit=limit, llm=self._memory.llm,
-            )
+            if date_from and query:
+                # Combined: semantic search within date range
+                if not date_to:
+                    date_to = date_from
+                results = await self._memory.longterm.search_similar_in_date_range(
+                    query, date_from, date_to, limit=limit,
+                )
+            elif date_from:
+                # Pure date: all tasks for the period
+                if not date_to:
+                    date_to = date_from
+                results = await self._memory.longterm.get_tasks_by_date_range(
+                    date_from, date_to, limit=50,
+                )
+            else:
+                # Pure semantic (existing behavior)
+                results = await self._memory.longterm.search_similar(
+                    query, limit=limit, llm=self._memory.llm,
+                )
         except Exception as e:
             _log.warning("memory_search failed: %s", e)
             return ToolResult(
@@ -82,21 +116,36 @@ class MemorySearchTool(BaseTool):
                 exit_code=0,
             )
 
-        lines = []
-        for i, item in enumerate(results, 1):
-            task_text = item.get("task", "")[:200]
-            result_text = (item.get("result") or "")[:300].replace("\n", " ")
-            tools = item.get("tools_used") or []
-            tool_str = ", ".join(tools) if tools else "none"
-            quality = item.get("quality_score", 0)
-            lines.append(
-                f"{i}. Task: {task_text}\n"
-                f"   Result: {result_text}\n"
-                f"   Tools: {tool_str} | Quality: {quality:.2f}"
+        # Compact format for date queries, full format for semantic
+        if date_from and not query:
+            lines = []
+            for i, item in enumerate(results, 1):
+                task_text = item.get("task", "")[:100]
+                quality = item.get("quality_score", 0)
+                created = item.get("created_at", "")[:16]
+                lines.append(f"{i}. [{created}] {task_text} (q={quality:.2f})")
+            output = (
+                f"Found {len(results)} task(s) for {date_from}"
+                + (f" to {date_to}" if date_to != date_from else "")
+                + ":\n" + "\n".join(lines)
             )
+        else:
+            # Full format (semantic or combined)
+            lines = []
+            for i, item in enumerate(results, 1):
+                task_text = item.get("task", "")[:200]
+                result_text = (item.get("result") or "")[:300].replace("\n", " ")
+                tools = item.get("tools_used") or []
+                tool_str = ", ".join(tools) if tools else "none"
+                quality = item.get("quality_score", 0)
+                date_str = ""
+                if item.get("created_at"):
+                    date_str = f" | Date: {item['created_at'][:10]}"
+                lines.append(
+                    f"{i}. Task: {task_text}\n"
+                    f"   Result: {result_text}\n"
+                    f"   Tools: {tool_str} | Quality: {quality:.2f}{date_str}"
+                )
+            output = f"Found {len(results)} result(s):\n\n" + "\n\n".join(lines)
 
-        return ToolResult(
-            output=f"Found {len(results)} result(s):\n\n" + "\n\n".join(lines),
-            error="",
-            exit_code=0,
-        )
+        return ToolResult(output=output, error="", exit_code=0)

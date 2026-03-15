@@ -16,9 +16,10 @@
 - Sprint 9 (Fixes): FIX-33 — FIX-71 ✅
 - Sprint 9 (Tech debt): Q-9.8 (MCP JSON-RPC 2.0), Q-9.10 (/errors command) ✅
 - AGENT-UX: manage_agents tool — natural language agent management ✅
+- MEM-1: Temporal retrieval — date filtering in memory_search ✅ (+ MEM-1b limit=50, MEM-1c combined+compact+15K)
 - Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
 - Memory Verification Loop: INSIGHT-1 ✅
-- Benchmark: 28/28 задач, quality 0.89–0.93 ✅
+- Benchmark: 29/29 задач, quality 0.89–0.93 ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 

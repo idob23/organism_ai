@@ -38,7 +38,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | confirm_with_user | tools/confirm_user.py | Human approval via Telegram (Q-6.3), only in Telegram mode |
 | pdf_tool | tools/pdf_tool.py | Create/read PDF files via fpdf2/pypdf2 (TOOL-1, FIX-57c) |
 | duplicate_finder | tools/duplicate_finder.py | Semantic duplicate search in 1C entities via embeddings (Q-8.3) |
-| memory_search | tools/memory_search.py | Search long-term memory for past tasks/agreements/files (FIX-53) |
+| memory_search | tools/memory_search.py | Search long-term memory + temporal date filtering (FIX-53, MEM-1) |
 | manage_agents | tools/manage_agents.py | List/create/delete/delegate agents via natural language (AGENT-UX) |
 | mcp_* | tools/mcp_client.py | Dynamic tools from MCP servers (MCP_SERVERS env) |
 | delegate_to_agent | a2a/protocol.py | Peer delegation (A2A_PEERS env), only when peers configured |
@@ -178,6 +178,9 @@ ___
   - Q-9.8 ✅ (MCP JSON-RPC 2.0 — /jsonrpc endpoint for Cursor/Claude Desktop)
   - Q-9.10 ✅ (/errors command — view errors without SSH)
   - AGENT-UX ✅ (manage_agents tool — natural language agent management)
+  - MEM-1 ✅ (Temporal retrieval — date_from/date_to filtering in memory_search)
+  - MEM-1b ✅ (Date search limit=50 — return all tasks for the period)
+  - MEM-1c ✅ (Combined date+semantic search, compact date output, tool_output 15K)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

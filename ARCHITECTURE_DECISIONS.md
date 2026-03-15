@@ -605,6 +605,27 @@ Delegate action calls MetaOrchestrator.run_as_agent() directly — same path as 
 Slash commands preserved as alternative interface.
 Files: `tools/manage_agents.py`, `main.py`, `benchmark.py`.
 
+### MEM-1: Temporal retrieval — date filtering in memory_search (2026-03-15)
+Problem: memory_search uses only semantic similarity (pgvector + BM25). When user asks
+"what happened on March 12" or "show tasks from last week", embeddings don't match well
+because the query text is about dates, not about task content.
+Solution: Added `get_tasks_by_date_range(date_from, date_to)` to LongTermMemory — pure SQL
+filter on `created_at::date` with artel_id isolation. memory_search tool gains optional
+`date_from`/`date_to` parameters; when `date_from` is provided, temporal search runs INSTEAD
+of semantic search. `_to_dict()` now includes `created_at` for display. `required` changed
+from `["query"]` to `[]` — execute() validates that at least one of query/date_from is present.
+Files: `memory/longterm.py`, `tools/memory_search.py`.
+
+### MEM-1c: Combined date+semantic search, compact output, tool_output limit (2026-03-15)
+Problem: (1) tool_output[:3000] in loop.py truncates results — LLM sees 5-6 of 39 tasks.
+(2) memory_search can't combine date and semantic filters ("profitability on March 12").
+Solution: Three changes:
+- `search_similar_in_date_range()` in longterm.py — vector search with date WHERE clause.
+- memory_search.py — three modes: pure semantic, pure date (compact one-line-per-task format),
+  combined (date + semantic, full format). Compact date output fits ~40 tasks in 4KB.
+- loop.py tool_output limit raised from 3000 to 15000 chars.
+Files: `memory/longterm.py`, `tools/memory_search.py`, `core/loop.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

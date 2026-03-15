@@ -375,7 +375,7 @@ class CoreLoop:
                 tool_results_content.append({
                     "type": "tool_result",
                     "tool_use_id": tool_use_id,
-                    "content": tool_output[:3000],
+                    "content": tool_output[:15000],
                 })
 
             # Continue conversation with tool results
