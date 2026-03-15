@@ -626,6 +626,17 @@ Solution: Three changes:
 - loop.py tool_output limit raised from 3000 to 15000 chars.
 Files: `memory/longterm.py`, `tools/memory_search.py`, `core/loop.py`.
 
+### FIX-74: Structural created_files field replaces regex parsing (2026-03-15)
+Problem: FIX-36 used regex `r'Saved files:\s*(\S+)'` on ALL tool_output in _handle_conversation.
+When memory_search returned past tasks containing "Saved files: ...", regex falsely matched,
+causing spurious file delivery attempts.
+Solution: Added `created_files: list[str]` field to ToolResult dataclass (default empty list).
+File-creating tools (code_executor, pdf_tool, pptx_creator) now populate this field structurally.
+Loop reads `result.created_files` instead of regex-parsing tool_output.
+"Saved files:" text in output preserved for LLM visibility — only the loop tracking changed.
+Files: `tools/base.py`, `tools/code_executor.py`, `tools/pdf_tool.py`, `tools/pptx_creator.py`,
+`core/loop.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

@@ -130,7 +130,8 @@ class PdfTool(BaseTool):
             await loop.run_in_executor(
                 None, _create_pdf_sync, filename, content, title, out_path,
             )
-            return ToolResult(output=f"Saved files: {filename}")
+            return ToolResult(output=f"Saved files: {filename}",
+                              created_files=[filename])
         except Exception as e:
             return ToolResult(output="", error=f"PDF creation failed: {e}", exit_code=1)
 

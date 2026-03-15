@@ -133,7 +133,9 @@ class PptxCreatorTool(BaseTool):
 
             filepath = OUTPUTS_DIR / Path(filename).name
             prs.save(str(filepath))
-            return ToolResult(output=f"Saved files: {Path(filename).name}", exit_code=0)
+            _fname = Path(filename).name
+            return ToolResult(output=f"Saved files: {_fname}", exit_code=0,
+                              created_files=[_fname])
 
         except Exception as e:
             return ToolResult(output="", error=str(e), exit_code=1)

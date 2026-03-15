@@ -265,7 +265,8 @@ class CodeExecutorTool(BaseTool):
                 file_note = f"\nSaved files: {', '.join(saved_files)}"
                 stdout = stdout + file_note if stdout else file_note
 
-            return ToolResult(output=stdout, error=stderr, exit_code=exit_code)
+            return ToolResult(output=stdout, error=stderr, exit_code=exit_code,
+                              created_files=saved_files)
 
     def _run_cold(self, code: str, domains: list[str]) -> ToolResult:
         """Original: create a new container per execution."""
@@ -325,7 +326,8 @@ class CodeExecutorTool(BaseTool):
                 file_note = f"\nSaved files: {', '.join(saved_files)}"
                 stdout = stdout + file_note if stdout else file_note
 
-            return ToolResult(output=stdout, error=stderr, exit_code=exit_code)
+            return ToolResult(output=stdout, error=stderr, exit_code=exit_code,
+                              created_files=saved_files)
 
         except docker.errors.ImageNotFound:
             return ToolResult(output="", error="Sandbox image not found. Run: docker build -t organism-sandbox ./sandbox", exit_code=-1)

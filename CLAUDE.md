@@ -168,7 +168,7 @@ ___
 - Benchmark: 29 tasks total (29/29 success with Docker+DB)
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes applied: FIX-1 through FIX-71 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
+- Fixes applied: FIX-1 through FIX-74 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
 - Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅, ARCH-2 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
@@ -181,6 +181,7 @@ ___
   - MEM-1 ✅ (Temporal retrieval — date_from/date_to filtering in memory_search)
   - MEM-1b ✅ (Date search limit=50 — return all tasks for the period)
   - MEM-1c ✅ (Combined date+semantic search, compact date output, tool_output 15K)
+  - FIX-74 ✅ (Structural created_files field in ToolResult, replaces FIX-36 regex)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

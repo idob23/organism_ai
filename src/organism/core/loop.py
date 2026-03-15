@@ -366,11 +366,9 @@ class CoreLoop:
                 except Exception as e:
                     tool_output = f"Tool error: {e}"
 
-                # FIX-36: Track created files for gateway delivery
-                import re as _re
-                _saved_match = _re.search(r'Saved files:\s*(\S+)', tool_output)
-                if _saved_match:
-                    created_files.append(_saved_match.group(1).strip())
+                # FIX-74: Track created files via structural field (replaces FIX-36 regex)
+                if hasattr(result, 'created_files') and result.created_files:
+                    created_files.extend(result.created_files)
 
                 tool_results_content.append({
                     "type": "tool_result",

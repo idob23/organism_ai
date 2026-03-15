@@ -14,6 +14,7 @@ class ToolResult:
     output: str
     error: str = ""
     exit_code: int = 0
+    created_files: list[str] = field(default_factory=list)  # FIX-74
 
     @property
     def success(self) -> bool:
