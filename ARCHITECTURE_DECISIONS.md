@@ -647,6 +647,16 @@ Solution: Added Russian structural headers to each context section in loop.py:
 `config/personality/default.md` Style section as configurable per-artel setting.
 Files: `core/loop.py`, `config/personality/default.md`.
 
+### FIX-75b: First client personality separation: artel_zoloto.md (2026-03-15)
+Problem: ARTEL_ID was "default" — the first client (gold mining artel) shared the universal
+personality file with no client-specific settings (language, terminology, style).
+Solution: Created `config/personality/artel_zoloto.md` with artel-specific personality:
+hardcoded Russian language, mining terminology, structured reports in Russian.
+Added `ARTEL_ID=artel_zoloto` to `.env` and `.env.example`. The `default.md` remains
+universal ("respond in user's language") for future clients. PersonalityConfig already
+supports artel-specific files via `settings.artel_id` — no code changes needed.
+Files: `config/personality/artel_zoloto.md`, `.env.example`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

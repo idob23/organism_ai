@@ -183,6 +183,7 @@ ___
   - MEM-1c ✅ (Combined date+semantic search, compact date output, tool_output 15K)
   - FIX-74 ✅ (Structural created_files field in ToolResult, replaces FIX-36 regex)
   - FIX-75 ✅ (Structural context headers + language via personality config)
+  - FIX-75b ✅ (First client personality: artel_zoloto.md, ARTEL_ID in .env)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
