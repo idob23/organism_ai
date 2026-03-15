@@ -6,8 +6,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg nodejs npm && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g docx
-
 # Базовые пакеты для вычислений + визуализации
 RUN pip install --no-cache-dir \
     numpy==1.26.4 \
@@ -19,6 +17,9 @@ RUN pip install --no-cache-dir \
 
 # Рабочая директория
 WORKDIR /sandbox
+
+# SKILL-1: docx library installed locally in /sandbox
+RUN npm init -y && npm install --fetch-timeout=120000 docx 2>/dev/null || true
 
 # Непривилегированный пользователь
 RUN useradd -m -u 1000 sandbox && \

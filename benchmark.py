@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 28 task types and reports a formatted summary.
+Measures quality across 29 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
@@ -12,11 +12,11 @@ Tasks 15-19: Sprint 6 coverage (orchestrator-sm, cmd-schedule, cmd-personality,
 Tasks 20-23: Sprint 7 coverage (cross-agent, structured reflections, few-shot,
              evolutionary)
 Tasks 24-26: Sprint 8 coverage (duplicate-search, mcp-serve, a2a-infra)
-Tasks 27-28: Sprint 9 coverage (cmd-agents, cmd-create-agent)
+Tasks 27-29: Sprint 9 coverage (cmd-agents, cmd-create-agent, manage-agents-tool)
 
 Usage:
-    python benchmark.py           # run all 28 tasks
-    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8, 27 (no web / multi-agent)
+    python benchmark.py           # run all 29 tasks
+    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8, 27, 29 (no web / multi-agent)
 """
 import argparse
 import asyncio
@@ -396,11 +396,18 @@ TASKS = [
         "task": "/create_agent marketer",
         "mode": "command",
     },
+    {
+        "id": 29,
+        "type": "manage-agents",
+        # Natural language agent management via manage_agents tool (AGENT-UX)
+        "task": "\u043a\u0430\u043a\u0438\u0435 \u0440\u043e\u043b\u0438 \u0430\u0433\u0435\u043d\u0442\u043e\u0432 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b?",
+        "mode": "loop",
+    },
 ]
 
 # Task IDs included in --quick mode
 # Sprint 5 tasks (11-14) are excluded — they require a warm DB with memory/graph data
-QUICK_IDS = {1, 2, 3, 7, 8, 27}
+QUICK_IDS = {1, 2, 3, 7, 8, 27, 29}
 
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
@@ -436,6 +443,8 @@ def build_registry() -> ToolRegistry:
     registry.register(PdfTool())
     from src.organism.tools.memory_search import MemorySearchTool
     registry.register(MemorySearchTool())
+    from src.organism.tools.manage_agents import ManageAgentsTool
+    registry.register(ManageAgentsTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
     return registry
@@ -572,6 +581,7 @@ _TOOL_SHORT = {
     "pptx_creator":  "pptx",
     "file_manager":  "file_mgr",
     "multi-agent":   "multi-agt",
+    "manage_agents": "mgr_agent",
 }
 
 

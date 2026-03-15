@@ -1,0 +1,200 @@
+Где следить за расходами:
+
+Anthropic: console.anthropic.com → Usage
+proxyapi.ru: личный кабинет → баланс и расход
+Tavily: app.tavily.com → Usage
+
+
+# Organism AI — Руководство по эксплуатации
+
+## 1. Запуск
+
+### Основной бот (Telegram)
+```
+python main.py --telegram
+```
+Бот начнёт слушать сообщения. Работает пока терминал открыт. Ctrl+C для остановки.
+
+### Проверка мониторинга ошибок
+```
+python main.py --test-monitor
+```
+В Telegram-группу для ошибок придёт: "✅ Organism AI Error Monitor активен"
+
+### Другие режимы запуска
+```
+python main.py --task "текст задачи"          # Одна задача через CLI
+python main.py --multi --task "сложная задача" # Мульти-агентный режим
+python main.py --interactive                   # Интерактивный CLI (диалог в терминале)
+python main.py --serve-mcp --mcp-port 8091     # Organism AI как MCP-сервер
+```
+
+---
+
+## 2. Файл .env — что должно быть
+
+```dotenv
+# === ОБЯЗАТЕЛЬНЫЕ ===
+ANTHROPIC_API_KEY=sk-ant-...
+TELEGRAM_BOT_TOKEN=8762194624:AAE...
+TELEGRAM_ALLOWED_USERS=123456789,987654321    # ID через запятую
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5433/organism_ai
+
+# === ДЛЯ ПОЛНОГО ФУНКЦИОНАЛА ===
+TAVILY_API_KEY=tvly-...                       # Веб-поиск
+OPENAI_API_KEY=sk-...                         # Embeddings (опционально, BM25 работает без)
+
+# === МОНИТОРИНГ ОШИБОК ===
+TELEGRAM_ERROR_CHAT_ID=-100xxxxxxxxxx         # Группа для ошибок
+
+# === ОПЦИОНАЛЬНЫЕ ===
+ARTEL_ID=default
+LOG_LEVEL=INFO
+LOG_DIR=data/logs
+ERROR_MONITOR_INTERVAL=60                     # Секунды между проверками ошибок
+```
+
+---
+
+## 3. Добавление нового пользователя
+
+1. Пользователь находит бота в Telegram
+2. Узнать его Telegram ID: пусть напишет боту @userinfobot
+3. Добавить ID в .env: `TELEGRAM_ALLOWED_USERS=твой_id,новый_id`
+4. Перезапустить бота: Ctrl+C → `python main.py --telegram`
+5. Пользователь пишет `/start` → получает доступ
+
+---
+
+## 4. Команды бота (для пользователей)
+
+### Основные
+```
+/help                    — список всех команд
+/profile                 — показать сохранённые факты
+/remember key value      — запомнить факт (например: /remember name Игорь)
+/forget key              — забыть факт
+/history key             — история изменений факта
+/style formal            — стиль ответов (formal/informal/technical/brief)
+/stats                   — статистика системы
+/reset                   — сбросить все данные профиля
+```
+
+### Управление расписанием
+```
+/schedule                — список запланированных задач
+/schedule_enable 1       — включить задачу №1
+/schedule_disable 1      — выключить задачу №1
+```
+
+### Критические действия
+```
+/approve id              — одобрить действие
+/reject id               — отклонить действие
+```
+
+### Системные
+```
+/personality             — текущая конфигурация личности
+/prompts                 — версии промптов и их качество
+/cleanup                 — очистка БД (кэш, старые данные)
+```
+
+---
+
+## 5. Мониторинг
+
+### Ошибки → Telegram
+Автоматически. При запуске бота ErrorNotifier стартует фоновым процессом.
+Каждые 60 секунд проверяет новые ошибки в БД → отправляет в TELEGRAM_ERROR_CHAT_ID.
+
+Формат сообщения:
+```
+❌ ERROR | core.loop
+Описание ошибки
+Задача: текст задачи пользователя
+Task ID: abc123
+```
+
+### Логи — файлы
+```
+data/logs/errors-2026-03-06.log    # Ошибки за день
+```
+Смотреть: `tail -f data/logs/errors-2026-03-06.log`
+
+### Логи — терминал
+При запуске `python main.py --telegram` все логи идут в stdout.
+Видно: каждую задачу, шаги выполнения, ошибки, время.
+
+### Статистика
+Написать боту `/stats` — покажет:
+- Всего задач
+- Успешных
+- Success rate %
+- Среднее время
+- Среднее качество
+- Записей в кэше
+
+---
+
+## 6. Обновление системы
+
+### Простое обновление (код)
+```
+# 1. Останови бота: Ctrl+C
+# 2. Внеси изменения или подтяни из git:
+git pull
+# 3. Запусти заново:
+python main.py --telegram
+```
+Для пользователя: 2-3 секунды даунтайма, потом бот снова работает.
+
+### После обновления БД (новые миграции)
+Ничего делать не нужно. При запуске `init_db()` автоматически:
+1. Создаёт новые таблицы
+2. Применяет непримённые миграции
+3. Логирует: "Migration N applied successfully"
+
+### Бенчмарк после изменений
+```
+python benchmark.py          # Полный (26 задач, ~16 мин)
+python benchmark.py --quick  # Быстрый (5 задач, ~2 мин)
+```
+
+---
+
+## 7. Что проверить если что-то сломалось
+
+| Симптом | Причина | Решение |
+|---------|---------|---------|
+| Бот не отвечает | Процесс упал | Перезапусти `python main.py --telegram` |
+| "Access denied" | User ID не в ALLOWED_USERS | Добавь ID в .env, перезапусти |
+| Ошибки БД | PostgreSQL не запущен | Проверь: `docker ps` или `pg_isready` |
+| "ANTHROPIC_API_KEY not set" | Нет .env или пустой ключ | Проверь .env файл |
+| Поиск не работает | Нет TAVILY_API_KEY | Добавь ключ в .env |
+| Бот медленный | LLM API задержки | Нормально, Claude API: 5-30 сек на запрос |
+| Файл вместо текста | Ответ > 3500 символов | Ожидаемо — длинные ответы идут файлом |
+
+---
+
+## 8. Инфраструктура
+
+### Что должно быть запущено
+```
+PostgreSQL (порт 5433)         — база данных + pgvector
+Docker (опционально)           — для code_executor (Python sandbox)
+Интернет                       — для Claude API, Tavily, Telegram
+```
+
+### Проверка PostgreSQL
+```
+psql -h localhost -p 5433 -U organism -d organism_ai -c "SELECT count(*) FROM task_memories;"
+```
+
+### Проверка Docker
+```
+docker ps                      # Должен быть запущен Docker daemon
+docker run --rm hello-world    # Тест
+```
+Если Docker нет — бот работает, но code_executor (Python-код) не выполняется.
+Planner автоматически выберет text_writer вместо code_executor.

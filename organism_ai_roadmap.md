@@ -15,6 +15,7 @@
 - Sprint 9 (Agent Factory): Q-9.2 (role templates + AgentFactory), Q-9.3 (personality generation), Q-9.4 (MetaOrchestrator), Q-9.5 (commands) ✅
 - Sprint 9 (Fixes): FIX-33 — FIX-71 ✅
 - Sprint 9 (Tech debt): Q-9.8 (MCP JSON-RPC 2.0), Q-9.10 (/errors command) ✅
+- AGENT-UX: manage_agents tool — natural language agent management ✅
 - Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
 - Memory Verification Loop: INSIGHT-1 ✅
 - Benchmark: 28/28 задач, quality 0.89–0.93 ✅

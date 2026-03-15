@@ -595,10 +595,20 @@ ARCHITECTURE_DECISIONS_ARCHIVE.md. Main file now contains only Sprint 9+ decisio
 and active architecture principles.
 Files: `ARCHITECTURE_DECISIONS.md`, `ARCHITECTURE_DECISIONS_ARCHIVE.md`, `CLAUDE.md`.
 
+### AGENT-UX: manage_agents tool — natural language agent management (2026-03-15)
+Problem: Agent management (list/create/delete/delegate) only available via slash commands,
+not intuitive for non-technical users.
+Solution: New BaseTool `manage_agents` registered in ToolRegistry. LLM in _handle_conversation
+decides when to call it based on user intent. Supports 5 actions: list_templates, list_agents,
+create, delete, delegate. Dependencies injected via setters (AgentFactory, LLM, MetaOrchestrator).
+Delegate action calls MetaOrchestrator.run_as_agent() directly — same path as /assign command.
+Slash commands preserved as alternative interface.
+Files: `tools/manage_agents.py`, `main.py`, `benchmark.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)
-- 28 tasks total (28/28 success with Docker+DB)
+- 29 tasks total (29/29 success with Docker+DB)
 - Average Quality Score: 0.93
 - Sprint 9 tasks: Agent Factory, Universal Planner, MCP JSON-RPC — all passing
 - For historical benchmark data, see ARCHITECTURE_DECISIONS_ARCHIVE.md

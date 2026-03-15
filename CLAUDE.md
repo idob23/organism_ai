@@ -26,7 +26,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | MemoryManager | src/organism/memory/manager.py | pgvector, on_task_start / on_task_end |
 | SafetyValidator | src/organism/safety/validator.py | Block dangerous operations |
 
-### Tools (9 built-in + MCP dynamic + A2A conditional)
+### Tools (10 built-in + MCP dynamic + A2A conditional)
 | Tool | File | Notes |
 |------|------|-------|
 | code_executor | tools/code_executor.py | Docker sandbox, tmpfile + volume mount |
@@ -39,6 +39,7 @@ CoreLoop → Planner → ToolRegistry → Executor → Evaluator
 | pdf_tool | tools/pdf_tool.py | Create/read PDF files via fpdf2/pypdf2 (TOOL-1, FIX-57c) |
 | duplicate_finder | tools/duplicate_finder.py | Semantic duplicate search in 1C entities via embeddings (Q-8.3) |
 | memory_search | tools/memory_search.py | Search long-term memory for past tasks/agreements/files (FIX-53) |
+| manage_agents | tools/manage_agents.py | List/create/delete/delegate agents via natural language (AGENT-UX) |
 | mcp_* | tools/mcp_client.py | Dynamic tools from MCP servers (MCP_SERVERS env) |
 | delegate_to_agent | a2a/protocol.py | Peer delegation (A2A_PEERS env), only when peers configured |
 
@@ -113,7 +114,7 @@ organism_ai/
 │                      # causal_analyzer.txt, template_extractor.txt
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry point
-├── benchmark.py       # 26-task benchmark suite
+├── benchmark.py       # 29-task benchmark suite
 ├── ARCHITECTURE_DECISIONS.md  # Detailed architecture reference (Sprint 9+)
 ├── ARCHITECTURE_DECISIONS_ARCHIVE.md  # Historical decisions (Sprint 1-8)
 └── pyproject.toml
@@ -158,13 +159,13 @@ ___
 /errors [N]               — show last N errors (default 5)
 /test_error               — send a test error to monitoring
 /agents                   — list role templates and created agents
-/create_agent <role> [name] — create an agent from a role template
-/assign <agent> <task>    — assign a task to a specific agent
+/create_agent <role> [name] — create an agent from a role template (legacy, prefer manage_agents tool)
+/assign <agent> <task>    — assign a task to a specific agent (legacy, prefer manage_agents tool)
 /help                     — show available commands
 ```
 
 ## Current Metrics (March 2026)
-- Benchmark: 28 tasks total (28/28 success with Docker+DB)
+- Benchmark: 29 tasks total (29/29 success with Docker+DB)
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes applied: FIX-1 through FIX-71 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
@@ -176,6 +177,7 @@ ___
   - Q-9.5 ✅ (/agents, /create_agent, /assign commands — Agent Factory complete)
   - Q-9.8 ✅ (MCP JSON-RPC 2.0 — /jsonrpc endpoint for Cursor/Claude Desktop)
   - Q-9.10 ✅ (/errors command — view errors without SSH)
+  - AGENT-UX ✅ (manage_agents tool — natural language agent management)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

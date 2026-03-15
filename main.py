@@ -29,6 +29,8 @@ def build_registry() -> ToolRegistry:
     registry.register(PdfTool())
     from src.organism.tools.memory_search import MemorySearchTool
     registry.register(MemorySearchTool())
+    from src.organism.tools.manage_agents import ManageAgentsTool
+    registry.register(ManageAgentsTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
     if settings.telegram_bot_token:
@@ -105,6 +107,16 @@ def build_loop(registry: ToolRegistry | None = None, personality=None, with_orch
     loop = CoreLoop(llm, reg, memory=memory, personality=p, orchestrator=orch, factory=factory)
     if orch is not None and hasattr(orch, "set_loop"):
         orch.set_loop(loop)
+    # AGENT-UX: inject dependencies into ManageAgentsTool
+    try:
+        mat = reg.get("manage_agents")
+        if factory:
+            mat.set_factory(factory)
+        mat.set_llm(llm)
+        if orch:
+            mat.set_orchestrator(orch)
+    except KeyError:
+        pass
     return loop
 
 
