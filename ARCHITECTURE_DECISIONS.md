@@ -637,6 +637,16 @@ Loop reads `result.created_files` instead of regex-parsing tool_output.
 Files: `tools/base.py`, `tools/code_executor.py`, `tools/pdf_tool.py`, `tools/pptx_creator.py`,
 `core/loop.py`.
 
+### FIX-75: Structural context headers + language via personality config (2026-03-15)
+Problem: System prompt context sections (user facts, recent work, long-term memory) were injected
+as raw text blocks without headers — LLM couldn't distinguish between sections. Language rule
+("Respond in the same language as the user") was hardcoded in core loop, not configurable per artel.
+Solution: Added Russian structural headers to each context section in loop.py:
+`## \u041e \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435`, `## \u0417\u0430\u0434\u0430\u0447\u0438, \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043d\u044b\u0435 \u043f\u043e \u0437\u0430\u043f\u0440\u043e\u0441\u0443 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f`,
+`## \u041f\u043e\u0445\u043e\u0436\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 \u043f\u0430\u043c\u044f\u0442\u0438`. Removed hardcoded language rule from loop.py, moved to
+`config/personality/default.md` Style section as configurable per-artel setting.
+Files: `core/loop.py`, `config/personality/default.md`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

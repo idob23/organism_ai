@@ -243,7 +243,6 @@ class CoreLoop:
             "- Be direct and honest, match the user's tone",
             "- When you have relevant knowledge, share it fully",
             "- If a user asks you to do something and you have the right tool, use it",
-            "- Respond in the same language as the user",
             "- FORMATTING: Never use Markdown. No ##, no ---, no |tables|, no **bold**, no ```code blocks``` in text responses. "
             "Use plain text only. Structure with line breaks and emoji if needed. "
             "Exception: when creating actual files (Excel, Word, PDF) \u2014 formatting inside files is fine.",
@@ -261,11 +260,11 @@ class CoreLoop:
         if skill_context:
             system_parts.append(f"\n## How to create this file\n{skill_context}")
         if user_context:
-            system_parts.append(f"\n{user_context}")
+            system_parts.append(f"\n## \u041e \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\n{user_context}")
         if recent_work_context:
-            system_parts.append(f"\n{recent_work_context}")
+            system_parts.append(f"\n## \u0417\u0430\u0434\u0430\u0447\u0438, \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043d\u044b\u0435 \u043f\u043e \u0437\u0430\u043f\u0440\u043e\u0441\u0443 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f\n{recent_work_context}")
         if longterm_context:
-            system_parts.append(f"\n{longterm_context}")
+            system_parts.append(f"\n## \u041f\u043e\u0445\u043e\u0436\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 \u043f\u0430\u043c\u044f\u0442\u0438\n{longterm_context}")
         # FIX-63: Extra system context from MetaOrchestrator (agent personality)
         if extra_system_context:
             system_parts.append(f"\n{extra_system_context}")
