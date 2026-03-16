@@ -105,7 +105,7 @@ organism_ai/
 │   └── a2a/           # protocol.py — Agent-to-Agent delegation (Q-8.5)
 ├── config/
 │   ├── settings.py    # artel_id (ARTEL_ID env var)
-│   ├── skills/        # excel.md, docx.md, charts.md (SKILL-1)
+│   ├── skills/        # excel.md, docx.md, charts.md (SKILL-1), pdf.md (SKILL-2)
 │   ├── fonts/         # DejaVuSans.ttf, DejaVuSans-Bold.ttf (FIX-57b)
 │   ├── roles/         # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md (Q-9.2)
 │   ├── agents/        # {agent_id}.json — created agent configs (Q-9.2)
@@ -174,7 +174,7 @@ ___
 - Average Quality Score: 0.93
 - All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
 - Fixes applied: FIX-1 through FIX-78 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
-- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅, ARCH-2 ✅
+- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, SKILL-2 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅, ARCH-2 ✅
 - Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
   - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
   - Q-9.3 ✅ (Auto-generate PERSONALITY.md from role template via LLM)
@@ -193,6 +193,7 @@ ___
   - FIX-76 ✅ (Gateway chat_history truncation 2000→5000, last-2 messages get 3000 char context in loop.py)
   - FIX-77 ✅ (pdf_tool full markdown rendering: tables, H1-H3, HR, bold/italic cleanup, numbered lists)
   - FIX-78 ✅ (Structural file delivery via TaskResult.created_files — removes regex, delivers all files)
+  - SKILL-2 ✅ (PDF skill for long documents via code_executor + fpdf2, fonts in sandbox)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code

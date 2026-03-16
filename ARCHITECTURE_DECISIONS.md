@@ -657,6 +657,28 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### SKILL-2: PDF skill for long documents via code_executor + fpdf2 (2026-03-16)
+Problem: `pdf_tool` passes entire document content in one tool call input. For long documents
+(20+ pages, ~40K chars) this exceeds token limits. Result: 1-page PDF with only the title,
+agent hallucinating content that doesn't exist in the file. Excel and DOCX already solved this
+via code_executor + skills (compact code ~3K tokens vs raw text ~20K tokens).
+
+Solution — 3 changes:
+1. **`config/skills/pdf.md`**: Skill file with fpdf2 template for code_executor. Helper functions
+   (add_title, add_heading, add_text, add_bullet, add_hr, add_table) match pdf_tool styling
+   (same colors, fonts, table formatting). Agent generates Python code that builds PDF
+   programmatically — content lives in code, not in tool call input.
+2. **`sandbox/Dockerfile`**: Added `fpdf2` to pip install. Copied DejaVuSans fonts to
+   `/sandbox/fonts/` (COPY from `sandbox/fonts/` dir, since Docker can't COPY from `../`).
+3. **`skill_matcher.py`**: Updated SKILL_SELECT_PROMPT to route PDF tasks to `pdf.md` instead
+   of "use pdf_tool directly".
+
+pdf_tool remains for quick short PDFs (1-2 pages) and PDF reading. Long documents route through
+code_executor with the PDF skill, same pattern as Excel (excel.md) and DOCX (docx.md).
+
+Files: `config/skills/pdf.md`, `sandbox/Dockerfile`, `sandbox/fonts/DejaVuSans*.ttf`,
+`src/organism/core/skill_matcher.py`.
+
 ### FIX-78: Structural file delivery via TaskResult.created_files (2026-03-16)
 Problem: `loop.py` appended text marker `"Saved files: {last_file}"` to answer — only the last file.
 `gateway.py` parsed this with regex `r'Saved files:\s*(\S+)'` — fragile, delivered only the first match.

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-16T20:59:07",
+  "timestamp": "2026-03-16T21:42:06",
   "mode": "quick",
   "results": [
     {
@@ -8,7 +8,7 @@
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
       "quality_score": 0.95,
-      "duration": 34.22,
+      "duration": 45.93,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -19,7 +19,7 @@
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
       "quality_score": 0.85,
-      "duration": 41.32,
+      "duration": 41.82,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -30,7 +30,7 @@
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
       "quality_score": 0.85,
-      "duration": 37.18,
+      "duration": 42.25,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -41,7 +41,7 @@
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
       "quality_score": 0.95,
-      "duration": 32.33,
+      "duration": 34.12,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -52,7 +52,7 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.85,
-      "duration": 27.32,
+      "duration": 28.52,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -63,7 +63,7 @@
       "task": "/agents",
       "success": true,
       "quality_score": 1.0,
-      "duration": 0.0,
+      "duration": 0.02,
       "tools_used": [],
       "cache_hit": false,
       "error": ""
@@ -74,7 +74,7 @@
       "task": "какие роли агентов доступны?",
       "success": true,
       "quality_score": 0.7,
-      "duration": 30.42,
+      "duration": 38.76,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -85,7 +85,7 @@
     "successful": 7,
     "success_rate": 100.0,
     "avg_quality": 0.8786,
-    "avg_duration": 28.97,
+    "avg_duration": 33.06,
     "cache_hits": 6,
     "cache_hit_rate": 85.7
   }

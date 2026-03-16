@@ -22,7 +22,7 @@ SKILL_SELECT_PROMPT = (
     "- Table, comparison, list of items with attributes \u2192 excel.md\n"
     "- Document, instruction, report, memo \u2192 docx.md\n"
     "- Chart, graph, visualization \u2192 charts.md\n"
-    "- PDF report, certificate \u2192 use pdf_tool directly (no skill file needed)\n"
+    "- PDF report, business plan, memo, certificate, any document as PDF \u2192 pdf.md\n"
     "Return [] for search, conversation, simple calculations, or Q&A tasks."
 )
 
