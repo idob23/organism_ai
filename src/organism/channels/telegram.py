@@ -178,6 +178,19 @@ class TelegramChannel(BaseChannel):
                             await status_msg.edit_text(
                                 f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
                             )
+                    # FIX-78: Send extra files (multi-file tasks)
+                    for extra_path in (response.metadata or {}).get("extra_files", []):
+                        try:
+                            await message.answer_document(
+                                FSInputFile(extra_path, filename=os.path.basename(extra_path)),
+                            )
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                os.unlink(extra_path)
+                            except Exception:
+                                pass
                 elif response.text.startswith("Error:"):
                     err = response.text[7:]  # strip "Error: "
                     if "Traceback" in err or "File \"/" in err:
@@ -325,6 +338,19 @@ class TelegramChannel(BaseChannel):
                             await status_msg.edit_text(
                                 f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
                             )
+                    # FIX-78: Send extra files (multi-file tasks)
+                    for extra_path in (response.metadata or {}).get("extra_files", []):
+                        try:
+                            await message.answer_document(
+                                FSInputFile(extra_path, filename=os.path.basename(extra_path)),
+                            )
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                os.unlink(extra_path)
+                            except Exception:
+                                pass
                 elif response.text.startswith("Error:"):
                     err = response.text[7:]
                     if "Traceback" in err or "File \"/" in err:
@@ -544,6 +570,19 @@ class TelegramChannel(BaseChannel):
                             await status_msg.edit_text(
                                 f"\u2705 \u0413\u043e\u0442\u043e\u0432\u043e\n{steps_info}"
                             )
+                    # FIX-78: Send extra files (multi-file tasks)
+                    for extra_path in (response.metadata or {}).get("extra_files", []):
+                        try:
+                            await message.answer_document(
+                                FSInputFile(extra_path, filename=os.path.basename(extra_path)),
+                            )
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                os.unlink(extra_path)
+                            except Exception:
+                                pass
                 elif response.text.startswith("Error:"):
                     err = response.text[7:]
                     if "Traceback" in err or "File \"/" in err:

@@ -6,6 +6,7 @@ Routes messages, handles commands, formats responses.
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from typing import TYPE_CHECKING
 
@@ -116,9 +117,17 @@ class Gateway:
             except Exception:
                 pass
 
+        # FIX-78: Structural file delivery — no regex parsing
+        files_to_send = []
+        for fname in getattr(result, 'created_files', []):
+            candidate = os.path.join("data", "outputs", fname)
+            if os.path.exists(candidate):
+                files_to_send.append(candidate)
+
         meta = {
             "duration": getattr(result, "duration", 0),
             "steps": len(getattr(result, "steps", [])),
+            "files": files_to_send,
         }
         resp = self._prepare_response(response_text, msg.user_id, msg.channel, meta)
         return resp
@@ -135,25 +144,32 @@ class Gateway:
     ) -> OutgoingMessage:
         """Convert task output to a Telegram-friendly response.
 
+        - FIX-78: Structural file delivery via metadata["files"] (no regex).
         - If output is a file path: read content, send inline if short, .txt file if long.
         - If output is plain text: send inline if short, save to .txt if long.
         """
-        stripped = output.strip()
+        # FIX-78: Structural file delivery from TaskResult.created_files
+        files = metadata.get("files", [])
+        if files:
+            # Clean "Saved files: ..." markers from text output
+            clean_output = re.sub(r'\n?Saved files:\s*\S+', '', output).strip()
+            caption = clean_output[:1000] if clean_output else ""
 
-        # FIX-23: Extract file path from code_executor multi-line output
-        # Pattern: "Saved files: filename.xlsx" anywhere in output
-        import re as _re
-        _saved_match = _re.search(r'Saved files:\s*(\S+)', stripped)
-        if _saved_match:
-            fname = _saved_match.group(1).strip()
-            candidate = os.path.join("data", "outputs", fname)
-            if os.path.exists(candidate) and candidate.endswith(
-                (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py", ".pdf")
-            ):
-                # FIX-40: text before "Saved files:" is the agent's caption
-                lines_before = stripped[:_saved_match.start()].strip()
-                caption = lines_before[:1000] if lines_before else ""
-                return self._prepare_file_response(candidate, user_id, channel, metadata, caption=caption)
+            if len(files) == 1:
+                return self._prepare_file_response(
+                    files[0], user_id, channel, metadata, caption=caption,
+                )
+            else:
+                return OutgoingMessage(
+                    text=files[0],
+                    user_id=user_id,
+                    channel=channel,
+                    is_file=True,
+                    metadata={**metadata, "extra_files": files[1:]},
+                    caption=caption,
+                )
+
+        stripped = output.strip()
 
         # Detect file paths in output
         _file_exts = (".md", ".txt", ".csv", ".xlsx", ".pptx", ".py", ".pdf")

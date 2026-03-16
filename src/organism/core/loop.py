@@ -43,6 +43,7 @@ class TaskResult:
     error: str = ""
     memory_hits: int = 0
     quality_score: float = 0.0
+    created_files: list[str] = field(default_factory=list)
 
 
 class CoreLoop:
@@ -412,10 +413,6 @@ class CoreLoop:
                 f"\u0437\u0430\u0434\u0430\u0447\u0443."
             )
 
-        # FIX-36: Append file marker so gateway can detect and send the file
-        if created_files:
-            answer = answer + f"\nSaved files: {created_files[-1]}"
-
         duration = time.time() - start
         success = not exhausted
         _log.info(f"[{task_id}] Handler: {round_count} tool rounds, {duration:.1f}s, success={success}")
@@ -457,6 +454,7 @@ class CoreLoop:
             task_id=task_id, task=task, success=success,
             output=answer, answer=answer,
             duration=duration, quality_score=quality_score,
+            created_files=created_files,
         )
 
     async def _classify_complex(self, task: str) -> bool:

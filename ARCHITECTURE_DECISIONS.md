@@ -657,6 +657,29 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-78: Structural file delivery via TaskResult.created_files (2026-03-16)
+Problem: `loop.py` appended text marker `"Saved files: {last_file}"` to answer — only the last file.
+`gateway.py` parsed this with regex `r'Saved files:\s*(\S+)'` — fragile, delivered only the first match.
+Multi-file tasks (e.g., Excel + PPTX) lost all but one file.
+
+Solution — structural `created_files` channel from ToolResult to Telegram:
+1. **TaskResult.created_files**: new `list[str]` field (dataclass default `[]`)
+2. **_handle_conversation()**: passes `created_files=created_files` to TaskResult, removes text
+   marker append (`answer + "\nSaved files: ..."`)
+3. **gateway.handle_message()**: reads `result.created_files`, resolves paths via `os.path.exists`,
+   passes `files` list in metadata
+4. **gateway._prepare_response()**: regex `r'Saved files:\s*(\S+)'` removed entirely. Uses
+   `metadata["files"]` instead. Multi-file: first file as primary `OutgoingMessage`, rest in
+   `metadata["extra_files"]`. Cleans "Saved files:" from caption text via `re.sub`.
+5. **telegram.py**: all 3 handlers (handle_task, handle_voice, handle_media) send `extra_files`
+   after primary file — each via `answer_document()` + `os.unlink()`.
+
+What remains unchanged: "Saved files: ..." in tool output (code_executor, pdf_tool, pptx_creator) —
+this is for LLM context, not for gateway. `ToolResult.created_files` (FIX-74) — source of truth.
+
+Files: `src/organism/core/loop.py`, `src/organism/channels/gateway.py`,
+`src/organism/channels/telegram.py`.
+
 ### FIX-77: pdf_tool full markdown rendering (2026-03-16)
 Problem: `_create_pdf_sync()` only handled `# H1`, `## H2`, and `- bullet`. LLM generates full
 markdown: `### H3`, `**bold**`, `*italic*`, `| table |`, `---` (HR), `1. numbered`. All rendered
