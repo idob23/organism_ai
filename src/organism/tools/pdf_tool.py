@@ -1,7 +1,8 @@
-"""TOOL-1: PDF creation and reading tool (FIX-57c: fpdf2 for Unicode)."""
+"""TOOL-1: PDF creation and reading tool (FIX-57c: fpdf2 for Unicode, FIX-77: full markdown)."""
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +11,82 @@ from .base import BaseTool, ToolResult, OUTPUTS_DIR
 _FONTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config" / "fonts"
 
 
+def _clean_markdown(text: str) -> str:
+    """Strip markdown inline formatting, keep readable text."""
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'__(.+?)__', r'\1', text)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    text = re.sub(r'_(.+?)_', r'\1', text)
+    return text
+
+
+def _draw_hr(pdf):
+    """Horizontal rule — thin gray line."""
+    y = pdf.get_y()
+    pdf.set_draw_color(180, 180, 180)
+    pdf.line(20, y, 190, y)
+    pdf.ln(5)
+
+
+def _draw_heading(pdf, text, font_name, size, color):
+    pdf.set_font(font_name, style="B", size=size)
+    pdf.set_text_color(*color)
+    pdf.multi_cell(w=0, h=size * 0.7, text=_clean_markdown(text),
+                   new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font(font_name, size=11)
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
+
+
+def _draw_text(pdf, text, font_name):
+    pdf.set_font(font_name, size=11)
+    pdf.set_text_color(0, 0, 0)
+    pdf.multi_cell(w=0, h=7, text=text, new_x="LMARGIN", new_y="NEXT")
+
+
+def _draw_table(pdf, table_lines, font_name):
+    """Parse markdown table lines and render with fpdf2."""
+    rows = []
+    for tl in table_lines:
+        cells = [c.strip() for c in tl.strip('|').split('|')]
+        if all(re.match(r'^[-:]+$', c) for c in cells if c):
+            continue
+        rows.append(cells)
+
+    if not rows:
+        return
+
+    num_cols = max(len(r) for r in rows)
+    col_width = (pdf.w - 40) / num_cols
+
+    for row_idx, row in enumerate(rows):
+        while len(row) < num_cols:
+            row.append("")
+
+        is_header = (row_idx == 0)
+
+        if is_header:
+            pdf.set_font(font_name, style="B", size=10)
+            pdf.set_fill_color(30, 58, 95)
+            pdf.set_text_color(255, 255, 255)
+        else:
+            pdf.set_font(font_name, size=10)
+            pdf.set_text_color(0, 0, 0)
+            if row_idx % 2 == 0:
+                pdf.set_fill_color(245, 245, 245)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+
+        for cell in row:
+            pdf.cell(col_width, 8, _clean_markdown(cell)[:50], border=1, fill=True)
+        pdf.ln()
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(5)
+
+
 def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) -> None:
-    """Synchronous PDF creation via fpdf2."""
+    """Synchronous PDF creation via fpdf2 (FIX-77: full markdown support)."""
     from fpdf import FPDF
 
     pdf = FPDF()
@@ -31,36 +106,69 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
     except Exception:
         font_name = "Helvetica"
 
-    _mc = dict(w=0, new_x="LMARGIN", new_y="NEXT")
-
     # Title
     if title:
         pdf.set_font(font_name, style="B", size=16)
-        pdf.set_text_color(30, 58, 95)  # #1E3A5F
-        pdf.multi_cell(**_mc, h=10, text=title, align="C")
+        pdf.set_text_color(30, 58, 95)
+        pdf.multi_cell(w=0, h=10, text=title, align="C",
+                       new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
 
-    # Body
+    # Body — FIX-77: full markdown parser
     pdf.set_font(font_name, size=11)
     pdf.set_text_color(0, 0, 0)
 
-    for line in content.split("\n"):
-        line = line.strip()
+    lines = content.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        # Empty line
         if not line:
             pdf.ln(4)
+            i += 1
             continue
-        if line.startswith("## "):
-            pdf.set_font(font_name, style="B", size=13)
-            pdf.multi_cell(**_mc, h=8, text=line[3:])
-            pdf.set_font(font_name, size=11)
-        elif line.startswith("# "):
-            pdf.set_font(font_name, style="B", size=15)
-            pdf.multi_cell(**_mc, h=10, text=line[2:])
-            pdf.set_font(font_name, size=11)
-        elif line.startswith("- ") or line.startswith("* "):
-            pdf.multi_cell(**_mc, h=7, text=f"\u2022 {line[2:]}")
+
+        # Horizontal rule
+        if re.match(r'^[-*_]{3,}$', line):
+            _draw_hr(pdf)
+            i += 1
+            continue
+
+        # Table block (lines containing |, not headings)
+        if '|' in line and not line.startswith('#'):
+            table_lines = []
+            while i < len(lines) and '|' in lines[i].strip():
+                table_lines.append(lines[i].strip())
+                i += 1
+            try:
+                _draw_table(pdf, table_lines, font_name)
+            except Exception:
+                for tl in table_lines:
+                    _draw_text(pdf, _clean_markdown(tl), font_name)
+            continue
+
+        # Headings (check ### before ## before #)
+        if line.startswith('### '):
+            _draw_heading(pdf, line[4:], font_name, size=12, color=(51, 51, 51))
+        elif line.startswith('## '):
+            _draw_heading(pdf, line[3:], font_name, size=13, color=(30, 58, 95))
+        elif line.startswith('# '):
+            _draw_heading(pdf, line[2:], font_name, size=15, color=(30, 58, 95))
+
+        # Bullet lists
+        elif line.startswith('- ') or line.startswith('* '):
+            _draw_text(pdf, f"\u2022 {_clean_markdown(line[2:])}", font_name)
+
+        # Numbered lists
+        elif re.match(r'^\d+\.\s', line):
+            _draw_text(pdf, _clean_markdown(line), font_name)
+
+        # Regular text
         else:
-            pdf.multi_cell(**_mc, h=7, text=line)
+            _draw_text(pdf, _clean_markdown(line), font_name)
+
+        i += 1
 
     pdf.output(str(out_path))
 

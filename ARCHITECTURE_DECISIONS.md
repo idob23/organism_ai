@@ -657,6 +657,28 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-77: pdf_tool full markdown rendering (2026-03-16)
+Problem: `_create_pdf_sync()` only handled `# H1`, `## H2`, and `- bullet`. LLM generates full
+markdown: `### H3`, `**bold**`, `*italic*`, `| table |`, `---` (HR), `1. numbered`. All rendered
+as raw text with visible asterisks, pipes, and dashes.
+
+Solution — replaced line-by-line parser with block-aware parser + 5 helper functions:
+1. **`_clean_markdown(text)`**: strips `**bold**`, `*italic*`, `__bold__`, `_italic_` to plain text
+2. **`_draw_hr(pdf)`**: `---`/`***`/`___` → thin gray horizontal line
+3. **`_draw_heading(pdf, text, font, size, color)`**: H1 (15pt, #1E3A5F), H2 (13pt, #1E3A5F),
+   H3 (12pt, #333333) — all bold with color reset after
+4. **`_draw_table(pdf, lines, font)`**: detects `|` blocks, parses cells, skips separator rows
+   (`---`), renders header row (bold white on #1E3A5F) + data rows (alternating #F5F5F5/white),
+   equal column widths, cell borders. Graceful fallback to plain text on parse error.
+5. **`_draw_text(pdf, text, font)`**: standard multi_cell for body text
+
+Parser uses `while i < len(lines)` loop (not `for`) to handle multi-line table blocks.
+Numbered lists (`1. text`) pass through `_clean_markdown()` and render correctly.
+
+No changes to fpdf2, DejaVuSans fonts, `_read_pdf`, `execute`, or `input_schema`.
+
+Files: `src/organism/tools/pdf_tool.py`.
+
 ### FIX-76: Gateway chat_history truncation loses follow-up context (2026-03-16)
 Problem: `gateway.py` saved assistant messages to chat_history with `[:2000]` truncation, while
 `ChatHistory.save_message()` accepts up to 5000 chars and `ChatMessage.content` is TEXT (unlimited).
