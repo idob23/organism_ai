@@ -40,10 +40,9 @@
 - Node.js в sandbox/Dockerfile — для качественных .docx
 - FORMATTER-1: предагрегация данных 1C (отложено до реальных данных, см. ARCHITECTURE_DECISIONS.md)
 
-### Блок 3: Docker Compose для первого клиента (приоритет 1)
+### Блок 3: Docker Compose для первого клиента (приоритет 1) ✅
 
-Одна задача: docker-compose production (PostgreSQL + бот + мониторинг).
-Нужно до онбординга первого клиента.
+DOCKER-PROD: production hardening — healthcheck, backup/restore, resource limits, .dockerignore, deploy script.
 
 ---
 
@@ -66,5 +65,5 @@
 ## Критерии перехода к первому клиенту
 
 - Agent Factory готов (Q-9.2–Q-9.5) ✅
-- Docker Compose production готов
+- Docker Compose production готов ✅ (DOCKER-PROD)
 - 2+ недели стабильной работы у 3 тестеров без критических багов ✅

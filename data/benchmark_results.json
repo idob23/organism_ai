@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-15T20:31:18",
+  "timestamp": "2026-03-15T22:51:19",
   "mode": "quick",
   "results": [
     {
@@ -7,8 +7,8 @@
       "type": "code",
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
-      "quality_score": 0.95,
-      "duration": 10.59,
+      "quality_score": 0.85,
+      "duration": 35.76,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -18,8 +18,8 @@
       "type": "csv",
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
-      "quality_score": 0.95,
-      "duration": 9.59,
+      "quality_score": 0.85,
+      "duration": 30.13,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -29,8 +29,8 @@
       "type": "writing",
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
-      "quality_score": 0.8,
-      "duration": 7.31,
+      "quality_score": 0.85,
+      "duration": 34.33,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -41,7 +41,7 @@
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
       "quality_score": 0.95,
-      "duration": 32.05,
+      "duration": 29.49,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -52,7 +52,7 @@
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
       "quality_score": 0.95,
-      "duration": 7.42,
+      "duration": 33.2,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -67,15 +67,26 @@
       "tools_used": [],
       "cache_hit": false,
       "error": ""
+    },
+    {
+      "id": 29,
+      "type": "manage-agents",
+      "task": "какие роли агентов доступны?",
+      "success": true,
+      "quality_score": 0.7,
+      "duration": 29.7,
+      "tools_used": [],
+      "cache_hit": true,
+      "error": ""
     }
   ],
   "summary": {
-    "total": 6,
-    "successful": 6,
+    "total": 7,
+    "successful": 7,
     "success_rate": 100.0,
-    "avg_quality": 0.9333,
-    "avg_duration": 11.16,
-    "cache_hits": 5,
-    "cache_hit_rate": 83.3
+    "avg_quality": 0.8786,
+    "avg_duration": 27.52,
+    "cache_hits": 6,
+    "cache_hit_rate": 85.7
   }
 }

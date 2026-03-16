@@ -209,6 +209,23 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
         await channel.start()
 
 
+async def _heartbeat_writer() -> None:
+    """Write current timestamp to data/heartbeat every 30 seconds."""
+    import os
+    import time
+    heartbeat_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "data", "heartbeat"
+    )
+    os.makedirs(os.path.dirname(heartbeat_path), exist_ok=True)
+    while True:
+        try:
+            with open(heartbeat_path, "w") as f:
+                f.write(str(time.time()))
+        except Exception:
+            pass
+        await asyncio.sleep(30)
+
+
 async def run_telegram() -> None:
     from src.organism.channels.telegram import TelegramChannel
     from src.organism.channels.gateway import Gateway
@@ -279,10 +296,15 @@ async def run_telegram() -> None:
     gateway = Gateway(loop, scheduler=scheduler, approval=approval)
     channel = TelegramChannel(gateway)
     gateway.register_channel("telegram", channel)
+
+    # DOCKER-PROD: heartbeat for Docker health check
+    heartbeat_task = asyncio.create_task(_heartbeat_writer())
+
     print("Organism AI Telegram bot starting...")
     try:
         await channel.start()
     finally:
+        heartbeat_task.cancel()
         scheduler.stop()
         if error_notifier:
             await error_notifier.stop()

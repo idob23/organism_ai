@@ -657,6 +657,32 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### DOCKER-PROD: Production hardening Docker Compose (2026-03-16)
+Problem: Docker config (Q-9.7) was functional but not production-ready: dummy healthcheck
+(`python -c "import sys; sys.exit(0)"`), PostgreSQL port exposed externally, no backups,
+no resource limits, no .dockerignore.
+
+Solution — 8 changes:
+1. **Real healthcheck**: `scripts/health_check.py` — sync script checks DB connectivity
+   (psycopg2 SELECT 1) + heartbeat file freshness (< 120s). Background asyncio task in
+   `run_telegram()` writes unix timestamp to `data/heartbeat` every 30s.
+2. **Sandbox in docker-compose**: `sandbox` service builds the image, `bot` depends on it
+   via `service_completed_successfully`. Guarantees sandbox image exists before bot starts.
+3. **PostgreSQL hardening**: Removed `ports: "5433:5432"` (external access). Added
+   `expose: "5432"` (internal Docker network only).
+4. **Backup strategy**: `scripts/backup.sh` — pg_dump | gzip, 30-day retention.
+   `scripts/restore.sh` — gunzip | psql. Deploy script runs pre-deploy backup automatically.
+5. **Deploy script**: `.env` validation (no default passwords, no placeholders), pre-deploy
+   backup, git pull + build + restart, 90s health check polling.
+6. **Resource limits**: bot 1G/256M memory, 1 CPU. postgres 512M/128M memory.
+   Uses `deploy.resources` (Compose v3.x).
+7. **.env.production.example**: Critical security warning about POSTGRES_PASSWORD.
+8. **.dockerignore**: Excludes .git, .env, data/, backups/, __pycache__, tests/, *.md
+   (except config/**/*.md). Faster builds, no secrets in image.
+
+Files: `docker-compose.yml`, `main.py`, `scripts/health_check.py`, `scripts/backup.sh`,
+`scripts/restore.sh`, `scripts/deploy.sh`, `.env.production.example`, `.dockerignore`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

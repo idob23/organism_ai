@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+__pycache__
+*.pyc
+data/
+backups/
+.vscode/
+.idea/
+*.md
+!config/**/*.md
+tests/
+benchmark.py
+pre_commit_check.py

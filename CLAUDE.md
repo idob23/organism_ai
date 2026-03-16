@@ -112,6 +112,11 @@ organism_ai/
 │   ├── personality/   # default.md (per-artel personality configs)
 │   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
 │                      # causal_analyzer.txt, template_extractor.txt
+├── scripts/
+│   ├── health_check.py  # Docker HEALTHCHECK (DB + heartbeat)
+│   ├── deploy.sh        # Production deploy (.env validation, backup, build, health check)
+│   ├── backup.sh        # PostgreSQL backup (pg_dump + gzip, 30-day retention)
+│   └── restore.sh       # PostgreSQL restore from backup
 ├── data/              # logs/, outputs/, sandbox/
 ├── main.py            # CLI entry point
 ├── benchmark.py       # 29-task benchmark suite
@@ -184,6 +189,7 @@ ___
   - FIX-74 ✅ (Structural created_files field in ToolResult, replaces FIX-36 regex)
   - FIX-75 ✅ (Structural context headers + language via personality config)
   - FIX-75b ✅ (First client personality: artel_zoloto.md, ARTEL_ID in .env)
+  - DOCKER-PROD ✅ (Production hardening: healthcheck, backup, resource limits, .dockerignore)
 
 ## Critical Rules for Claude Code
 - **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
