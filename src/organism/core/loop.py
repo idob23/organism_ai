@@ -560,9 +560,11 @@ class CoreLoop:
                 recent = await self.memory.chat_history.get_recent(user_id, limit=10)
                 if recent:
                     lines = []
-                    for msg in recent[-20:]:
+                    for i, msg in enumerate(recent[-20:]):
                         prefix = "User" if msg["role"] == "user" else "Assistant"
-                        lines.append(f"{prefix}: {msg['content'][:1000]}")
+                        # FIX-76: Last 2 messages get more context for follow-up continuity
+                        limit = 3000 if i >= len(recent[-20:]) - 2 else 1000
+                        lines.append(f"{prefix}: {msg['content'][:limit]}")
                     chat_context = "\n".join(lines)
                     user_context += f"\n\nRecent conversation:\n{chat_context}"
             except Exception:

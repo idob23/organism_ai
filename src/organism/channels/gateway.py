@@ -62,7 +62,7 @@ class Gateway:
             if msg.text.strip().lower().startswith("/assign") and self.loop.memory and msg.user_id:
                 try:
                     await self.loop.memory.chat_history.save_message(msg.user_id, "user", msg.text)
-                    await self.loop.memory.chat_history.save_message(msg.user_id, "assistant", result_text[:2000])
+                    await self.loop.memory.chat_history.save_message(msg.user_id, "assistant", result_text[:5000])
                 except Exception:
                     pass
             return OutgoingMessage(
@@ -112,7 +112,7 @@ class Gateway:
         if self.loop.memory and msg.user_id:
             try:
                 await self.loop.memory.chat_history.save_message(msg.user_id, "user", msg.text)
-                await self.loop.memory.chat_history.save_message(msg.user_id, "assistant", response_text[:2000])
+                await self.loop.memory.chat_history.save_message(msg.user_id, "assistant", response_text[:5000])
             except Exception:
                 pass
 

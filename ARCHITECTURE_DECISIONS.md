@@ -657,6 +657,21 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-76: Gateway chat_history truncation loses follow-up context (2026-03-16)
+Problem: `gateway.py` saved assistant messages to chat_history with `[:2000]` truncation, while
+`ChatHistory.save_message()` accepts up to 5000 chars and `ChatMessage.content` is TEXT (unlimited).
+When agent produces a long response ending with a follow-up proposal ("Export to PDF?"), the proposal
+gets truncated. User replies "yes" — agent has no context for what "yes" refers to, repeats the task.
+
+Solution — 3 changes:
+1. **gateway.py line 65**: `/assign` handler `result_text[:2000]` → `result_text[:5000]`
+2. **gateway.py line 115**: Main handler `response_text[:2000]` → `response_text[:5000]`
+3. **loop.py HIST-1 block**: Last 2 messages in chat history injection get `[:3000]` instead of
+   `[:1000]`, ensuring the most recent assistant response (which the user is replying to) preserves
+   more context including follow-up proposals.
+
+Files: `src/organism/channels/gateway.py`, `src/organism/core/loop.py`.
+
 ### DOCKER-PROD: Production hardening Docker Compose (2026-03-16)
 Problem: Docker config (Q-9.7) was functional but not production-ready: dummy healthcheck
 (`python -c "import sys; sys.exit(0)"`), PostgreSQL port exposed externally, no backups,
