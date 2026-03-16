@@ -132,7 +132,13 @@ class CodeExecutorTool(BaseTool):
         return "print(" in code
 
     async def execute(self, input: dict[str, Any]) -> ToolResult:
-        code: str = input["code"]
+        code: str = input.get("code", "")
+        if not code or not code.strip():
+            return ToolResult(
+                output="",
+                error="No code provided. The 'code' parameter is required.",
+                exit_code=1,
+            )
         domains: list[str] = input.get("domains", [])
         task_description: str = input.get("task_description", "")
         context: str = input.get("context", "")

@@ -4,6 +4,16 @@ For PDF documents use code_executor with fpdf2 library.
 This is the ONLY way to create long professional PDFs (reports, business plans, memos).
 pdf_tool is NOT suitable for documents longer than 2-3 pages.
 
+## CRITICAL: code compactness
+
+You are limited to ~4000 tokens per code block. Rules:
+1. Text in add_text() — CONCISE. Don't write 500-word paragraphs. Write key points, 2-3 sentences per item.
+2. Data in tables — more compact than text. Use add_table() instead of long text descriptions.
+3. For financial plans: ALWAYS use tables, not text.
+4. For risk lists: ALWAYS use add_bullet(), not add_text() with long paragraphs.
+5. Total print-ready document: 8-15 pages in compact style = professional enough.
+6. If user asks for "20 pages" — better to make 10-12 quality pages with tables than an empty PDF.
+
 ## Important: sandbox paths
 - Fonts: /sandbox/fonts/DejaVuSans.ttf and DejaVuSans-Bold.ttf (always available)
 - Save files to: /output/filename.pdf

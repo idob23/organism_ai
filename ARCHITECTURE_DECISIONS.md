@@ -657,6 +657,23 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-79: code_executor empty input guard + pdf.md compactness strategy (2026-03-16)
+Problem 1: code_executor receives `{}` (no "code" key) → `input["code"]` raises KeyError →
+UnboundLocalError on `result` → raw error shown to user.
+
+Problem 2: Long documents (20+ pages) overflow token limits even with SKILL-2. LLM generates
+~6000 tokens of string literals in add_text() calls. fpdf2 can't append to existing PDFs,
+so multi-call sectional approach is impossible.
+
+Solution:
+1. **code_executor.py**: `input["code"]` → `input.get("code", "")` + early return with clear
+   error message if empty/missing. Prevents UnboundLocalError cascade.
+2. **pdf.md**: Added "CRITICAL: code compactness" section at top. Rules: concise text (2-3
+   sentences per point), tables instead of text for financials, add_bullet for lists, target
+   10-12 quality pages instead of empty 20-page PDF.
+
+Files: `src/organism/tools/code_executor.py`, `config/skills/pdf.md`.
+
 ### SKILL-2: PDF skill for long documents via code_executor + fpdf2 (2026-03-16)
 Problem: `pdf_tool` passes entire document content in one tool call input. For long documents
 (20+ pages, ~40K chars) this exceeds token limits. Result: 1-page PDF with only the title,
