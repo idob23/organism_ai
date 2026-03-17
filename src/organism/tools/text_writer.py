@@ -169,7 +169,7 @@ class TextWriterTool(BaseTool):
                 messages=[Message(role="user", content=prompt)],
                 system=outline_system,
                 model_tier="fast",
-                max_tokens=500,
+                max_tokens=1000,
                 temperature=0.3,
             )
         except Exception as e:
