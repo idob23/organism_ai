@@ -657,6 +657,29 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-80: Two-step pipeline for long PDFs — text_writer + pdf_tool source_file (2026-03-17)
+Problem: Long PDF documents (business plans, reports, 10-20 pages) generated via code_executor + pdf.md
+skill. LLM puts all document text as Python string literals → ~6000+ tokens on content + ~1500 on fpdf2
+code → overflows max_tokens=8192 → truncated 1-page PDF. FIX-79 compactness was a band-aid.
+
+Root cause: content generation and PDF rendering conflated in one LLM output.
+
+Solution — separate content generation from PDF rendering:
+1. **pdf_tool.py**: Added `source_file` parameter to input_schema. When `source_file` is set and
+   `content` is empty, reads markdown from `data/outputs/{source_file}` and renders it via the
+   existing FIX-77 markdown parser. Backward-compatible: if `content` is passed, it takes priority.
+2. **text_writer.py**: Raised `max_tokens` from 4000 to 8000 (~32K chars, 20+ pages markdown).
+   This is a separate LLM call (model_tier="balanced"), doesn't affect _handle_conversation context.
+3. **config/skills/pdf.md**: Rewritten. Routes by document length: short (1-3 pages) → pdf_tool
+   directly; long (4+ pages) → two-step pipeline (text_writer → pdf_tool with source_file).
+   code_executor + fpdf2 remains as fallback for charts/matplotlib edge cases.
+
+Pipeline: Round 1: text_writer(prompt, filename.md) → ~100 tokens tool call. Round 2:
+pdf_tool(action=create, source_file=filename.md, filename.pdf) → ~50 tokens tool call.
+Total: ~150 tokens vs 6000+ before.
+
+Files: `src/organism/tools/pdf_tool.py`, `src/organism/tools/text_writer.py`, `config/skills/pdf.md`.
+
 ### FIX-79: code_executor empty input guard + pdf.md compactness strategy (2026-03-16)
 Problem 1: code_executor receives `{}` (no "code" key) → `input["code"]` raises KeyError →
 UnboundLocalError on `result` → raw error shown to user.

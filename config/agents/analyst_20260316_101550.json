@@ -1,0 +1,14 @@
+{
+  "agent_id": "analyst_20260316_101550",
+  "name": "Аналитик Артели",
+  "role_id": "analyst",
+  "personality_file": "config/personality/analyst_20260316_101550.md",
+  "tools": [
+    "code_executor",
+    "text_writer",
+    "file_manager",
+    "pdf_tool",
+    "memory_search"
+  ],
+  "created_at": "2026-03-16T10:15:56+00:00"
+}

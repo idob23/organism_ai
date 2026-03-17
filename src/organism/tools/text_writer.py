@@ -56,7 +56,7 @@ class TextWriterTool(BaseTool):
             messages=[Message(role="user", content=prompt)],
             system=system,
             model_tier="balanced",
-            max_tokens=4000,
+            max_tokens=8000,
         )
 
         content = response.content.strip()

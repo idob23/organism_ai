@@ -1,138 +1,51 @@
-# PDF — how to create via code_executor + fpdf2
+# PDF — how to create documents
 
-For PDF documents use code_executor with fpdf2 library.
-This is the ONLY way to create long professional PDFs (reports, business plans, memos).
-pdf_tool is NOT suitable for documents longer than 2-3 pages.
+## Routing by document length
 
-## CRITICAL: code compactness
+**Short PDF (1-3 pages)**: use pdf_tool directly with content parameter.
+**Long PDF (4+ pages, reports, business plans, memos)**: two-step pipeline:
+1. text_writer — generate full content as markdown file
+2. pdf_tool — convert markdown file to PDF
 
-You are limited to ~4000 tokens per code block. Rules:
-1. Text in add_text() — CONCISE. Don't write 500-word paragraphs. Write key points, 2-3 sentences per item.
-2. Data in tables — more compact than text. Use add_table() instead of long text descriptions.
-3. For financial plans: ALWAYS use tables, not text.
-4. For risk lists: ALWAYS use add_bullet(), not add_text() with long paragraphs.
-5. Total print-ready document: 8-15 pages in compact style = professional enough.
-6. If user asks for "20 pages" — better to make 10-12 quality pages with tables than an empty PDF.
+## Two-step pipeline for long documents
 
-## Important: sandbox paths
-- Fonts: /sandbox/fonts/DejaVuSans.ttf and DejaVuSans-Bold.ttf (always available)
-- Save files to: /output/filename.pdf
-- After saving: print("Saved files: filename.pdf")
+Step 1: Generate content via text_writer
+- filename: use descriptive name ending in .md (e.g. "bizplan_content.md")
+- prompt: detailed instructions for the document (structure, sections, data to include)
+- The more detailed the prompt, the better the result
 
-## Base template
-```python
-from fpdf import FPDF
+Step 2: Convert to PDF via pdf_tool
+- action: "create"
+- source_file: same filename from step 1 (e.g. "bizplan_content.md")
+- filename: final PDF name (e.g. "bizplan.pdf")
+- title: document title for the cover
 
-pdf = FPDF()
-pdf.set_margin(20)
-pdf.set_auto_page_break(auto=True, margin=20)
+## Example: business plan
 
-# Fonts — always load DejaVu for Cyrillic
-pdf.add_font("DejaVu", fname="/sandbox/fonts/DejaVuSans.ttf")
-pdf.add_font("DejaVu", style="B", fname="/sandbox/fonts/DejaVuSans-Bold.ttf")
-FONT = "DejaVu"
-
-def add_title(text):
-    pdf.add_page()
-    pdf.set_font(FONT, style="B", size=20)
-    pdf.set_text_color(30, 58, 95)
-    pdf.cell(w=0, h=15, text=text, align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(10)
-
-def add_heading(text, level=2):
-    sizes = {1: 16, 2: 14, 3: 12}
-    pdf.set_font(FONT, style="B", size=sizes.get(level, 12))
-    pdf.set_text_color(30, 58, 95)
-    pdf.cell(w=0, h=10, text=text, new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font(FONT, size=11)
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(3)
-
-def add_text(text):
-    pdf.set_font(FONT, size=11)
-    pdf.multi_cell(w=0, h=7, text=text, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
-def add_bullet(text):
-    pdf.set_font(FONT, size=11)
-    pdf.multi_cell(w=0, h=7, text=f"\u2022 {text}", new_x="LMARGIN", new_y="NEXT")
-
-def add_hr():
-    y = pdf.get_y()
-    pdf.set_draw_color(180, 180, 180)
-    pdf.line(20, y, 190, y)
-    pdf.ln(5)
-
-def add_table(headers, rows):
-    """Table with dark header and alternating row colors."""
-    col_width = (pdf.w - 40) / len(headers)
-
-    # Header
-    pdf.set_font(FONT, style="B", size=10)
-    pdf.set_fill_color(30, 58, 95)
-    pdf.set_text_color(255, 255, 255)
-    for h in headers:
-        pdf.cell(col_width, 8, str(h)[:40], border=1, fill=True, align="C")
-    pdf.ln()
-
-    # Data rows
-    pdf.set_font(FONT, size=10)
-    pdf.set_text_color(0, 0, 0)
-    for i, row in enumerate(rows):
-        if i % 2 == 0:
-            pdf.set_fill_color(245, 245, 245)
-        else:
-            pdf.set_fill_color(255, 255, 255)
-        for cell in row:
-            pdf.cell(col_width, 8, str(cell)[:40], border=1, fill=True)
-        pdf.ln()
-
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(5)
-
-# === DOCUMENT CONTENT ===
-
-add_title("DOCUMENT TITLE")
-
-add_heading("1. First Section")
-add_text("Section text. Description, analysis, conclusions.")
-add_text("Second paragraph with additional data.")
-
-add_heading("2. Data Table")
-add_table(
-    ["Indicator", "Value", "Unit"],
-    [
-        ["Revenue", "18 000 000", "RUB"],
-        ["Expenses", "11 600 000", "RUB"],
-        ["Profit", "6 400 000", "RUB"],
-    ]
-)
-
-add_heading("3. Recommendations")
-add_bullet("First recommendation with justification")
-add_bullet("Second recommendation")
-add_bullet("Third recommendation")
-
-add_hr()
-add_text("Date: March 16, 2026")
-add_text("Signature: ________________________")
-
-pdf.output("/output/document.pdf")
-print("Saved files: document.pdf")
+Step 1:
+```json
+{"tool": "text_writer", "input": {"prompt": "Напиши бизнес-план компании X. Структура: 1. Резюме проекта 2. Описание продукта 3. Анализ рынка 4. Финансовый план (таблицы с выручкой, расходами, прибылью) 5. Команда 6. Риски. Используй markdown: заголовки ##, таблицы |col|col|, буллеты. 15-20 страниц.", "filename": "bizplan_content.md"}}
 ```
 
-## Formatting rules
-- Font: always DejaVu (Cyrillic support), load from /sandbox/fonts/
-- Document title: bold, size=20, color #1E3A5F, centered
-- Section headings: bold, size=14, color #1E3A5F
-- Body text: regular, size=11, black
-- Tables: dark header (#1E3A5F white text), alternating row colors
-- Margins: 20mm all sides
-- Auto page break: enabled (set_auto_page_break)
-- For long documents: describe content directly in code via add_text/add_heading/add_table calls
-- Save file to /output/, print "Saved files: filename.pdf"
+Step 2:
+```json
+{"tool": "pdf_tool", "input": {"action": "create", "source_file": "bizplan_content.md", "filename": "bizplan.pdf", "title": "Бизнес-план компании X"}}
+```
 
-## When to use
-- Any PDF longer than 1-2 pages
-- Business plans, reports, memos, instructions
-- Documents with tables and structured formatting
+## Markdown formatting tips for text_writer prompt
+
+pdf_tool supports full markdown rendering:
+- # H1, ## H2, ### H3 — headings with professional styling
+- | col1 | col2 | — tables with dark headers and alternating rows
+- - bullet or * bullet — bullet lists
+- --- — horizontal rules
+- **bold** and *italic* — cleaned to plain text in PDF
+- 1. 2. 3. — numbered lists
+
+For best results, instruct text_writer to use tables for financial data and structured comparisons.
+
+## When NOT to use the two-step pipeline
+
+- Quick 1-2 page PDFs — use pdf_tool with content directly
+- PDF reading — use pdf_tool with action="read"
+- Charts/graphs inside PDF — use code_executor with fpdf2 (charts need matplotlib)

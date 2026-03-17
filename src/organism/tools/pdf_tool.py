@@ -184,7 +184,9 @@ class PdfTool(BaseTool):
         return (
             "Create PDF files from text/markdown content, or extract text from existing PDFs. "
             "Use for: reports, proposals, grant applications, commercial offers, any document "
-            "that needs to be saved as PDF."
+            "that needs to be saved as PDF. "
+            "For long documents (5+ pages): use text_writer to generate .md first, "
+            "then pdf_tool with source_file parameter."
         )
 
     @property
@@ -210,6 +212,13 @@ class PdfTool(BaseTool):
                     "description": "Document title (for create action).",
                     "default": "",
                 },
+                "source_file": {
+                    "type": "string",
+                    "description": "Read content from this file instead of 'content' parameter. "
+                                   "Path relative to data/outputs/ (e.g. 'report.md'). "
+                                   "Use for long documents: first generate .md via text_writer, then convert to PDF.",
+                    "default": "",
+                },
             },
             "required": ["action", "filename"],
         }
@@ -219,15 +228,28 @@ class PdfTool(BaseTool):
         filename = input.get("filename", "output.pdf")
         content = input.get("content", "")
         title = input.get("title", "")
+        source_file = input.get("source_file", "")
 
         if action == "create":
-            return await self._create_pdf(filename, content, title)
+            return await self._create_pdf(filename, content, title, source_file)
         elif action == "read":
             return await self._read_pdf(filename)
         else:
             return ToolResult(output="", error=f"Unknown action: {action}", exit_code=1)
 
-    async def _create_pdf(self, filename: str, content: str, title: str) -> ToolResult:
+    async def _create_pdf(self, filename: str, content: str, title: str,
+                          source_file: str = "") -> ToolResult:
+        # FIX-80: read content from file for long documents
+        if source_file and not content:
+            source_path = OUTPUTS_DIR / Path(source_file).name
+            if source_path.exists():
+                try:
+                    content = source_path.read_text(encoding="utf-8")
+                except Exception as e:
+                    return ToolResult(output="", error=f"Cannot read source file: {e}", exit_code=1)
+            else:
+                return ToolResult(output="", error=f"Source file not found: {source_file}", exit_code=1)
+
         if not filename.endswith(".pdf"):
             filename += ".pdf"
 
