@@ -657,6 +657,46 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-82: Robust outline parsing in text_writer sectional generation (2026-03-17)
+Problem: FIX-81 sectional generation falls back to SINGLE mode because Haiku doesn't return clean
+JSON. Common Haiku responses: JSON wrapped in ```json fences, preamble text before JSON array,
+numbered list instead of JSON, trailing text after JSON, or alternative key names (section/name
+instead of title, description/content instead of brief).
+
+Solution — 3-level fallback parser in `_parse_outline()`:
+1. **Level 1**: Strip markdown fences (```json...```), try `json.loads` on cleaned text.
+2. **Level 2**: Regex `\[.*\]` (re.DOTALL) to extract JSON array from mixed text.
+3. **Level 3**: Parse numbered/bulleted/heading lines into `{title, brief}` dicts — handles cases
+   where Haiku returns a plain list instead of JSON.
+
+Added `_normalize_sections()` to handle key name variations (title/section/name, brief/description/
+content) and string-only arrays. Debug logging (`outline_raw`) added right after Haiku response
+for future diagnostics.
+
+Files: `src/organism/tools/text_writer.py`.
+
+### FIX-81: Sectional generation in text_writer for long documents (2026-03-17)
+Problem: text_writer calls Sonnet with max_tokens=8000, but model stops at ~5500 tokens (~14 pages).
+Raising max_tokens doesn't help — the LLM decides when text is "done". Result: 14-page business plan
+instead of promised 20+.
+
+Root cause: a single LLM call cannot reliably generate documents >15 pages.
+
+Solution — sectional generation inside text_writer (external interface unchanged):
+1. **Mode detection**: heuristic `_is_long_document()` checks for keywords (business plan, report,
+   detailed, etc.) and section count (>5 numbered items). This is an internal tool strategy choice,
+   not an agent decision — analogous to code_executor choosing warm vs cold Docker.
+2. **Phase 1 — Outline (Haiku, ~300 tokens)**: generates JSON array of 8-15 sections with title
+   and brief description. Parsed via direct JSON + regex fallback. Failed parse → SINGLE fallback.
+3. **Phase 2 — Per-section (Sonnet, ~2000 tokens each, temp=0.5)**: each section gets the full
+   outline for structure awareness + previous sections summary (first 200 chars each) for coherence.
+   Failed sections are skipped; if >50% fail → SINGLE fallback.
+4. **Phase 3 — Merge**: simple concatenation. No polish LLM call (WriterAgent already has _polish).
+
+Scale: 10 sections × 2000 tokens = 20K tokens ≈ 80K chars ≈ 40+ pages PDF. Linear scaling.
+
+Files: `src/organism/tools/text_writer.py`.
+
 ### FIX-80: Two-step pipeline for long PDFs — text_writer + pdf_tool source_file (2026-03-17)
 Problem: Long PDF documents (business plans, reports, 10-20 pages) generated via code_executor + pdf.md
 skill. LLM puts all document text as Python string literals → ~6000+ tokens on content + ~1500 on fpdf2
