@@ -6,6 +6,7 @@ from pathlib import Path
 import structlog
 
 from .base import BaseTool, ToolResult, OUTPUTS_DIR
+from src.organism.utils.timezone import today_local
 
 _log = structlog.get_logger(__name__)
 
@@ -77,7 +78,10 @@ class TextWriterTool(BaseTool):
 
         llm = ClaudeProvider()
 
+        # FIX-83: inject current date so LLM uses correct year
+        _today = today_local()
         system = (
+            f"\u0421\u0435\u0433\u043e\u0434\u043d\u044f: {_today}. "
             "\u0422\u044b \u043f\u0440\u043e\u0444\u0435\u0441\u0441\u0438\u043e\u043d\u0430\u043b\u044c\u043d\u044b\u0439 "
             "\u043a\u043e\u043f\u0438\u0440\u0430\u0439\u0442\u0435\u0440 \u0438 "
             "\u0431\u0438\u0437\u043d\u0435\u0441-\u043a\u043e\u043d\u0441\u0443\u043b\u044c\u0442\u0430\u043d\u0442. "
@@ -89,6 +93,7 @@ class TextWriterTool(BaseTool):
             "\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430, \u0431\u0435\u0437 \u0432\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0439 "
             "\u0442\u0438\u043f\u0430 '\u0412\u043e\u0442 \u0442\u0435\u043a\u0441\u0442:'."
         ) if language == "ru" else (
+            f"Today: {_today}. "
             "You are a professional copywriter and business consultant. "
             "Write structured, persuasive, professional content in Markdown."
         )

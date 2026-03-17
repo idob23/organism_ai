@@ -2,7 +2,7 @@
 import time
 import uuid
 from pathlib import Path
-from datetime import datetime
+from src.organism.utils.timezone import now_local
 from config.settings import settings
 
 
@@ -13,7 +13,7 @@ class Logger:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def _log(self, event: dict) -> None:
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = now_local().strftime("%Y-%m-%d")
         log_file = self.log_dir / f"{today}.jsonl"
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(event, ensure_ascii=False) + "\n")

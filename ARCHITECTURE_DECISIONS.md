@@ -657,6 +657,32 @@ universal ("respond in user's language") for future clients. PersonalityConfig a
 supports artel-specific files via `settings.artel_id` — no code changes needed.
 Files: `config/personality/artel_zoloto.md`, `.env.example`.
 
+### FIX-83: Timezone support — store UTC, display local (2026-03-17)
+Problem 1: text_writer generates documents with "2025" dates — its internal LLM call has no
+current date context. Problem 2: memory_search task timestamps are 10 hours off — PostgreSQL
+stores UTC, user is in UTC+10 (Vladivostok).
+
+Root cause: no timezone configuration anywhere in the system.
+
+Solution — one setting, one utility module:
+1. **config/settings.py**: Added `timezone` field (default "Asia/Vladivostok", env TIMEZONE).
+2. **src/organism/utils/timezone.py**: `now_local()` returns current time in client timezone,
+   `to_local(dt)` converts UTC/naive datetime to local, `today_local()` returns "DD.MM.YYYY".
+3. **loop.py**: Both `datetime.now().strftime()` calls replaced with `today_local()`. Removed
+   unused `from datetime import datetime` import.
+4. **text_writer.py**: Current date injected into system prompt for both RU and EN variants.
+   Per-section calls inherit the date via the same `system` variable.
+5. **longterm.py**: `_to_dict()` now calls `to_local(m.created_at)` before `.isoformat()`.
+6. **logger.py**: Log filename uses `now_local()` instead of `datetime.now()`.
+7. **.env.production.example**: Added `TIMEZONE=Asia/Vladivostok`.
+
+Principle: store UTC in PostgreSQL (correct), display in local timezone for user-facing output.
+Internal scheduling (scheduler.py) keeps `datetime.utcnow()` — unchanged.
+
+Files: `config/settings.py`, `src/organism/utils/timezone.py`, `src/organism/core/loop.py`,
+`src/organism/tools/text_writer.py`, `src/organism/memory/longterm.py`,
+`src/organism/logging/logger.py`, `.env.production.example`.
+
 ### FIX-82: Robust outline parsing in text_writer sectional generation (2026-03-17)
 Problem: FIX-81 sectional generation falls back to SINGLE mode because Haiku doesn't return clean
 JSON. Common Haiku responses: JSON wrapped in ```json fences, preamble text before JSON array,

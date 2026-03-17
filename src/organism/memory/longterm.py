@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .database import TaskMemory, UserProfile, AsyncSessionLocal
 from .embeddings import get_embedding
 from src.organism.llm.base import LLMProvider, Message
+from src.organism.utils.timezone import to_local
 from config.settings import settings
 
 
@@ -35,9 +36,9 @@ def _to_dict(m: TaskMemory) -> dict:
         "steps_count": m.steps_count,
         "quality_score": m.quality_score,
     }
-    # MEM-1: include created_at for temporal display
+    # MEM-1: include created_at for temporal display (FIX-83: convert to local tz)
     if hasattr(m, "created_at") and m.created_at is not None:
-        d["created_at"] = m.created_at.isoformat(timespec="seconds")
+        d["created_at"] = to_local(m.created_at).isoformat(timespec="seconds")
     return d
 
 

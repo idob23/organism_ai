@@ -1,7 +1,7 @@
 ﻿import asyncio
 import time
 import uuid
-from datetime import datetime
+from src.organism.utils.timezone import today_local
 from dataclasses import dataclass, field
 
 from src.organism.core.evaluator import Evaluator
@@ -76,7 +76,7 @@ class CoreLoop:
         """Summarize raw web_search output into a clean user-facing answer."""
         from src.organism.llm.base import Message
 
-        today = datetime.now().strftime("%d.%m.%Y")
+        today = today_local()
 
         prompt = (
             f"User task: {task}\n\n"
@@ -164,7 +164,7 @@ class CoreLoop:
         from src.organism.llm.base import Message as LLMMessage
 
         start = time.time()
-        today = datetime.now().strftime("%d.%m.%Y")
+        today = today_local()
 
         # --- Build context ---
         # If memory_context was passed from run(), use it; otherwise fetch here (media path)
