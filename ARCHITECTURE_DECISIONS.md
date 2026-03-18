@@ -911,6 +911,35 @@ HELP_TEXT updated with hint about natural language schedule management.
 Files: `tools/manage_schedule.py` (new), `core/scheduler.py`, `main.py`, `benchmark.py`,
 `commands/handler.py`.
 
+### TG-UX: Telegram UX Overhaul — Cancel/Retry + HTML Output
+
+**Problem**: Telegram channel had duplicated result-sending logic across `handle_task`,
+`handle_voice`, and `handle_media`. No way to cancel running tasks. No retry button after
+errors. Markdown parse_mode was fragile with special characters. No tool progress display.
+
+**Solution — Block 1 (Cancel + Retry):**
+- `asyncio.Event` as cooperative cancel signal, checked between tool rounds in `_handle_conversation`
+- `cancel_event` + `tool_progress_callback` added to `CoreLoop.run()` and `_handle_conversation()`
+- Gateway extracts both from `msg.metadata` and passes to `loop.run()`
+- Stop button (inline keyboard) during execution, Retry button on all results
+- `_active_tasks` dict tracks `(asyncio.Task, original_text, cancel_event)` by `message_id`
+- `_task_texts` dict stores original task text for retry (LRU cap 100)
+
+**Solution — Block 2 (HTML Output):**
+- All Telegram output switched from Markdown to HTML parse_mode (more reliable)
+- `_escape_html()` helper for safe escaping
+- Fallback: if HTML send fails, retry with plain text (no parse_mode)
+- Tool progress shown in ticker: "Working... tool_name (round N/10)"
+
+**DRY Refactoring:**
+- `_run_task(message, task, media)` — single entry point for task execution (was 3x duplicated)
+- `_send_result(message, response, original_task)` — single result-sending method
+- `handle_task`, `handle_voice`, `handle_media` all delegate to `_run_task`
+- `on_cancel` callback: sets cancel_event from `_active_tasks`
+- `on_retry` callback: retrieves original task from `_task_texts`, calls `_run_task`
+
+Files: `channels/telegram.py` (rewrite), `channels/gateway.py`, `core/loop.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)
