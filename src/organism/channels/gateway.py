@@ -73,13 +73,11 @@ class Gateway:
         # 2. Regular task -> CoreLoop
         try:
             progress_cb = msg.metadata.get("progress_callback") if msg.metadata else None
-            cancel_ev = msg.metadata.get("cancel_event") if msg.metadata else None
             tool_progress_cb = msg.metadata.get("tool_progress_callback") if msg.metadata else None
             result = await self.loop.run(
                 msg.text, verbose=False, user_id=msg.user_id,
                 media=getattr(msg, "media", None) or [],
                 progress_callback=progress_cb,
-                cancel_event=cancel_ev,
                 tool_progress_callback=tool_progress_cb,
             )
         except Exception as exc:

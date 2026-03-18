@@ -155,7 +155,6 @@ class CoreLoop:
         user_id: str = "default",
         media: list | None = None,
         extra_system_context: str = "",
-        cancel_event: "asyncio.Event | None" = None,
         tool_progress_callback=None,
     ) -> "TaskResult":
         """Q-10.4: Primary execution path — LLM with tools.
@@ -328,14 +327,6 @@ class CoreLoop:
         created_files: list[str] = []  # FIX-36: track files for gateway delivery
 
         while response.has_tool_calls and round_count < MAX_TOOL_ROUNDS:
-            # TG-UX: Check cancel between tool rounds
-            if cancel_event and cancel_event.is_set():
-                return TaskResult(
-                    task_id=task_id, task=task, success=False,
-                    output="\u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u043c",
-                    answer="\u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u043c",
-                    duration=time.time() - start,
-                )
             round_count += 1
 
             # Execute each tool call
@@ -490,7 +481,7 @@ class CoreLoop:
         )
         return "yes" in resp.content.strip().lower()
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False, extra_system_context: str = "", cancel_event=None, tool_progress_callback=None) -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False, extra_system_context: str = "", tool_progress_callback=None) -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -545,7 +536,6 @@ class CoreLoop:
                 task_id, task, user_context=user_context,
                 user_id=user_id, media=media,
                 extra_system_context=extra_system_context,
-                cancel_event=cancel_event,
                 tool_progress_callback=tool_progress_callback,
             )
 
@@ -689,7 +679,6 @@ class CoreLoop:
             memory_context=memory_context,
             user_id=user_id,
             extra_system_context=extra_system_context,
-            cancel_event=cancel_event,
             tool_progress_callback=tool_progress_callback,
         )
 

@@ -947,6 +947,29 @@ TG-UX rewrite dropped `from aiogram.filters import CommandStart, Command` import
 `Command` used in `@self.dp.message(Command("status"))` (line 343).
 Runtime NameError on bot startup. One-line fix: added missing import.
 
+### FIX-87: Replace cancel_event with asyncio.Task.cancel() for working cancellation
+
+**Problem**: TG-UX added `cancel_event` (asyncio.Event) checked between tool rounds in
+`_handle_conversation`, but 90% of task time is spent inside `await self.llm.complete_with_tools()`
+or in the `run()` pipeline (memory/cache/few-shot). cancel_event was never checked during these
+awaits, making the Stop button effectively non-functional.
+
+**Solution**: Replace cooperative `cancel_event.is_set()` polling with `asyncio.Task.cancel()`.
+This raises `CancelledError` (a BaseException) which interrupts ANY await — LLM API calls,
+DB queries, tool execution — and bubbles up naturally through gateway to telegram.py.
+
+**Changes:**
+- `telegram.py`: `_active_tasks` simplified to `dict[int, tuple[asyncio.Task, str]]` (no Event).
+  `on_cancel` calls `gateway_task.cancel()`. `_run_task` catches `CancelledError` explicitly,
+  shows "Stopped" UI with retry button. Removed cancelled-text check from `_send_result`.
+- `loop.py`: Removed `cancel_event` param from `_handle_conversation` and `run()` signatures.
+  Removed cancel_event check in while loop (dead code). `tool_progress_callback` kept.
+- `gateway.py`: Removed `cancel_event` extraction from metadata.
+
+**Safety**: `CancelledError` is `BaseException`, not caught by `except Exception` blocks in
+loop.py/gateway.py, so it propagates cleanly to telegram.py. Docker containers have their own
+timeout. Memory save (on_task_end) is skipped on cancel — acceptable since there's no result.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

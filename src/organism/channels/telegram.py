@@ -51,7 +51,7 @@ class TelegramChannel(BaseChannel):
         self.bot = Bot(token=settings.telegram_bot_token)
         self.dp = Dispatcher()
         # TG-UX: active tasks for cancel, task texts for retry
-        self._active_tasks: dict[int, tuple[asyncio.Task, str, asyncio.Event]] = {}
+        self._active_tasks: dict[int, tuple[asyncio.Task, str]] = {}
         self._task_texts: dict[int, str] = {}
         self._setup_handlers()
 
@@ -97,27 +97,6 @@ class TelegramChannel(BaseChannel):
         duration = response.metadata.get("duration", 0)
         steps = response.metadata.get("steps", 0)
         meta_line = f"<i>\u23f1 {duration:.1f}\u0441 \u00b7 \U0001f527 {steps} \u0448\u0430\u0433\u043e\u0432</i>"
-
-        # Check for cancelled task
-        if response.text in (
-            "\u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u043c",
-            "Error: \u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u043c",
-        ):
-            full = (
-                "<b>\u26d4 \u041e\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043e</b>\n"
-                "<i>\u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u043c</i>"
-            )
-            try:
-                await status_msg.edit_text(full, parse_mode="HTML", reply_markup=retry_kb)
-            except Exception:
-                try:
-                    await status_msg.edit_text(
-                        "\u26d4 \u041e\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043e",
-                        reply_markup=retry_kb,
-                    )
-                except Exception:
-                    pass
-            return
 
         if response.is_file:
             file_path = response.text
@@ -254,8 +233,6 @@ class TelegramChannel(BaseChannel):
         except Exception:
             pass
 
-        cancel_event = asyncio.Event()
-
         # TG-UX: tool progress callback
         async def _tool_progress(tool_name: str, round_num: int, max_rounds: int) -> None:
             self._current_tool = f"{tool_name} (\u0448\u0430\u0433 {round_num}/{max_rounds})"
@@ -281,7 +258,6 @@ class TelegramChannel(BaseChannel):
             metadata={
                 "chat_id": message.chat.id,
                 "progress_callback": _subtask_progress,
-                "cancel_event": cancel_event,
                 "tool_progress_callback": _tool_progress,
             },
             media=media or [],
@@ -289,19 +265,39 @@ class TelegramChannel(BaseChannel):
 
         ticker = asyncio.create_task(self._tick_progress(status_msg, preview, stop_kb))
         gateway_task = asyncio.create_task(self.gateway.handle_message(incoming))
-        self._active_tasks[status_msg.message_id] = (gateway_task, task, cancel_event)
+        self._active_tasks[status_msg.message_id] = (gateway_task, task)
 
         try:
+            response = await gateway_task
+        except asyncio.CancelledError:
+            # FIX-86: Task.cancel() interrupts any await — show cancelled UI
+            ticker.cancel()
+            self._active_tasks.pop(status_msg.message_id, None)
+            self._current_tool = ""
+            retry_kb = _retry_keyboard(status_msg.message_id)
+            if len(self._task_texts) >= _MAX_TASK_TEXTS:
+                oldest = next(iter(self._task_texts))
+                self._task_texts.pop(oldest, None)
+            self._task_texts[status_msg.message_id] = task
             try:
-                response = await gateway_task
-            finally:
-                ticker.cancel()
-                self._active_tasks.pop(status_msg.message_id, None)
-                self._current_tool = ""
-
-            await self._send_result(status_msg, response, message, task)
-
+                await status_msg.edit_text(
+                    "<b>\u26d4 \u041e\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043e</b>\n"
+                    "<i>\u0417\u0430\u0434\u0430\u0447\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u043c</i>",
+                    parse_mode="HTML", reply_markup=retry_kb,
+                )
+            except Exception:
+                try:
+                    await status_msg.edit_text(
+                        "\u26d4 \u041e\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043e",
+                        reply_markup=retry_kb,
+                    )
+                except Exception:
+                    pass
+            return
         except Exception:
+            ticker.cancel()
+            self._active_tasks.pop(status_msg.message_id, None)
+            self._current_tool = ""
             retry_kb = _retry_keyboard(status_msg.message_id)
             if len(self._task_texts) >= _MAX_TASK_TEXTS:
                 oldest = next(iter(self._task_texts))
@@ -322,6 +318,13 @@ class TelegramChannel(BaseChannel):
                     )
                 except Exception:
                     pass
+            return
+        finally:
+            ticker.cancel()
+            self._active_tasks.pop(status_msg.message_id, None)
+            self._current_tool = ""
+
+        await self._send_result(status_msg, response, message, task)
 
     # \u2500\u2500 Handlers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -528,8 +531,8 @@ class TelegramChannel(BaseChannel):
             msg_id = int(callback.data.split(":")[1])
             entry = self._active_tasks.get(msg_id)
             if entry:
-                _, _, cancel_event = entry
-                cancel_event.set()
+                gateway_task, _ = entry
+                gateway_task.cancel()
                 await callback.answer("\u041e\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u044e...")
             else:
                 await callback.answer("\u0417\u0430\u0434\u0430\u0447\u0430 \u0443\u0436\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0430")
