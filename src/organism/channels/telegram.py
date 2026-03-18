@@ -95,8 +95,7 @@ class TelegramChannel(BaseChannel):
         self._task_texts[status_msg.message_id] = original_task
 
         duration = response.metadata.get("duration", 0)
-        steps = response.metadata.get("steps", 0)
-        meta_line = f"<i>\u23f1 {duration:.1f}\u0441 \u00b7 \U0001f527 {steps} \u0448\u0430\u0433\u043e\u0432</i>"
+        meta_line = f"<i>\u23f1 {duration:.1f}\u0441</i>"
 
         if response.is_file:
             file_path = response.text
