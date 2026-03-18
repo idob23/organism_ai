@@ -940,6 +940,13 @@ errors. Markdown parse_mode was fragile with special characters. No tool progres
 
 Files: `channels/telegram.py` (rewrite), `channels/gateway.py`, `core/loop.py`.
 
+### FIX-86: Restore missing imports in telegram.py
+
+TG-UX rewrite dropped `from aiogram.filters import CommandStart, Command` import.
+`CommandStart` used in `@self.dp.message(CommandStart())` handler registration (line 330),
+`Command` used in `@self.dp.message(Command("status"))` (line 343).
+Runtime NameError on bot startup. One-line fix: added missing import.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

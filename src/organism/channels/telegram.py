@@ -8,6 +8,7 @@ import tempfile
 
 import openai
 from aiogram import Bot, Dispatcher, F
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, FSInputFile, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.organism.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
