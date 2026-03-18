@@ -1,212 +1,110 @@
-# CLAUDE.md — Organism AI Project Context
+# CLAUDE.md — Organism AI
 
-> Detailed architecture decisions, sprint history, and business context: see ARCHITECTURE_DECISIONS.md
+> Ядро контекста для Claude Code. Детали: CONVENTIONS.md, ARCHITECTURE_DECISIONS.md
 
-## Project Overview
-Organism AI is an autonomous AI task executor for Russian gold mining cooperatives (artels).
-User sends a task via Telegram or CLI → system plans → executes via tools → returns result.
+## Что это
+Organism AI — универсальная платформа автономных AI-агентов. Стратегическая цель:
+фундамент для компании "1 человек + команда AI-агентов" (unicorn of one).
+Telegram/CLI → планирование → выполнение через tools → оценка → память → ответ.
+НЕ чат-бот. Думающий исполнитель, который планирует, действует, учится.
 
-**Key principle**: This is NOT a chatbot. It's an autonomous executor that plans, acts, learns.
+## Философия: думающий агент
+Агент должен рассуждать как Claude, а не следовать спискам правил.
+Красный флаг: "давай добавим ещё одно правило в промпт/логику."
+Когда агент ведёт себя неправильно — ищи технический корень (обрезанные данные,
+неправильный лимит, отсутствующий паттерн), а не добавляй правило поверх симптома.
+Все механизмы (память, pgvector, self-improvement, few-shot, personality,
+solution cache, human-in-the-loop) — неприкосновенны.
 
-## Architecture
-
+## Архитектура
 ```
-CoreLoop → Planner → ToolRegistry → Executor → Evaluator
-                                                    ↓
-                                              MemoryManager (pgvector)
+User → Gateway → CoreLoop.run()
+                      ↓
+                 _classify_complex (Haiku, 5 токенов)
+                      ↓                        ↓
+                 простая задача          сложная задача
+                      ↓                        ↓
+         _handle_conversation         Orchestrator/MetaOrchestrator
+          (основной путь)              (multi-agent, PlannerModule)
+                      ↓
+         LLM (Sonnet) + ToolRegistry → Tool.execute() → ToolResult
+                      ↓                                      ↓
+         Evaluator (quality 0-1)                      created_files[]
+                      ↓
+         MemoryManager (pgvector, on_task_start/end)
 ```
+Haiku = классификация/роутинг. Sonnet = исполнение. MAX_TOOL_ROUNDS = 10.
 
-### Core Components
-| Component | File | Purpose |
-|-----------|------|---------|
-| CoreLoop | src/organism/core/loop.py | Main execution loop, _handle_conversation as primary path |
-| Planner | src/organism/core/planner.py | Two-phase: Haiku classifier → specialized Sonnet plan |
-| Evaluator | src/organism/core/evaluator.py | Gradient quality_score (0-1), not binary |
-| ToolRegistry | src/organism/tools/registry.py | Tool registration, lookup, MCP server management |
-| MemoryManager | src/organism/memory/manager.py | pgvector, on_task_start / on_task_end |
-| SafetyValidator | src/organism/safety/validator.py | Block dangerous operations |
+## Стек
+Python 3.11+ | Claude API (Sonnet/Haiku) | PostgreSQL + pgvector | aiogram 3.x
+Docker (sandbox) | aiohttp (MCP) | Tavily (search) | numpy (duplicate_finder)
+python-pptx | fpdf2 | structlog | pydantic-settings | proxyapi.ru (embeddings)
 
-### Tools (10 built-in + MCP dynamic + A2A conditional)
-| Tool | File | Notes |
-|------|------|-------|
-| code_executor | tools/code_executor.py | Docker sandbox, tmpfile + volume mount |
-| web_search | tools/web_search.py | Tavily API |
-| web_fetch | tools/web_fetch.py | Fetch URL content, real HTTP errors (403/429) returned to agent |
-| file_manager | tools/file_manager.py | Short plain text only, NOT for CSV |
-| text_writer | tools/text_writer.py | Long text generation + save to file |
-| pptx_creator | tools/pptx_creator.py | PowerPoint via python-pptx |
-| confirm_with_user | tools/confirm_user.py | Human approval via Telegram (Q-6.3), only in Telegram mode |
-| pdf_tool | tools/pdf_tool.py | Create/read PDF files via fpdf2/pypdf2 (TOOL-1, FIX-57c) |
-| duplicate_finder | tools/duplicate_finder.py | Semantic duplicate search in 1C entities via embeddings (Q-8.3) |
-| memory_search | tools/memory_search.py | Search long-term memory + temporal date filtering (FIX-53, MEM-1) |
-| manage_agents | tools/manage_agents.py | List/create/delete/delegate agents via natural language (AGENT-UX) |
-| mcp_* | tools/mcp_client.py | Dynamic tools from MCP servers (MCP_SERVERS env) |
-| delegate_to_agent | a2a/protocol.py | Peer delegation (A2A_PEERS env), only when peers configured |
-
-### Agents (multi mode)
-| Agent | File | Purpose |
-|-------|------|---------|
-| Orchestrator | agents/orchestrator.py | Routes tasks between agents |
-| Coder | agents/coder.py | Code tasks via CoreLoop |
-| Researcher | agents/researcher.py | Search via CoreLoop |
-| Writer | agents/writer.py | Text via CoreLoop |
-| Analyst | agents/analyst.py | Data analysis via CoreLoop |
-
-## Tech Stack
-- Python 3.11+
-- LLM: Claude API (Anthropic) — Sonnet=balanced, Haiku=fast
-- Memory: pgvector (PostgreSQL), text-embedding-3-small (OpenAI/proxy), BM25 fallback when unavailable
-- Search: Tavily API
-- Sandbox: Docker (code_executor)
-- Presentations: python-pptx
-- MCP/HTTP: aiohttp
-- Math: numpy (cosine similarity for duplicate_finder)
-- Logging: structlog
-- Config: .env + pydantic-settings
-- Prompts: config/prompts/*.txt
-- Personality: config/personality/*.md (per-artel personality configs)
-
-## Coding Conventions
-- All files: UTF-8 encoding
-- Russian strings in code: use unicode escapes, not Cyrillic literals
-- Async everywhere: all IO operations are async/await
-- LLM tiers: "fast" = Haiku, "balanced" = Sonnet, "powerful" = Opus
-- Error handling: graceful degradation, never crash on LLM/API failures
-- Memory: always try/except around memory operations
-- Imports: absolute from src.organism.*
-- git commits: prefix with task ID (e.g., "Q-1.1: Evaluator 2.0")
-
-## File Structure
+## Структура файлов
 ```
 organism_ai/
 ├── src/organism/
-│   ├── core/          # loop.py, planner.py, planner_module.py, evaluator.py
-│   │                  # decomposer.py, scheduler.py, human_approval.py, personality.py, skill_matcher.py
-│   ├── tools/         # registry.py, code_executor.py, web_search.py, confirm_user.py
-│   │                  # web_fetch.py, file_manager.py, text_writer.py, pptx_creator.py
-│   │                  # duplicate_finder.py, pdf_tool.py, memory_search.py, mcp_client.py
-│   ├── agents/        # base.py, orchestrator.py, coder.py, researcher.py, writer.py, analyst.py
-│   │                  # factory.py — AgentFactory (role templates + agent configs)
-│   │                  # meta_orchestrator.py — MetaOrchestrator (routes to custom agents)
-│   ├── memory/        # manager.py, longterm.py, embeddings.py, database.py, working.py
-│   │                  # solution_cache.py, knowledge_base.py, user_facts.py
-│   │                  # graph.py, causal_analyzer.py, templates.py, search_policy.py
-│   │                  # few_shot_store.py
-│   ├── commands/      # handler.py — all /commands (15 total)
-│   ├── channels/      # base.py, gateway.py, telegram.py, cli_channel.py
-│   ├── llm/           # base.py (TemperatureLocked), claude.py
-│   ├── logging/       # logger.py, error_handler.py
-│   ├── monitoring/    # error_notifier.py — ErrorNotifier background task, capture_error()
-│   ├── safety/        # validator.py
-│   ├── self_improvement/ # optimizer.py, metrics.py, auto_improver.py, prompt_versioning.py
-│   │                     # benchmark_optimizer.py, evolutionary_search.py
-│   ├── mcp_1c/        # server.py — MCP server for 1C integration (demo + live modes)
-│   ├── mcp_serve/     # server.py — Organism AI as MCP server (Q-8.4)
-│   └── a2a/           # protocol.py — Agent-to-Agent delegation (Q-8.5)
+│   ├── core/           # loop.py, planner.py, planner_module.py, evaluator.py,
+│   │                   # decomposer.py, scheduler.py, personality.py,
+│   │                   # skill_matcher.py, human_approval.py
+│   ├── tools/          # registry.py + 12 tools:
+│   │                   #   always: code_executor, pptx_creator, text_writer, web_fetch,
+│   │                   #           file_manager, duplicate_finder, pdf_tool, memory_search,
+│   │                   #           manage_agents
+│   │                   #   conditional: web_search (tavily), telegram_sender (telegram token)
+│   │                   #   telegram-only: confirm_user (human approval)
+│   │                   # + mcp_client.py (dynamic MCP tools)
+│   ├── agents/         # factory.py, meta_orchestrator.py, orchestrator.py
+│   │                   # base.py, coder.py, researcher.py, writer.py, analyst.py
+│   ├── memory/         # manager.py, longterm.py, database.py, embeddings.py, working.py,
+│   │                   # solution_cache.py, knowledge_base.py, few_shot_store.py,
+│   │                   # user_facts.py, graph.py, causal_analyzer.py, templates.py,
+│   │                   # search_policy.py
+│   ├── commands/       # handler.py (23 команды)
+│   ├── channels/       # base.py, gateway.py, telegram.py, cli_channel.py
+│   ├── llm/            # base.py (TemperatureLocked), claude.py
+│   ├── logging/        # logger.py, error_handler.py
+│   ├── safety/         # validator.py (SafetyValidator)
+│   ├── utils/          # timezone.py (now_local, to_local, today_local)
+│   ├── self_improvement/ # optimizer.py, metrics.py, auto_improver.py,
+│   │                     # prompt_versioning.py, benchmark_optimizer.py,
+│   │                     # evolutionary_search.py
+│   ├── mcp_1c/         # server.py (1С MCP, demo/live)
+│   ├── mcp_serve/      # server.py (Organism как MCP-сервер)
+│   ├── a2a/            # protocol.py (Agent-to-Agent delegation)
+│   └── monitoring/     # error_notifier.py
 ├── config/
-│   ├── settings.py    # artel_id (ARTEL_ID env var)
-│   ├── skills/        # excel.md, docx.md, charts.md (SKILL-1), pdf.md (SKILL-2)
-│   ├── fonts/         # DejaVuSans.ttf, DejaVuSans-Bold.ttf (FIX-57b)
-│   ├── roles/         # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md (Q-9.2)
-│   ├── agents/        # {agent_id}.json — created agent configs (Q-9.2)
-│   ├── personality/   # default.md (per-artel personality configs)
-│   └── prompts/       # planner_fast.txt, planner_react.txt, evaluator.txt
-│                      # causal_analyzer.txt, template_extractor.txt
-├── scripts/
-│   ├── health_check.py  # Docker HEALTHCHECK (DB + heartbeat)
-│   ├── deploy.sh        # Production deploy (.env validation, backup, build, health check)
-│   ├── backup.sh        # PostgreSQL backup (pg_dump + gzip, 30-day retention)
-│   └── restore.sh       # PostgreSQL restore from backup
-├── data/              # logs/, outputs/, sandbox/
-├── main.py            # CLI entry point
-├── benchmark.py       # 29-task benchmark suite
-├── ARCHITECTURE_DECISIONS.md  # Detailed architecture reference (Sprint 9+)
-├── ARCHITECTURE_DECISIONS_ARCHIVE.md  # Historical decisions (Sprint 1-8)
-└── pyproject.toml
+│   ├── settings.py     # ARTEL_ID, TIMEZONE, все env vars
+│   ├── skills/         # excel.md, docx.md, charts.md, pdf.md
+│   ├── roles/          # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md
+│   ├── agents/         # {agent_id}.json (created agents)
+│   ├── personality/    # default.md, artel_zoloto.md
+│   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
+│   │                   # causal_analyzer.txt, template_extractor.txt
+│   └── fonts/          # DejaVuSans*.ttf (PDF)
+├── scripts/            # health_check.py, deploy.sh, backup.sh, restore.sh
+├── benchmark.py        # 29 задач
+├── pre_commit_check.py # Обязателен перед каждым коммитом
+└── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
 ```
 
-## CLI Commands
-```
-python main.py --task "..."        # Single task
-python main.py --multi --task "..."  # Multi-agent orchestrator
-python main.py --telegram          # Telegram bot mode
-python main.py --interactive       # Interactive CLI mode
-python main.py --stats             # Memory statistics
-python main.py --analyze           # Performance analysis
-python main.py --improve --days 7  # Auto-improvement cycle
-python main.py --cache             # Solution cache stats
-python main.py --optimize-prompts  # Benchmark-driven prompt optimization
-python main.py --evolve-prompts    # Evolutionary prompt search cycle
-python main.py --serve-mcp         # Start as MCP server (port 8091)
-python benchmark.py                # Full benchmark (26 tasks)
-python benchmark.py --quick        # Quick check (5 tasks, no web/multi-agent)
-```
-___
-### Bot/Chat Commands
-```
-/remember <key> <value>   — save a personal fact
-/forget <key>             — delete a fact by key
-/profile                  — show all saved personal facts
-/history <key>            — show change history for a fact
-/style <style>            — set writing style (formal/informal/technical/brief)
-/stats                    — show system statistics
-/improve [days]           — run auto-improvement cycle
-/prompts                  — show active prompt versions and quality stats
-/schedule                 — show scheduled tasks
-/schedule_enable <name>   — enable a scheduled task
-/schedule_disable <name>  — disable a scheduled task
-/approve <id>             — approve a pending action
-/reject <id>              — reject a pending action
-/personality              — show current personality config
-/reset                    — reset all saved profile data
-/insights                 — show insights awaiting verification
-/cleanup                  — run database cleanup (expired cache, old reflections, old errors)
-/errors [N]               — show last N errors (default 5)
-/test_error               — send a test error to monitoring
-/agents                   — list role templates and created agents
-/create_agent <role> [name] — create an agent from a role template (legacy, prefer manage_agents tool)
-/assign <agent> <task>    — assign a task to a specific agent (legacy, prefer manage_agents tool)
-/help                     — show available commands
-```
+## Текущие метрики (март 2026)
+- Benchmark: 29/29 success, quality 0.88
+- Спринты 1-9 завершены, FIX-1 → FIX-83
+- Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
-## Current Metrics (March 2026)
-- Benchmark: 29 tasks total (29/29 success with Docker+DB)
-- Average Quality Score: 0.88
-- All 8 sprints complete (Q-1.1 through Q-8.5), DB-1 schema revision done
-- Fixes applied: FIX-1 through FIX-83 complete. Full list → ARCHITECTURE_DECISIONS.md (Testing History)
-- Additional: INSIGHT-1 ✅, MCP-1 ✅, NOTE-1 ✅, ROADMAP-1 ✅, SKILL-1 ✅, SKILL-2 ✅, HIST-1 ✅, TOOL-1 ✅, MEDIA-1 ✅, MEDIA-2 ✅, MEDIA-3 ✅, ARCH-1.1 ✅, ARCH-1.2 ✅, ARCH-1.3 ✅, ARCH-1.4 ✅, ARCH-2 ✅
-- Sprint 9 (Universal Planner + Agent Factory) — IN PROGRESS
-  - Q-9.2 ✅ (Agent Factory — role templates + AgentFactory class)
-  - Q-9.3 ✅ (Auto-generate PERSONALITY.md from role template via LLM)
-  - Q-9.4 ✅ (MetaOrchestrator — routes tasks by agent specialization)
-  - Q-9.5 ✅ (/agents, /create_agent, /assign commands — Agent Factory complete)
-  - Q-9.8 ✅ (MCP JSON-RPC 2.0 — /jsonrpc endpoint for Cursor/Claude Desktop)
-  - Q-9.10 ✅ (/errors command — view errors without SSH)
-  - AGENT-UX ✅ (manage_agents tool — natural language agent management)
-  - MEM-1 ✅ (Temporal retrieval — date_from/date_to filtering in memory_search)
-  - MEM-1b ✅ (Date search limit=50 — return all tasks for the period)
-  - MEM-1c ✅ (Combined date+semantic search, compact date output, tool_output 15K)
-  - FIX-74 ✅ (Structural created_files field in ToolResult, replaces FIX-36 regex)
-  - FIX-75 ✅ (Structural context headers + language via personality config)
-  - FIX-75b ✅ (First client personality: artel_zoloto.md, ARTEL_ID in .env)
-  - DOCKER-PROD ✅ (Production hardening: healthcheck, backup, resource limits, .dockerignore)
-  - FIX-76 ✅ (Gateway chat_history truncation 2000→5000, last-2 messages get 3000 char context in loop.py)
-  - FIX-77 ✅ (pdf_tool full markdown rendering: tables, H1-H3, HR, bold/italic cleanup, numbered lists)
-  - FIX-78 ✅ (Structural file delivery via TaskResult.created_files — removes regex, delivers all files)
-  - SKILL-2 ✅ (PDF skill for long documents via code_executor + fpdf2, fonts in sandbox)
-  - FIX-79 ✅ (code_executor empty input guard + pdf.md compactness strategy for long docs)
-  - FIX-80 ✅ (Two-step pipeline for long PDFs: text_writer generates .md → pdf_tool source_file renders PDF)
-  - FIX-81 ✅ (Sectional generation in text_writer for long documents: outline via Haiku → per-section Sonnet → merge)
-  - FIX-82 ✅ (Robust outline parsing in text_writer: 3-level fallback — markdown fences, regex JSON, numbered list)
-  - FIX-83 ✅ (Timezone support: TIMEZONE setting, now_local/to_local/today_local utils, correct dates in text_writer/loop/longterm/logger)
+## Критические правила
+1. `python pre_commit_check.py` ПЕРЕД КАЖДЫМ коммитом. Упал → чини, НЕ коммить
+2. После изменений в loop.py/planner.py/evaluator.py/gateway.py → `benchmark.py --quick`, скор ≥ предыдущего
+3. Русские строки в .py → ТОЛЬКО unicode escapes (\u0442\u0435\u0441\u0442), НИКОГДА кириллица
+4. Memory операции → ВСЕГДА try/except
+5. Новый tool → регистрация в main.py И benchmark.py `build_registry()`
+6. Новая команда → HELP_TEXT в handler.py И секция Commands в CONVENTIONS.md
+7. Миграции → APPEND в `_MIGRATIONS` в database.py, НИКОГДА не переставлять
+8. После задачи → обновить CLAUDE.md + ARCHITECTURE_DECISIONS.md + git commit с префиксом задачи
 
-## Critical Rules for Claude Code
-- **Before EVERY commit**: run `python pre_commit_check.py` — if it fails, fix errors first, NEVER commit broken code
-- **After ANY change to loop.py, planner.py, evaluator.py, gateway.py**: run `python benchmark.py --quick` and confirm score ≥ previous
-- **Commit only if**: pre_commit_check.py exits with code 0
-- **Russian strings**: ALWAYS use unicode escapes (\u043d\u0430\u043f\u0438\u0448\u0438), NEVER Cyrillic literals in .py files
-- **Memory operations**: ALWAYS wrap in try/except — one DB failure must not crash the system
-- **New tools**: register in BOTH main.py AND benchmark.py `build_registry()`
-- **New commands**: add to HELP_TEXT in handler.py AND Bot/Chat Commands in this file
-- **Migrations**: APPEND to `_MIGRATIONS` list in database.py, NEVER reorder or remove entries
-- **After sprint/task**: update this file + ARCHITECTURE_DECISIONS.md + git commit with task prefix
+## Ссылки
+- Конвенции кода, CLI, команды бота → **CONVENTIONS.md**
+- Архитектурные решения Sprint 9+ → **ARCHITECTURE_DECISIONS.md**
+- История Sprint 1-8 → **ARCHITECTURE_DECISIONS_ARCHIVE.md**
+- Архитектурные принципы → **organism_architecture_principles.md**
