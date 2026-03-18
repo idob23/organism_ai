@@ -195,6 +195,23 @@ class PendingInsight(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class ScheduledJobRecord(Base):
+    __tablename__ = "scheduled_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, index=True)
+    task_text = Column(Text, nullable=False)
+    schedule_type = Column(String, nullable=False)       # daily|weekly|interval
+    time_of_day = Column(String, nullable=True)          # "HH:MM" string, NULL for interval
+    weekday = Column(Integer, nullable=True)             # 0=Mon..6=Sun
+    interval_minutes = Column(Integer, nullable=True)
+    enabled = Column(Boolean, default=True)
+    last_run = Column(DateTime, nullable=True)
+    artel_id = Column(String, default="default")
+    is_system = Column(Boolean, default=False)           # True for DEFAULT_ARTEL_JOBS
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class SchemaMigration(Base):
     __tablename__ = "schema_migrations"
 
@@ -525,6 +542,29 @@ async def _m010_pending_insights(conn) -> None:
     ))
 
 
+async def _m011_scheduled_jobs(conn) -> None:
+    """Create scheduled_jobs table for persistent user-defined jobs (SCHED-1a)."""
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS scheduled_jobs (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            task_text TEXT NOT NULL,
+            schedule_type VARCHAR NOT NULL,
+            time_of_day VARCHAR,
+            weekday INTEGER,
+            interval_minutes INTEGER,
+            enabled BOOLEAN DEFAULT true,
+            last_run TIMESTAMP,
+            artel_id VARCHAR DEFAULT 'default',
+            is_system BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    await conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_sj_artel_name ON scheduled_jobs (artel_id, name)"
+    ))
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -538,4 +578,5 @@ _MIGRATIONS = [
     (8, "user_id_profile", _m008_user_id_profile),
     (9, "chat_history", _m009_chat_history),
     (10, "pending_insights", _m010_pending_insights),
+    (11, "scheduled_jobs", _m011_scheduled_jobs),
 ]

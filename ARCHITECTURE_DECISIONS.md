@@ -871,6 +871,28 @@ Solution — 8 changes:
 Files: `docker-compose.yml`, `main.py`, `scripts/health_check.py`, `scripts/backup.sh`,
 `scripts/restore.sh`, `scripts/deploy.sh`, `.env.production.example`, `.dockerignore`.
 
+### SCHED-1a: DB Persistence for Scheduled Jobs
+
+**Problem**: `ProactiveScheduler` stored jobs only in memory (`self.jobs` dict). On bot restart,
+all user-created jobs were lost. Only `DEFAULT_ARTEL_JOBS` survived (hardcoded).
+
+**Solution**: New `ScheduledJobRecord` ORM model in `database.py` + migration #11 (`scheduled_jobs`
+table with UNIQUE index on `(artel_id, name)`). `ProactiveScheduler` gains persistence layer:
+- `load_from_db()`: loads user-created jobs at startup (after DEFAULT_ARTEL_JOBS, overwrites if same name)
+- `_save_job()`: upsert job to DB (UPDATE first, INSERT if not found)
+- `_delete_job_from_db()`: remove job from DB
+- `_update_last_run()`: persist last_run after each execution in `_loop()`
+- `create_job()`: public async method — add to self.jobs + save to DB
+- `delete_user_job()`: public async method — refuses to delete system jobs
+
+`time_of_day` stored as `"HH:MM"` string (simpler than PostgreSQL TIME type).
+`is_system` column distinguishes DEFAULT_ARTEL_JOBS from user-created.
+Notify output limit increased: `output[:500]` → `output[:4000]`.
+
+Startup order in `run_telegram()`: add DEFAULT_ARTEL_JOBS → `load_from_db()` → start scheduler.
+
+Files: `memory/database.py`, `core/scheduler.py`, `main.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

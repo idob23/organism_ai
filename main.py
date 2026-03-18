@@ -277,6 +277,7 @@ async def run_telegram() -> None:
     )
     for job in DEFAULT_ARTEL_JOBS:
         scheduler.add_job(job)
+    await scheduler.load_from_db()
     loop.scheduler = scheduler
     scheduler.start()
 

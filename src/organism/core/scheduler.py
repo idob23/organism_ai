@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, time as dt_time
 from typing import Any, Awaitable, Callable
 
+from config.settings import settings
 from src.organism.logging.error_handler import get_logger, log_exception
 
 _log = get_logger("core.scheduler")
@@ -154,6 +155,141 @@ class ProactiveScheduler:
     def list_jobs(self) -> list[ScheduledJob]:
         return list(self.jobs.values())
 
+    # -- Persistence layer (SCHED-1a) --
+
+    async def load_from_db(self) -> None:
+        """Load user-created jobs from DB. Called at startup after DEFAULT_ARTEL_JOBS."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(sa_text(
+                    "SELECT name, task_text, schedule_type, time_of_day, weekday, "
+                    "interval_minutes, enabled, last_run, artel_id "
+                    "FROM scheduled_jobs WHERE artel_id = :aid"
+                ), {"aid": settings.artel_id})
+                rows = result.fetchall()
+            loaded = 0
+            for row in rows:
+                tod = None
+                if row[3]:
+                    parts = row[3].split(":")
+                    tod = dt_time(int(parts[0]), int(parts[1]))
+                job = ScheduledJob(
+                    name=row[0],
+                    task_text=row[1],
+                    schedule_type=row[2],
+                    time_of_day=tod,
+                    weekday=row[4],
+                    interval_minutes=row[5],
+                    enabled=row[6],
+                    last_run=row[7],
+                    artel_id=row[8],
+                )
+                self.jobs[job.name] = job  # overwrites system job if same name
+                loaded += 1
+            if loaded:
+                _log.info("scheduler.loaded_from_db: %d jobs", loaded)
+        except Exception as exc:
+            _log.error("scheduler.load_from_db failed: %s", exc)
+
+    async def _save_job(self, job: ScheduledJob, is_system: bool = False) -> None:
+        """Upsert a job to DB."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return
+            tod_str = f"{job.time_of_day.hour:02d}:{job.time_of_day.minute:02d}" if job.time_of_day else None
+            async with AsyncSessionLocal() as session:
+                # Try update first
+                result = await session.execute(sa_text(
+                    "UPDATE scheduled_jobs SET task_text=:tt, schedule_type=:st, "
+                    "time_of_day=:tod, weekday=:wd, interval_minutes=:im, "
+                    "enabled=:en, is_system=:sys "
+                    "WHERE name=:n AND artel_id=:aid"
+                ), {
+                    "tt": job.task_text, "st": job.schedule_type, "tod": tod_str,
+                    "wd": job.weekday, "im": job.interval_minutes, "en": job.enabled,
+                    "sys": is_system, "n": job.name, "aid": job.artel_id,
+                })
+                if result.rowcount == 0:
+                    await session.execute(sa_text(
+                        "INSERT INTO scheduled_jobs "
+                        "(name, task_text, schedule_type, time_of_day, weekday, "
+                        "interval_minutes, enabled, artel_id, is_system) "
+                        "VALUES (:n, :tt, :st, :tod, :wd, :im, :en, :aid, :sys)"
+                    ), {
+                        "n": job.name, "tt": job.task_text, "st": job.schedule_type,
+                        "tod": tod_str, "wd": job.weekday, "im": job.interval_minutes,
+                        "en": job.enabled, "aid": job.artel_id, "sys": is_system,
+                    })
+                await session.commit()
+        except Exception as exc:
+            _log.error("scheduler._save_job failed: %s", exc)
+
+    async def _delete_job_from_db(self, name: str) -> None:
+        """Delete a job from DB."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return
+            async with AsyncSessionLocal() as session:
+                await session.execute(sa_text(
+                    "DELETE FROM scheduled_jobs WHERE name=:n AND artel_id=:aid"
+                ), {"n": name, "aid": settings.artel_id})
+                await session.commit()
+        except Exception as exc:
+            _log.error("scheduler._delete_job_from_db failed: %s", exc)
+
+    async def _update_last_run(self, name: str, last_run: datetime) -> None:
+        """Update last_run in DB after execution."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return
+            async with AsyncSessionLocal() as session:
+                await session.execute(sa_text(
+                    "UPDATE scheduled_jobs SET last_run=:lr WHERE name=:n AND artel_id=:aid"
+                ), {"lr": last_run, "n": name, "aid": settings.artel_id})
+                await session.commit()
+        except Exception as exc:
+            _log.error("scheduler._update_last_run failed: %s", exc)
+
+    async def create_job(self, job: ScheduledJob) -> bool:
+        """Create user-defined job: add to self.jobs + save to DB."""
+        self.jobs[job.name] = job
+        await self._save_job(job, is_system=False)
+        _log.info("scheduler.create_job: %s (%s)", job.name, job.schedule_type)
+        return True
+
+    async def delete_user_job(self, name: str) -> bool:
+        """Delete user-defined job (not system). Returns False if not found or system."""
+        if name not in self.jobs:
+            return False
+        # Check if system job in DB
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if AsyncSessionLocal:
+                async with AsyncSessionLocal() as session:
+                    result = await session.execute(sa_text(
+                        "SELECT is_system FROM scheduled_jobs WHERE name=:n AND artel_id=:aid"
+                    ), {"n": name, "aid": settings.artel_id})
+                    row = result.fetchone()
+                    if row and row[0]:
+                        return False
+        except Exception:
+            pass
+        self.jobs.pop(name, None)
+        await self._delete_job_from_db(name)
+        _log.info("scheduler.delete_user_job: %s", name)
+        return True
+
     def start(self) -> None:
         if self._running:
             return
@@ -214,6 +350,7 @@ class ProactiveScheduler:
                 if not self._should_run(job, now):
                     continue
                 job.last_run = now
+                await self._update_last_run(job.name, now)
                 try:
                     _log.info("scheduler.run_job: %s", job.name)
                     # Internal tasks bypass CoreLoop
@@ -225,7 +362,7 @@ class ProactiveScheduler:
                             output = result.output or ""
                             await self.notify(
                                 job.artel_id,
-                                f"[{job.name}] {output[:500]}",
+                                f"[{job.name}] {output[:4000]}",
                             )
                 except Exception as exc:
                     _log.error(
