@@ -970,6 +970,29 @@ DB queries, tool execution — and bubbles up naturally through gateway to teleg
 loop.py/gateway.py, so it propagates cleanly to telegram.py. Docker containers have their own
 timeout. Memory save (on_task_end) is skipped on cancel — acceptable since there's no result.
 
+### PERF-2: Embedding fast timeout + fire-and-forget post-task memory
+
+**Problem**: Embedding service (proxyapi.ru) timeouts blocked the pipeline for 30-60s.
+Default openai client: 600s timeout, 2 retries. A new client was created per call.
+Simple messages like "hello" took 67s total (8s Claude API + 54s embedding retries).
+
+**Solution — embeddings.py (singleton + fast timeout):**
+- Lazy singleton `_get_client()` — one AsyncOpenAI client per process, recreated only if
+  api_key/base_url changes
+- `timeout=5.0` (was 600 default) — fail fast
+- `max_retries=0` (was 2 default) — no retries, BM25 fallback handles missing embeddings
+- Total worst-case embedding delay: 5s (was 33s+ with retries)
+
+**Solution — loop.py (fire-and-forget on_task_end):**
+- `on_task_end()` call in `_handle_conversation` moved to `asyncio.create_task()` via
+  `_safe_post_task()` method — user gets response immediately, memory save runs in background
+- `on_task_start()` stays synchronous (its result feeds memory_context)
+- `_safe_post_task()` catches all exceptions, logs warning, never propagates
+
+**Impact**: Benchmark avg time dropped from 66s to 20s (3.3x speedup on cache-hit tasks).
+
+Files: `memory/embeddings.py` (rewrite), `core/loop.py` (fire-and-forget + new method).
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

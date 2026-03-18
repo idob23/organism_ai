@@ -444,19 +444,13 @@ class CoreLoop:
         except Exception as e:
             log_exception(_log, f"[{task_id}] Evaluator failed, using fallback", e)
 
-        # Save to memory
+        # PERF-2: Fire-and-forget memory save — don't block user response
         if self.memory:
-            try:
-                tools_used = list({tc.get("name") for tc in all_tool_calls}) or []
-                await self.memory.on_task_end(
-                    task, answer, success, duration,
-                    steps_count=round_count,
-                    tools_used=tools_used,
-                    quality_score=quality_score,
-                    user_id=user_id,
-                )
-            except Exception:
-                pass
+            tools_used = list({tc.get("name") for tc in all_tool_calls}) or []
+            asyncio.create_task(self._safe_post_task(
+                task, answer, success, duration,
+                round_count, tools_used, quality_score, user_id,
+            ))
 
         return TaskResult(
             task_id=task_id, task=task, success=success,
@@ -464,6 +458,24 @@ class CoreLoop:
             duration=duration, quality_score=quality_score,
             created_files=created_files,
         )
+
+    async def _safe_post_task(
+        self,
+        task: str, answer: str, success: bool, duration: float,
+        steps_count: int, tools_used: list[str],
+        quality_score: float, user_id: str,
+    ) -> None:
+        """PERF-2: Background memory save \u2014 exceptions logged, never propagated."""
+        try:
+            await self.memory.on_task_end(
+                task, answer, success, duration,
+                steps_count=steps_count,
+                tools_used=tools_used,
+                quality_score=quality_score,
+                user_id=user_id,
+            )
+        except Exception as e:
+            _log.warning(f"Post-task memory save failed: {e}")
 
     async def _classify_complex(self, task: str) -> bool:
         """ARCH-1.4: Haiku classifier — does this task need multiple agents?"""
