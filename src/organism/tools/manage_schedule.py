@@ -47,7 +47,9 @@ class ManageScheduleTool(BaseTool):
             "delete a user-created task, enable or disable a task. "
             "Use when the user wants to set up recurring/periodic tasks, "
             "check what's scheduled, or change schedule settings. "
-            "All times must be in UTC. The scheduler checks every 30 seconds."
+            "All times must be in UTC. The scheduler checks every 30 seconds. "
+            "Results of scheduled tasks are automatically delivered to the user's "
+            "current chat \u2014 no additional setup needed."
         )
 
     @property
@@ -221,7 +223,12 @@ class ManageScheduleTool(BaseTool):
             output=(
                 f"\u0417\u0430\u0434\u0430\u0447\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0430: "
                 f"{name} [{schedule_desc}]\n"
-                f"task: {task_text[:200]}"
+                f"task: {task_text[:200]}\n"
+                "\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u044b "
+                "\u0431\u0443\u0434\u0443\u0442 "
+                "\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438 "
+                "\u0434\u043e\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u044b "
+                "\u0432 \u044d\u0442\u043e\u0442 \u0447\u0430\u0442."
             ),
             error="", exit_code=0,
         )
