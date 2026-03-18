@@ -31,6 +31,8 @@ def build_registry() -> ToolRegistry:
     registry.register(MemorySearchTool())
     from src.organism.tools.manage_agents import ManageAgentsTool
     registry.register(ManageAgentsTool())
+    from src.organism.tools.manage_schedule import ManageScheduleTool
+    registry.register(ManageScheduleTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
     if settings.telegram_bot_token:
@@ -279,6 +281,12 @@ async def run_telegram() -> None:
         scheduler.add_job(job)
     await scheduler.load_from_db()
     loop.scheduler = scheduler
+    # SCHED-1b: inject scheduler into ManageScheduleTool
+    try:
+        mst = loop.registry.get("manage_schedule")
+        mst.set_scheduler(scheduler)
+    except KeyError:
+        pass
     scheduler.start()
 
     # MON-1: Start error monitoring

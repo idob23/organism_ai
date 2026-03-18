@@ -152,6 +152,15 @@ class ProactiveScheduler:
             self.jobs[name].enabled = False
             _log.info("scheduler.disable_job: %s", name)
 
+    async def set_job_enabled(self, name: str, enabled: bool) -> bool:
+        """Enable/disable a job with DB persistence. Returns False if not found."""
+        if name not in self.jobs:
+            return False
+        self.jobs[name].enabled = enabled
+        await self._save_job(self.jobs[name])
+        _log.info("scheduler.set_job_enabled: %s \u2192 %s", name, enabled)
+        return True
+
     def list_jobs(self) -> list[ScheduledJob]:
         return list(self.jobs.values())
 

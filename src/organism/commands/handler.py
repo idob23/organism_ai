@@ -35,6 +35,8 @@ HELP_TEXT = (
     "  /create_agent <role> [name] \u2014 create an agent from a role template\n"
     "  /assign <agent> <task>   \u2014 assign a task to a specific agent\n"
     "  /help                    \u2014 show this help\n"
+    "\n"
+    "  (schedule management also available in natural language)\n"
 )
 
 

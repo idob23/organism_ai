@@ -47,10 +47,10 @@ organism_ai/
 │   ├── core/           # loop.py, planner.py, planner_module.py, evaluator.py,
 │   │                   # decomposer.py, scheduler.py, personality.py,
 │   │                   # skill_matcher.py, human_approval.py
-│   ├── tools/          # registry.py + 12 tools:
+│   ├── tools/          # registry.py + 13 tools:
 │   │                   #   always: code_executor, pptx_creator, text_writer, web_fetch,
 │   │                   #           file_manager, duplicate_finder, pdf_tool, memory_search,
-│   │                   #           manage_agents
+│   │                   #           manage_agents, manage_schedule
 │   │                   #   conditional: web_search (tavily), telegram_sender (telegram token)
 │   │                   #   telegram-only: confirm_user (human approval)
 │   │                   # + mcp_client.py (dynamic MCP tools)
@@ -89,8 +89,8 @@ organism_ai/
 ```
 
 ## Текущие метрики (март 2026)
-- Benchmark: 29/29 success, quality 0.88
-- Спринты 1-9 завершены, FIX-1 → FIX-84, SCHED-1a
+- Benchmark: 30/30 success, quality 0.88
+- Спринты 1-9 завершены, FIX-1 → FIX-84, SCHED-1a, SCHED-1b
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

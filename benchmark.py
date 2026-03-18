@@ -403,6 +403,14 @@ TASKS = [
         "task": "\u043a\u0430\u043a\u0438\u0435 \u0440\u043e\u043b\u0438 \u0430\u0433\u0435\u043d\u0442\u043e\u0432 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b?",
         "mode": "loop",
     },
+    # ── SCHED-1b: schedule management via tool ──────────────────────────────
+    {
+        "id": 30,
+        "type": "schedule-manage",
+        # "покажи все запланированные задачи"
+        "task": "\u043f\u043e\u043a\u0430\u0436\u0438 \u0432\u0441\u0435 \u0437\u0430\u043f\u043b\u0430\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u0437\u0430\u0434\u0430\u0447\u0438",
+        "mode": "loop",
+    },
 ]
 
 # Task IDs included in --quick mode
@@ -445,6 +453,8 @@ def build_registry() -> ToolRegistry:
     registry.register(MemorySearchTool())
     from src.organism.tools.manage_agents import ManageAgentsTool
     registry.register(ManageAgentsTool())
+    from src.organism.tools.manage_schedule import ManageScheduleTool
+    registry.register(ManageScheduleTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
     return registry
@@ -582,6 +592,7 @@ _TOOL_SHORT = {
     "file_manager":  "file_mgr",
     "multi-agent":   "multi-agt",
     "manage_agents": "mgr_agent",
+    "manage_schedule": "mgr_sched",
 }
 
 
@@ -738,6 +749,12 @@ async def run_benchmark(quick: bool) -> None:
     for job in DEFAULT_ARTEL_JOBS:
         scheduler.add_job(job)
     loop.scheduler = scheduler
+    # SCHED-1b: inject scheduler into ManageScheduleTool
+    try:
+        mst = registry.get("manage_schedule")
+        mst.set_scheduler(scheduler)
+    except KeyError:
+        pass
 
     # Q-9.5: AgentFactory for /agents and /create_agent command tests
     from src.organism.agents.factory import AgentFactory
