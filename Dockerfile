@@ -23,8 +23,8 @@ COPY . .
 RUN mkdir -p data/logs data/outputs data/workspace
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import sys, os; sys.exit(0)" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD ["python", "scripts/health_check.py"]
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
