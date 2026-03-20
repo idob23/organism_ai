@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     telegram_allowed_users: str = Field("", alias="TELEGRAM_ALLOWED_USERS")
+    telegram_channel_id: str = Field("", alias="TELEGRAM_CHANNEL_ID")
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
     openai_base_url: str = Field("", alias="OPENAI_BASE_URL")
     tavily_api_key: str = Field("", alias="TAVILY_API_KEY")

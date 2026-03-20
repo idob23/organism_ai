@@ -20,6 +20,7 @@
 - Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
 - Memory Verification Loop: INSIGHT-1 ✅
 - Benchmark: 29/29 задач, quality 0.89–0.93 ✅
+- MEDIA-LAUNCH: Telegram-канал публикация + ai_media personality + content scheduler jobs ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 

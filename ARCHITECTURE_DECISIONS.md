@@ -993,6 +993,30 @@ Simple messages like "hello" took 67s total (8s Claude API + 54s embedding retri
 
 Files: `memory/embeddings.py` (rewrite), `core/loop.py` (fire-and-forget + new method).
 
+### MEDIA-LAUNCH: Telegram channel publishing + media personality + content jobs
+Added infrastructure for Organism AI's own Telegram channel about AI business automation.
+The channel is managed by AI agents via ProactiveScheduler — automated content production.
+
+**Changes:**
+1. `config/settings.py`: new `telegram_channel_id` field (TELEGRAM_CHANNEL_ID env var)
+2. `main.py` → `_notify()`: after sending to personal user chats, also sends to channel
+   if `settings.telegram_channel_id` is set. Wrapped in try/except — channel errors
+   don't break personal message delivery.
+3. `config/personality/ai_media.md`: personality config for media project. Expert tone,
+   Russian language, business audience (directors, not developers). Post structure:
+   problem → essence → conclusion.
+4. `src/organism/core/scheduler.py` → `DEFAULT_ARTEL_JOBS`: 3 new jobs (all disabled by default):
+   - `media_daily_news` (daily 07:00 UTC): 5 top AI business news
+   - `media_weekly_digest` (Monday 08:00 UTC): weekly analytical digest
+   - `media_weekly_research` (Wednesday 08:00 UTC): deep research post (1500-2000 words)
+   All jobs have `artel_id="ai_media"`, enabled via `/schedule_enable`.
+
+**Not changed:** `_send_approval()`, existing DEFAULT_ARTEL_JOBS, TelegramChannel, Gateway,
+ScheduledJob dataclass, benchmark tasks, tools, commands.
+
+Files: `config/settings.py`, `main.py`, `src/organism/core/scheduler.py`,
+`config/personality/ai_media.md`, `.env.example`, `.env.production.example`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

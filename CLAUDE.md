@@ -78,7 +78,7 @@ organism_ai/
 │   ├── skills/         # excel.md, docx.md, charts.md, pdf.md
 │   ├── roles/          # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md
 │   ├── agents/         # {agent_id}.json (created agents)
-│   ├── personality/    # default.md, artel_zoloto.md
+│   ├── personality/    # default.md, artel_zoloto.md, ai_media.md
 │   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
 │   │                   # causal_analyzer.txt, template_extractor.txt
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
@@ -90,7 +90,7 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87
-- Спринты 1-9 завершены, FIX-1 → FIX-87, PERF-2, SCHED-1a, SCHED-1b, TG-UX
+- Спринты 1-9 завершены, FIX-1 → FIX-87, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

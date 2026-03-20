@@ -261,13 +261,19 @@ async def run_telegram() -> None:
 
     # --- Proactive scheduler ---
     async def _notify(artel_id: str, message: str) -> None:
-        """Send scheduled task result to allowed Telegram users."""
+        """Send scheduled task result to allowed Telegram users and channel."""
         from aiogram import Bot
         bot = Bot(token=settings.telegram_bot_token)
         try:
             for uid in (settings.allowed_user_ids or []):
                 try:
                     await bot.send_message(uid, message)
+                except Exception:
+                    pass
+            # MEDIA-LAUNCH: publish to Telegram channel
+            if settings.telegram_channel_id:
+                try:
+                    await bot.send_message(settings.telegram_channel_id, message)
                 except Exception:
                     pass
         finally:
