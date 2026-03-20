@@ -1017,6 +1017,29 @@ ScheduledJob dataclass, benchmark tasks, tools, commands.
 Files: `config/settings.py`, `main.py`, `src/organism/core/scheduler.py`,
 `config/personality/ai_media.md`, `.env.example`, `.env.production.example`.
 
+### FIX-88: Targeted channel publishing — channel_id on ScheduledJob
+**Problem:** MEDIA-LAUNCH sent all scheduled job results to both personal messages and
+the global `TELEGRAM_CHANNEL_ID`. Jobs like `morning_summary` (personal artel summary)
+should not be published to a public channel — only media content jobs should.
+
+**Solution:** Structural fix — added `channel_id: str = ""` field to `ScheduledJob` dataclass.
+Each job explicitly declares its target channel. Empty = personal messages only.
+The `_notify()` callback receives `channel_id` from the job and publishes to it only if non-empty.
+No name-prefix checking or behavioral heuristics.
+
+**Changes:**
+1. `src/organism/core/scheduler.py`: `channel_id` field on ScheduledJob, media jobs get
+   `channel_id=settings.telegram_channel_id`, notify call passes `job.channel_id`,
+   `load_from_db`/`_save_job` persist channel_id
+2. `main.py` → `_notify()`: signature gains `channel_id: str = ""`, publishes to channel
+   only if `channel_id` is non-empty (replaces old `settings.telegram_channel_id` check)
+3. `src/organism/tools/manage_schedule.py`: `channel_id` in input_schema, `_action_create`,
+   and `_action_list` display
+4. `src/organism/memory/database.py`: migration 12 — `ALTER TABLE scheduled_jobs ADD COLUMN
+   IF NOT EXISTS channel_id TEXT DEFAULT ''`
+
+Files: `scheduler.py`, `main.py`, `manage_schedule.py`, `database.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

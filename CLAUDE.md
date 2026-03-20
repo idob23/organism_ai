@@ -90,7 +90,7 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87
-- Спринты 1-9 завершены, FIX-1 → FIX-87, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
+- Спринты 1-9 завершены, FIX-1 → FIX-88, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

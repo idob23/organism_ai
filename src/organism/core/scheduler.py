@@ -27,6 +27,7 @@ class ScheduledJob:
     enabled: bool = True
     last_run: datetime | None = None
     artel_id: str = "default"
+    channel_id: str = ""  # Telegram channel to publish results ("" = personal only)
 
 
 # Default jobs for a gold mining artel
@@ -173,6 +174,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         time_of_day=dt_time(7, 0),
         enabled=False,
         artel_id="ai_media",
+        channel_id=settings.telegram_channel_id,
     ),
     ScheduledJob(
         name="media_weekly_digest",
@@ -212,6 +214,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         weekday=0,  # Monday
         enabled=False,
         artel_id="ai_media",
+        channel_id=settings.telegram_channel_id,
     ),
     ScheduledJob(
         name="media_weekly_research",
@@ -258,6 +261,7 @@ DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
         weekday=2,  # Wednesday
         enabled=False,
         artel_id="ai_media",
+        channel_id=settings.telegram_channel_id,
     ),
 ]
 
@@ -268,7 +272,7 @@ class ProactiveScheduler:
     def __init__(
         self,
         task_runner: Callable[[str], Awaitable[Any]],
-        notify: Callable[[str, str], Awaitable[None]] | None = None,
+        notify: Callable[[str, str, str], Awaitable[None]] | None = None,
     ) -> None:
         self.task_runner = task_runner
         self.notify = notify
@@ -318,7 +322,8 @@ class ProactiveScheduler:
             async with AsyncSessionLocal() as session:
                 result = await session.execute(sa_text(
                     "SELECT name, task_text, schedule_type, time_of_day, weekday, "
-                    "interval_minutes, enabled, last_run, artel_id "
+                    "interval_minutes, enabled, last_run, artel_id, "
+                    "COALESCE(channel_id, '') as channel_id "
                     "FROM scheduled_jobs WHERE artel_id = :aid"
                 ), {"aid": settings.artel_id})
                 rows = result.fetchall()
@@ -338,6 +343,7 @@ class ProactiveScheduler:
                     enabled=row[6],
                     last_run=row[7],
                     artel_id=row[8],
+                    channel_id=row[9] or "",
                 )
                 self.jobs[job.name] = job  # overwrites system job if same name
                 loaded += 1
@@ -359,23 +365,25 @@ class ProactiveScheduler:
                 result = await session.execute(sa_text(
                     "UPDATE scheduled_jobs SET task_text=:tt, schedule_type=:st, "
                     "time_of_day=:tod, weekday=:wd, interval_minutes=:im, "
-                    "enabled=:en, is_system=:sys "
+                    "enabled=:en, is_system=:sys, channel_id=:cid "
                     "WHERE name=:n AND artel_id=:aid"
                 ), {
                     "tt": job.task_text, "st": job.schedule_type, "tod": tod_str,
                     "wd": job.weekday, "im": job.interval_minutes, "en": job.enabled,
                     "sys": is_system, "n": job.name, "aid": job.artel_id,
+                    "cid": job.channel_id,
                 })
                 if result.rowcount == 0:
                     await session.execute(sa_text(
                         "INSERT INTO scheduled_jobs "
                         "(name, task_text, schedule_type, time_of_day, weekday, "
-                        "interval_minutes, enabled, artel_id, is_system) "
-                        "VALUES (:n, :tt, :st, :tod, :wd, :im, :en, :aid, :sys)"
+                        "interval_minutes, enabled, artel_id, is_system, channel_id) "
+                        "VALUES (:n, :tt, :st, :tod, :wd, :im, :en, :aid, :sys, :cid)"
                     ), {
                         "n": job.name, "tt": job.task_text, "st": job.schedule_type,
                         "tod": tod_str, "wd": job.weekday, "im": job.interval_minutes,
                         "en": job.enabled, "aid": job.artel_id, "sys": is_system,
+                        "cid": job.channel_id,
                     })
                 await session.commit()
         except Exception as exc:
@@ -514,6 +522,7 @@ class ProactiveScheduler:
                             await self.notify(
                                 job.artel_id,
                                 f"[{job.name}] {output[:4000]}",
+                                job.channel_id,
                             )
                 except Exception as exc:
                     _log.error(

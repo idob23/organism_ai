@@ -96,6 +96,13 @@ class ManageScheduleTool(BaseTool):
                     "type": "integer",
                     "description": "Interval in minutes (for 'create' with schedule_type='interval')",
                 },
+                "channel_id": {
+                    "type": "string",
+                    "description": (
+                        "Telegram channel ID to publish results "
+                        "(e.g. '@channel_name'). Empty = personal messages only."
+                    ),
+                },
             },
             "required": ["action"],
         }
@@ -144,9 +151,10 @@ class ManageScheduleTool(BaseTool):
             schedule_desc = self._format_schedule(job)
             status = "\u2705" if job.enabled else "\u274c"
             last = job.last_run.strftime("%Y-%m-%d %H:%M UTC") if job.last_run else "never"
+            channel_info = f" \u2192 {job.channel_id}" if job.channel_id else ""
             lines.append(
                 f"- {job.name} [{schedule_desc}] {status} "
-                f"(last run: {last})"
+                f"(last run: {last}){channel_info}"
             )
             lines.append(f"  task: {job.task_text[:100]}")
         return ToolResult(output="\n".join(lines), error="", exit_code=0)
@@ -206,6 +214,8 @@ class ManageScheduleTool(BaseTool):
                     exit_code=1,
                 )
 
+        channel_id = input.get("channel_id", "").strip()
+
         job = ScheduledJob(
             name=name,
             task_text=task_text,
@@ -215,6 +225,7 @@ class ManageScheduleTool(BaseTool):
             interval_minutes=interval_minutes,
             enabled=True,
             artel_id=settings.artel_id,
+            channel_id=channel_id,
         )
 
         await self._scheduler.create_job(job)

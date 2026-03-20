@@ -565,6 +565,13 @@ async def _m011_scheduled_jobs(conn) -> None:
     ))
 
 
+async def _m012_scheduled_jobs_channel_id(conn) -> None:
+    """FIX-88: Add channel_id to scheduled_jobs for targeted channel publishing."""
+    await conn.execute(text(
+        "ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS channel_id TEXT DEFAULT ''"
+    ))
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -579,4 +586,5 @@ _MIGRATIONS = [
     (9, "chat_history", _m009_chat_history),
     (10, "pending_insights", _m010_pending_insights),
     (11, "scheduled_jobs", _m011_scheduled_jobs),
+    (12, "scheduled_jobs_channel_id", _m012_scheduled_jobs_channel_id),
 ]
