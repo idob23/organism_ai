@@ -744,9 +744,9 @@ async def run_benchmark(quick: bool) -> None:
     loop = CoreLoop(llm, registry, memory=memory, personality=personality)
 
     # Scheduler for /schedule command tests (not started — just provides job list)
-    from src.organism.core.scheduler import ProactiveScheduler, DEFAULT_ARTEL_JOBS
+    from src.organism.core.scheduler import ProactiveScheduler, load_jobs_from_config
     scheduler = ProactiveScheduler(task_runner=loop.run)
-    for job in DEFAULT_ARTEL_JOBS:
+    for job in load_jobs_from_config(settings.artel_id):
         scheduler.add_job(job)
     loop.scheduler = scheduler
     # SCHED-1b: inject scheduler into ManageScheduleTool

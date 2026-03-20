@@ -493,7 +493,7 @@ class CoreLoop:
         )
         return "yes" in resp.content.strip().lower()
 
-    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False, extra_system_context: str = "", tool_progress_callback=None) -> "TaskResult":
+    async def run(self, task: str, verbose: bool = True, user_id: str = "default", media: list | None = None, progress_callback=None, user_context: str = "", skip_orchestrator: bool = False, extra_system_context: str = "", tool_progress_callback=None, personality_id: str = "") -> "TaskResult":
         task_id = uuid.uuid4().hex[:8]
         start = time.time()
         _log.info(f"[{task_id}] Task started: {task[:100]}")
@@ -524,9 +524,21 @@ class CoreLoop:
                 except Exception:
                     pass
 
+        # FIX-89: Temporary personality override for scheduled jobs
+        active_personality = self.personality
+        if personality_id and personality_id != getattr(self.personality, "artel_id", ""):
+            try:
+                from src.organism.core.personality import PersonalityConfig
+                _tmp_p = PersonalityConfig(artel_id=personality_id)
+                _tmp_p.load()
+                if _tmp_p.raw_content:
+                    active_personality = _tmp_p
+            except Exception:
+                pass
+
         # FIX-64: Skip artel personality when agent personality is provided
-        if self.personality and not extra_system_context:
-            personality_addition = self.personality.get_system_prompt_addition()
+        if active_personality and not extra_system_context:
+            personality_addition = active_personality.get_system_prompt_addition()
             if personality_addition:
                 user_context = user_context + personality_addition
 

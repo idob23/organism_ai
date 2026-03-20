@@ -103,6 +103,13 @@ class ManageScheduleTool(BaseTool):
                         "(e.g. '@channel_name'). Empty = personal messages only."
                     ),
                 },
+                "personality_id": {
+                    "type": "string",
+                    "description": (
+                        "Personality ID to use when running this job "
+                        "(e.g. 'ai_media'). Empty = use default personality."
+                    ),
+                },
             },
             "required": ["action"],
         }
@@ -152,9 +159,10 @@ class ManageScheduleTool(BaseTool):
             status = "\u2705" if job.enabled else "\u274c"
             last = job.last_run.strftime("%Y-%m-%d %H:%M UTC") if job.last_run else "never"
             channel_info = f" \u2192 {job.channel_id}" if job.channel_id else ""
+            persona_info = f" [{job.personality_id}]" if job.personality_id else ""
             lines.append(
                 f"- {job.name} [{schedule_desc}] {status} "
-                f"(last run: {last}){channel_info}"
+                f"(last run: {last}){channel_info}{persona_info}"
             )
             lines.append(f"  task: {job.task_text[:100]}")
         return ToolResult(output="\n".join(lines), error="", exit_code=0)
@@ -215,6 +223,7 @@ class ManageScheduleTool(BaseTool):
                 )
 
         channel_id = input.get("channel_id", "").strip()
+        personality_id = input.get("personality_id", "").strip()
 
         job = ScheduledJob(
             name=name,
@@ -226,6 +235,7 @@ class ManageScheduleTool(BaseTool):
             enabled=True,
             artel_id=settings.artel_id,
             channel_id=channel_id,
+            personality_id=personality_id,
         )
 
         await self._scheduler.create_job(job)

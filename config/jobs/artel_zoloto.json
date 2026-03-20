@@ -1,0 +1,69 @@
+[
+  {
+    "name": "morning_summary",
+    "task_text": "подготовь утреннюю сводку: статус техники, расход ГСМ за вчера, текущие заявки на запчасти",
+    "schedule_type": "daily",
+    "time_of_day": "21:00",
+    "personality_id": "artel_zoloto",
+    "channel_id": "",
+    "enabled_default": false
+  },
+  {
+    "name": "fuel_monitor",
+    "task_text": "проанализируй расход ГСМ за последние 24 часа, найди отклонения от нормы более 10% по каждой единице техники",
+    "schedule_type": "interval",
+    "interval_minutes": 360,
+    "personality_id": "artel_zoloto",
+    "channel_id": "",
+    "enabled_default": false
+  },
+  {
+    "name": "weekly_prompt_evolution",
+    "task_text": "__internal__:evolve_prompts",
+    "schedule_type": "weekly",
+    "time_of_day": "03:00",
+    "weekday": 6,
+    "personality_id": "",
+    "channel_id": "",
+    "enabled_default": false
+  },
+  {
+    "name": "db_cleanup",
+    "task_text": "__internal__:db_cleanup",
+    "schedule_type": "weekly",
+    "time_of_day": "04:00",
+    "weekday": 6,
+    "personality_id": "",
+    "channel_id": "",
+    "enabled_default": false
+  },
+  {
+    "name": "media_daily_news",
+    "task_text": "Найди 5 самых важных новостей за последние 24 часа по темам: AI-агенты в бизнесе, автоматизация процессов, внедрение ИИ в российских компаниях, новые AI-инструменты для предпринимателей. Для каждой новости напиши: заголовок, суть в 2-3 предложениях, почему это важно для бизнеса. Оформи как готовый пост для Telegram-канала.",
+    "schedule_type": "daily",
+    "time_of_day": "04:00",
+    "personality_id": "ai_media",
+    "channel_id": "@organism_ai",
+    "enabled_default": false
+  },
+  {
+    "name": "media_weekly_digest",
+    "task_text": "Составь еженедельный дайджест по AI-автоматизации бизнеса за прошедшую неделю: главные новости, новые инструменты, интересные кейсы внедрения, изменения в регулировании. Оформи как длинный аналитический пост для Telegram-канала.",
+    "schedule_type": "weekly",
+    "time_of_day": "05:00",
+    "weekday": 0,
+    "personality_id": "ai_media",
+    "channel_id": "@organism_ai",
+    "enabled_default": false
+  },
+  {
+    "name": "media_weekly_research",
+    "task_text": "Проведи исследование одного актуального аспекта AI-автоматизации бизнеса. Выбери тему на основе последних новостей. Найди 5-7 источников через web_search. Напиши аналитический пост на 1500-2000 слов с конкретными цифрами, примерами и выводами для бизнеса.",
+    "schedule_type": "weekly",
+    "time_of_day": "05:00",
+    "weekday": 2,
+    "personality_id": "ai_media",
+    "channel_id": "@organism_ai",
+    "enabled_default": false
+  }
+]

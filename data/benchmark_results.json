@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-17T22:15:04",
-  "mode": "full",
+  "timestamp": "2026-03-20T22:31:07",
+  "mode": "quick",
   "results": [
     {
       "id": 1,
@@ -8,7 +8,7 @@
       "task": "рассчитай план добычи золота: сезон 150 дней, план 300 кг, цена 7500 руб/грамм. Выведи: дневной план г, дневную выручку,",
       "success": true,
       "quality_score": 0.95,
-      "duration": 35.7,
+      "duration": 27.13,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -19,7 +19,7 @@
       "task": "создай CSV таблицу расходов на технику за неделю: бульдозер 500 л/день * 70 руб/л, экскаватор 300 л/день * 70 руб/л, 5 р",
       "success": true,
       "quality_score": 0.85,
-      "duration": 52.45,
+      "duration": 32.88,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -30,40 +30,7 @@
       "task": "напиши краткую инструкцию по технике безопасности при работе с дробилкой горной породы — 5 ключевых правил",
       "success": true,
       "quality_score": 0.85,
-      "duration": 35.63,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 4,
-      "type": "mixed",
-      "task": "найди актуальные экологические требования к золотодобыче в России и напиши краткое резюме для руководителя артели",
-      "success": true,
-      "quality_score": 0.75,
-      "duration": 99.32,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 5,
-      "type": "presentation",
-      "task": "создай презентацию из 5 слайдов о технологии россыпной золотодобычи: введение, оборудование, технология, показатели, выв",
-      "success": true,
-      "quality_score": 0.9,
-      "duration": 63.82,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 6,
-      "type": "research",
-      "task": "найди текущую цену золота на мировом рынке в долларах и рублях за грамм",
-      "success": true,
-      "quality_score": 0.95,
-      "duration": 37.88,
+      "duration": 38.48,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -74,7 +41,7 @@
       "task": "рассчитай рентабельность участка: выручка 15 млн руб, расходы: зарплата 3 млн, топливо 2 млн, оборудование 4 млн, прочее",
       "success": true,
       "quality_score": 0.95,
-      "duration": 26.63,
+      "duration": 25.86,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
@@ -84,214 +51,10 @@
       "type": "cache",
       "task": "посчитай добычу золота: план 300 кг за сезон 150 дней, стоимость 7500 руб за грамм. Рассчитай дневную добычу и общую выр",
       "success": true,
-      "quality_score": 0.9,
-      "duration": 30.09,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 9,
-      "type": "multi-agent",
-      "task": "найди актуальные цены на дизельное топливо в России и рассчитай стоимость топлива для золотодобывающего сезона: расход 2",
-      "success": true,
-      "quality_score": 0.75,
-      "duration": 568.55,
-      "tools_used": [
-        "multi-agent"
-      ],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 10,
-      "type": "command",
-      "task": "/stats",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.01,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 11,
-      "type": "temporal-query",
-      "task": "когда последний раз делали отчёт по расходу ГСМ и какой был результат",
-      "success": true,
-      "quality_score": 0.6,
-      "duration": 49.9,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 12,
-      "type": "entity-query",
-      "task": "покажи все задачи связанные с КамАЗ-65115 и его обслуживанием",
-      "success": true,
-      "quality_score": 0.5,
-      "duration": 39.58,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 13,
-      "type": "template-reuse",
-      "task": "создай CSV таблицу расходов на ГСМ за август 2025: КамАЗ-65115 900л, Экскаватор PC-300 1100л, Бульдозер Т-170 1050л",
-      "success": true,
-      "quality_score": 0.85,
-      "duration": 42.32,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 14,
-      "type": "causal-query",
-      "task": "почему расход топлива на бульдозер выше нормы и что можно сделать для снижения",
-      "success": true,
-      "quality_score": 0.85,
-      "duration": 41.6,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 15,
-      "type": "orchestrator-sm",
-      "task": "найди среднюю цену дизеля в России и напиши краткую справку для директора",
-      "success": true,
-      "quality_score": 0.75,
-      "duration": 184.84,
-      "tools_used": [
-        "multi-agent"
-      ],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 16,
-      "type": "cmd-schedule",
-      "task": "/schedule",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 17,
-      "type": "cmd-personality",
-      "task": "/personality",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 18,
-      "type": "gateway-write",
-      "task": "напиши памятку для мастера смены по приёмке топлива: проверка объёма, оформление накладной, контроль качества",
-      "success": true,
-      "quality_score": 0.85,
-      "duration": 64.12,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 19,
-      "type": "cmd-help",
-      "task": "/help",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 20,
-      "type": "orchestrator-ka",
-      "task": "найди текущую цену золота и составь краткий аналитический отчёт",
-      "success": true,
-      "quality_score": 0.75,
-      "duration": 34.01,
-      "tools_used": [
-        "multi-agent"
-      ],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 21,
-      "type": "reflect-struct",
-      "task": "рассчитай стоимость ремонта бульдозера: запчасти 150000 руб, работа 80000 руб, простой 3 дня * 50000 руб/день",
-      "success": true,
       "quality_score": 0.95,
-      "duration": 41.35,
+      "duration": 23.78,
       "tools_used": [],
       "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 22,
-      "type": "few-shot",
-      "task": "рассчитай рентабельность участка: выручка 20 млн, зарплата 4 млн, топливо 3 млн, оборудование 5 млн",
-      "success": true,
-      "quality_score": 0.95,
-      "duration": 42.88,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 23,
-      "type": "cmd-evolve",
-      "task": "/help",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 24,
-      "type": "dupl-search",
-      "task": "проверь на дубликаты список контрагентов: ООО Топливный Снаб, Топливный снаб ООО, ИП Петров С.В., Петров Сергей ИП, АО Д",
-      "success": true,
-      "quality_score": 0.9,
-      "duration": 73.18,
-      "tools_used": [],
-      "cache_hit": true,
-      "error": ""
-    },
-    {
-      "id": 25,
-      "type": "cmd-mcp-serve",
-      "task": "/help",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 26,
-      "type": "a2a-infra",
-      "task": "/help",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
       "error": ""
     },
     {
@@ -300,18 +63,7 @@
       "task": "/agents",
       "success": true,
       "quality_score": 1.0,
-      "duration": 0.0,
-      "tools_used": [],
-      "cache_hit": false,
-      "error": ""
-    },
-    {
-      "id": 28,
-      "type": "cmd-create-agent",
-      "task": "/create_agent marketer",
-      "success": true,
-      "quality_score": 1.0,
-      "duration": 6.1,
+      "duration": 0.03,
       "tools_used": [],
       "cache_hit": false,
       "error": ""
@@ -322,19 +74,19 @@
       "task": "какие роли агентов доступны?",
       "success": true,
       "quality_score": 0.7,
-      "duration": 27.83,
+      "duration": 21.43,
       "tools_used": [],
       "cache_hit": true,
       "error": ""
     }
   ],
   "summary": {
-    "total": 29,
-    "successful": 29,
+    "total": 7,
+    "successful": 7,
     "success_rate": 100.0,
-    "avg_quality": 0.8793,
-    "avg_duration": 55.1,
-    "cache_hits": 17,
-    "cache_hit_rate": 58.6
+    "avg_quality": 0.8929,
+    "avg_duration": 24.23,
+    "cache_hits": 6,
+    "cache_hit_rate": 85.7
   }
 }

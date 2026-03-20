@@ -1040,6 +1040,60 @@ No name-prefix checking or behavioral heuristics.
 
 Files: `scheduler.py`, `main.py`, `manage_schedule.py`, `database.py`.
 
+### FIX-89: Scheduler — config instead of hardcode + personality_id + enable/disable persistence
+**Problems (3 bugs):**
+1. `DEFAULT_ARTEL_JOBS` was hardcoded in `scheduler.py` — business logic of a specific client
+   (gold mining) embedded in the platform core. Media jobs had `artel_id="ai_media"` but bot runs
+   with `ARTEL_ID=artel_zoloto` → `load_from_db()` filter `WHERE artel_id = 'artel_zoloto'` found
+   nothing → every restart reset media jobs to `enabled=False`.
+2. `enable_job()`/`disable_job()` were sync-only, did NOT write to DB → state lost on restart.
+   Meanwhile `set_job_enabled()` (async, from manage_schedule tool) DID write to DB — two code
+   paths with divergent behavior.
+3. No per-job personality — `task_runner(job.task_text)` always used the default startup personality.
+   Impossible to run `media_daily_news` with `ai_media` personality.
+
+**Solution:**
+
+**Part 1 — Config-based jobs:**
+- New `config/jobs/artel_zoloto.json` (7 jobs), `config/jobs/default.json` (empty `[]`).
+- `load_jobs_from_config(artel_id)` function: reads `config/jobs/{artel_id}.json`, falls back
+  to `default.json`, then empty list. Parses JSON → list[ScheduledJob]. `artel_id` always from
+  `settings.artel_id` (not from JSON). `channel_id` and `personality_id` taken from JSON as-is.
+  `enabled` from `enabled_default` field. All wrapped in try/except.
+- `DEFAULT_ARTEL_JOBS` list removed from `scheduler.py`.
+
+**Part 2 — personality_id on ScheduledJob:**
+- `ScheduledJob` gains `personality_id: str = ""` field.
+- `_loop()` passes `personality_id=job.personality_id` to `task_runner`.
+- `CoreLoop.run()` gains `personality_id: str = ""` parameter. If non-empty and different
+  from current personality: creates temporary `PersonalityConfig`, loads it, uses as
+  `active_personality` for this call only. `self.personality` is never mutated.
+- `manage_schedule.py`: `_action_create` reads `personality_id` from input; `_action_list`
+  shows `[personality_id]` if set.
+
+**Part 3 — enable/disable persistence:**
+- `enable_job()`/`disable_job()` now fire-and-forget write to DB via
+  `asyncio.get_event_loop().create_task(self._save_job(...))`. Wrapped in try/except for
+  benchmark mode (no running loop).
+
+**Part 4 — Startup sync (config ↔ DB):**
+- New `load_and_sync(artel_id)` method: loads config → loads DB states → merges (DB wins
+  for `enabled`/`last_run`) → saves upserts → loads user-defined jobs.
+- New `_load_states_from_db()`: `SELECT name, enabled, last_run FROM scheduled_jobs WHERE artel_id`.
+- New `_load_user_jobs_from_db()`: loads only `is_system=false` jobs (user-created via tool).
+- Old `load_from_db()` removed.
+
+**Part 5-6 — main.py / benchmark.py:**
+- `main.py` calls `await scheduler.load_and_sync(settings.artel_id)` (replaces add_job loop + load_from_db).
+- `benchmark.py` imports `load_jobs_from_config`, calls it directly (no DB sync in benchmark mode).
+
+**Part 7-8 — DB migration #13:**
+- `_m013_scheduled_jobs_personality_id`: `ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS personality_id TEXT DEFAULT ''`.
+- `_save_job()` and `_load_user_jobs_from_db()` updated to include `personality_id`.
+
+Files: `scheduler.py`, `core/loop.py`, `manage_schedule.py`, `database.py`, `main.py`,
+`benchmark.py`, `config/jobs/artel_zoloto.json`, `config/jobs/default.json`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

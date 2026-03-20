@@ -78,6 +78,7 @@ organism_ai/
 │   ├── skills/         # excel.md, docx.md, charts.md, pdf.md
 │   ├── roles/          # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md
 │   ├── agents/         # {agent_id}.json (created agents)
+│   ├── jobs/           # {artel_id}.json (scheduled jobs config, FIX-89)
 │   ├── personality/    # default.md, artel_zoloto.md, ai_media.md
 │   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
 │   │                   # causal_analyzer.txt, template_extractor.txt
@@ -89,8 +90,9 @@ organism_ai/
 ```
 
 ## Текущие метрики (март 2026)
-- Benchmark: 30/30 success, quality 0.87
-- Спринты 1-9 завершены, FIX-1 → FIX-88, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
+- Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
+- Спринты 1-9 завершены, FIX-1 → FIX-89, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
+- FIX-89: scheduler config/jobs/{artel_id}.json, personality_id per job, enable/disable persistence
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

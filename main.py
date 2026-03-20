@@ -231,7 +231,7 @@ async def _heartbeat_writer() -> None:
 async def run_telegram() -> None:
     from src.organism.channels.telegram import TelegramChannel
     from src.organism.channels.gateway import Gateway
-    from src.organism.core.scheduler import ProactiveScheduler, DEFAULT_ARTEL_JOBS
+    from src.organism.core.scheduler import ProactiveScheduler
     from src.organism.core.human_approval import HumanApproval
     from src.organism.tools.confirm_user import ConfirmUserTool
     if not settings.telegram_bot_token:
@@ -283,9 +283,7 @@ async def run_telegram() -> None:
         task_runner=loop.run,
         notify=_notify if settings.allowed_user_ids else None,
     )
-    for job in DEFAULT_ARTEL_JOBS:
-        scheduler.add_job(job)
-    await scheduler.load_from_db()
+    await scheduler.load_and_sync(settings.artel_id)
     loop.scheduler = scheduler
     # SCHED-1b: inject scheduler into ManageScheduleTool
     try:

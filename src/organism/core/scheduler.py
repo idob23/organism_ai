@@ -2,18 +2,24 @@
 
 Background scheduler that runs ScheduledJobs (daily/weekly/interval)
 and sends results via notify callback (e.g. Telegram).
+
+FIX-89: Jobs loaded from config/jobs/{artel_id}.json instead of hardcode.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from datetime import datetime, time as dt_time
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from config.settings import settings
 from src.organism.logging.error_handler import get_logger, log_exception
 
 _log = get_logger("core.scheduler")
+
+_JOBS_DIR = Path("config/jobs")
 
 
 @dataclass
@@ -28,242 +34,55 @@ class ScheduledJob:
     last_run: datetime | None = None
     artel_id: str = "default"
     channel_id: str = ""  # Telegram channel to publish results ("" = personal only)
+    personality_id: str = ""  # Personality override for this job ("" = use default)
 
 
-# Default jobs for a gold mining artel
-DEFAULT_ARTEL_JOBS: list[ScheduledJob] = [
-    ScheduledJob(
-        name="morning_summary",
-        # "подготовь утреннюю сводку: статус техники, расход ГСМ за вчера, текущие заявки на запчасти"
-        task_text=(
-            "\u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c "
-            "\u0443\u0442\u0440\u0435\u043d\u043d\u044e\u044e "
-            "\u0441\u0432\u043e\u0434\u043a\u0443: "
-            "\u0441\u0442\u0430\u0442\u0443\u0441 "
-            "\u0442\u0435\u0445\u043d\u0438\u043a\u0438, "
-            "\u0440\u0430\u0441\u0445\u043e\u0434 "
-            "\u0413\u0421\u041c \u0437\u0430 "
-            "\u0432\u0447\u0435\u0440\u0430, "
-            "\u0442\u0435\u043a\u0443\u0449\u0438\u0435 "
-            "\u0437\u0430\u044f\u0432\u043a\u0438 "
-            "\u043d\u0430 "
-            "\u0437\u0430\u043f\u0447\u0430\u0441\u0442\u0438"
-        ),
-        schedule_type="daily",
-        time_of_day=dt_time(6, 30),
-        enabled=False,
-    ),
-    ScheduledJob(
-        name="weekly_production",
-        # "составь еженедельный отчёт по добыче: объём за неделю, сравнение с планом, основные проблемы"
-        task_text=(
-            "\u0441\u043e\u0441\u0442\u0430\u0432\u044c "
-            "\u0435\u0436\u0435\u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 "
-            "\u043e\u0442\u0447\u0451\u0442 "
-            "\u043f\u043e "
-            "\u0434\u043e\u0431\u044b\u0447\u0435: "
-            "\u043e\u0431\u044a\u0451\u043c "
-            "\u0437\u0430 "
-            "\u043d\u0435\u0434\u0435\u043b\u044e, "
-            "\u0441\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435 "
-            "\u0441 "
-            "\u043f\u043b\u0430\u043d\u043e\u043c, "
-            "\u043e\u0441\u043d\u043e\u0432\u043d\u044b\u0435 "
-            "\u043f\u0440\u043e\u0431\u043b\u0435\u043c\u044b"
-        ),
-        schedule_type="weekly",
-        time_of_day=dt_time(8, 0),
-        weekday=0,  # Monday
-        enabled=False,
-    ),
-    ScheduledJob(
-        name="fuel_anomaly_check",
-        # "проверь расход ГСМ за последние 24 часа, найди отклонения от нормы более 10% по каждой единице техники"
-        task_text=(
-            "\u043f\u0440\u043e\u0432\u0435\u0440\u044c "
-            "\u0440\u0430\u0441\u0445\u043e\u0434 "
-            "\u0413\u0421\u041c "
-            "\u0437\u0430 "
-            "\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0435 "
-            "24 "
-            "\u0447\u0430\u0441\u0430, "
-            "\u043d\u0430\u0439\u0434\u0438 "
-            "\u043e\u0442\u043a\u043b\u043e\u043d\u0435\u043d\u0438\u044f "
-            "\u043e\u0442 "
-            "\u043d\u043e\u0440\u043c\u044b "
-            "\u0431\u043e\u043b\u0435\u0435 "
-            "10% "
-            "\u043f\u043e "
-            "\u043a\u0430\u0436\u0434\u043e\u0439 "
-            "\u0435\u0434\u0438\u043d\u0438\u0446\u0435 "
-            "\u0442\u0435\u0445\u043d\u0438\u043a\u0438"
-        ),
-        schedule_type="interval",
-        interval_minutes=360,  # every 6 hours
-        enabled=False,
-    ),
-    ScheduledJob(
-        name="weekly_prompt_evolution",
-        task_text="__internal__:evolve_prompts",
-        schedule_type="weekly",
-        time_of_day=dt_time(3, 0),
-        weekday=6,  # Sunday
-        enabled=False,  # user enables via /schedule_enable
-    ),
-    ScheduledJob(
-        name="db_cleanup",
-        task_text="__internal__:db_cleanup",
-        schedule_type="weekly",
-        weekday=6,  # Sunday
-        time_of_day=dt_time(4, 0),
-        enabled=False,
-    ),
-    # MEDIA-LAUNCH: Content production jobs for AI media channel
-    ScheduledJob(
-        name="media_daily_news",
-        # "Найди 5 самых важных новостей за последние 24 часа по темам: AI-агенты в бизнесе,
-        #  автоматизация процессов, внедрение ИИ в российских компаниях, новые AI-инструменты
-        #  для предпринимателей. Для каждой новости напиши: заголовок, суть в 2-3 предложениях,
-        #  почему это важно для бизнеса. Оформи как готовый пост для Telegram-канала."
-        task_text=(
-            "\u041d\u0430\u0439\u0434\u0438 5 "
-            "\u0441\u0430\u043c\u044b\u0445 "
-            "\u0432\u0430\u0436\u043d\u044b\u0445 "
-            "\u043d\u043e\u0432\u043e\u0441\u0442\u0435\u0439 "
-            "\u0437\u0430 "
-            "\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0435 "
-            "24 "
-            "\u0447\u0430\u0441\u0430 "
-            "\u043f\u043e "
-            "\u0442\u0435\u043c\u0430\u043c: "
-            "AI-\u0430\u0433\u0435\u043d\u0442\u044b "
-            "\u0432 "
-            "\u0431\u0438\u0437\u043d\u0435\u0441\u0435, "
-            "\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0437\u0430\u0446\u0438\u044f "
-            "\u043f\u0440\u043e\u0446\u0435\u0441\u0441\u043e\u0432, "
-            "\u0432\u043d\u0435\u0434\u0440\u0435\u043d\u0438\u0435 "
-            "\u0418\u0418 "
-            "\u0432 "
-            "\u0440\u043e\u0441\u0441\u0438\u0439\u0441\u043a\u0438\u0445 "
-            "\u043a\u043e\u043c\u043f\u0430\u043d\u0438\u044f\u0445, "
-            "\u043d\u043e\u0432\u044b\u0435 "
-            "AI-\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b "
-            "\u0434\u043b\u044f "
-            "\u043f\u0440\u0435\u0434\u043f\u0440\u0438\u043d\u0438\u043c\u0430\u0442\u0435\u043b\u0435\u0439. "
-            "\u0414\u043b\u044f "
-            "\u043a\u0430\u0436\u0434\u043e\u0439 "
-            "\u043d\u043e\u0432\u043e\u0441\u0442\u0438 "
-            "\u043d\u0430\u043f\u0438\u0448\u0438: "
-            "\u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043e\u043a, "
-            "\u0441\u0443\u0442\u044c "
-            "\u0432 2-3 "
-            "\u043f\u0440\u0435\u0434\u043b\u043e\u0436\u0435\u043d\u0438\u044f\u0445, "
-            "\u043f\u043e\u0447\u0435\u043c\u0443 "
-            "\u044d\u0442\u043e "
-            "\u0432\u0430\u0436\u043d\u043e "
-            "\u0434\u043b\u044f "
-            "\u0431\u0438\u0437\u043d\u0435\u0441\u0430. "
-            "\u041e\u0444\u043e\u0440\u043c\u0438 "
-            "\u043a\u0430\u043a "
-            "\u0433\u043e\u0442\u043e\u0432\u044b\u0439 "
-            "\u043f\u043e\u0441\u0442 "
-            "\u0434\u043b\u044f "
-            "Telegram-\u043a\u0430\u043d\u0430\u043b\u0430."
-        ),
-        schedule_type="daily",
-        time_of_day=dt_time(7, 0),
-        enabled=False,
-        artel_id="ai_media",
-        channel_id=settings.telegram_channel_id,
-    ),
-    ScheduledJob(
-        name="media_weekly_digest",
-        # "Составь еженедельный дайджест по AI-автоматизации бизнеса за прошедшую неделю:
-        #  главные новости, новые инструменты, интересные кейсы внедрения, изменения в
-        #  регулировании. Оформи как длинный аналитический пост для Telegram-канала."
-        task_text=(
-            "\u0421\u043e\u0441\u0442\u0430\u0432\u044c "
-            "\u0435\u0436\u0435\u043d\u0435\u0434\u0435\u043b\u044c\u043d\u044b\u0439 "
-            "\u0434\u0430\u0439\u0434\u0436\u0435\u0441\u0442 "
-            "\u043f\u043e "
-            "AI-\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0437\u0430\u0446\u0438\u0438 "
-            "\u0431\u0438\u0437\u043d\u0435\u0441\u0430 "
-            "\u0437\u0430 "
-            "\u043f\u0440\u043e\u0448\u0435\u0434\u0448\u0443\u044e "
-            "\u043d\u0435\u0434\u0435\u043b\u044e: "
-            "\u0433\u043b\u0430\u0432\u043d\u044b\u0435 "
-            "\u043d\u043e\u0432\u043e\u0441\u0442\u0438, "
-            "\u043d\u043e\u0432\u044b\u0435 "
-            "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b, "
-            "\u0438\u043d\u0442\u0435\u0440\u0435\u0441\u043d\u044b\u0435 "
-            "\u043a\u0435\u0439\u0441\u044b "
-            "\u0432\u043d\u0435\u0434\u0440\u0435\u043d\u0438\u044f, "
-            "\u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f "
-            "\u0432 "
-            "\u0440\u0435\u0433\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0438. "
-            "\u041e\u0444\u043e\u0440\u043c\u0438 "
-            "\u043a\u0430\u043a "
-            "\u0434\u043b\u0438\u043d\u043d\u044b\u0439 "
-            "\u0430\u043d\u0430\u043b\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 "
-            "\u043f\u043e\u0441\u0442 "
-            "\u0434\u043b\u044f "
-            "Telegram-\u043a\u0430\u043d\u0430\u043b\u0430."
-        ),
-        schedule_type="weekly",
-        time_of_day=dt_time(8, 0),
-        weekday=0,  # Monday
-        enabled=False,
-        artel_id="ai_media",
-        channel_id=settings.telegram_channel_id,
-    ),
-    ScheduledJob(
-        name="media_weekly_research",
-        # "Проведи исследование одного актуального аспекта AI-автоматизации бизнеса.
-        #  Выбери тему на основе последних новостей. Найди 5-7 источников через web_search.
-        #  Напиши аналитический пост на 1500-2000 слов с конкретными цифрами, примерами
-        #  и выводами для бизнеса."
-        task_text=(
-            "\u041f\u0440\u043e\u0432\u0435\u0434\u0438 "
-            "\u0438\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u0435 "
-            "\u043e\u0434\u043d\u043e\u0433\u043e "
-            "\u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u043e\u0433\u043e "
-            "\u0430\u0441\u043f\u0435\u043a\u0442\u0430 "
-            "AI-\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0437\u0430\u0446\u0438\u0438 "
-            "\u0431\u0438\u0437\u043d\u0435\u0441\u0430. "
-            "\u0412\u044b\u0431\u0435\u0440\u0438 "
-            "\u0442\u0435\u043c\u0443 "
-            "\u043d\u0430 "
-            "\u043e\u0441\u043d\u043e\u0432\u0435 "
-            "\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0438\u0445 "
-            "\u043d\u043e\u0432\u043e\u0441\u0442\u0435\u0439. "
-            "\u041d\u0430\u0439\u0434\u0438 "
-            "5-7 "
-            "\u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u043e\u0432 "
-            "\u0447\u0435\u0440\u0435\u0437 "
-            "web_search. "
-            "\u041d\u0430\u043f\u0438\u0448\u0438 "
-            "\u0430\u043d\u0430\u043b\u0438\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 "
-            "\u043f\u043e\u0441\u0442 "
-            "\u043d\u0430 "
-            "1500-2000 "
-            "\u0441\u043b\u043e\u0432 "
-            "\u0441 "
-            "\u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u043c\u0438 "
-            "\u0446\u0438\u0444\u0440\u0430\u043c\u0438, "
-            "\u043f\u0440\u0438\u043c\u0435\u0440\u0430\u043c\u0438 "
-            "\u0438 "
-            "\u0432\u044b\u0432\u043e\u0434\u0430\u043c\u0438 "
-            "\u0434\u043b\u044f "
-            "\u0431\u0438\u0437\u043d\u0435\u0441\u0430."
-        ),
-        schedule_type="weekly",
-        time_of_day=dt_time(8, 0),
-        weekday=2,  # Wednesday
-        enabled=False,
-        artel_id="ai_media",
-        channel_id=settings.telegram_channel_id,
-    ),
-]
+def load_jobs_from_config(artel_id: str) -> list[ScheduledJob]:
+    """Load scheduled jobs from config/jobs/{artel_id}.json.
+
+    Falls back to config/jobs/default.json if artel-specific file not found.
+    Returns empty list on any error.
+    """
+    filepath = _JOBS_DIR / f"{artel_id}.json"
+    if not filepath.exists():
+        filepath = _JOBS_DIR / "default.json"
+        if not filepath.exists():
+            _log.warning("scheduler.no_config: neither %s.json nor default.json found", artel_id)
+            return []
+
+    try:
+        raw = filepath.read_text(encoding="utf-8")
+        items = json.loads(raw)
+    except Exception as exc:
+        _log.error("scheduler.config_parse_error: %s: %s", filepath, exc)
+        return []
+
+    jobs: list[ScheduledJob] = []
+    for item in items:
+        try:
+            tod = None
+            tod_str = item.get("time_of_day", "")
+            if tod_str:
+                parts = tod_str.split(":")
+                tod = dt_time(int(parts[0]), int(parts[1]))
+            job = ScheduledJob(
+                name=item["name"],
+                task_text=item["task_text"],
+                schedule_type=item["schedule_type"],
+                time_of_day=tod,
+                weekday=item.get("weekday"),
+                interval_minutes=item.get("interval_minutes"),
+                enabled=item.get("enabled_default", False),
+                artel_id=settings.artel_id,
+                channel_id=item.get("channel_id", ""),
+                personality_id=item.get("personality_id", ""),
+            )
+            jobs.append(job)
+        except Exception as exc:
+            _log.error("scheduler.job_parse_error: %s: %s", item.get("name", "?"), exc)
+
+    _log.info("scheduler.config_loaded: %s (%d jobs)", filepath.name, len(jobs))
+    return jobs
 
 
 class ProactiveScheduler:
@@ -271,7 +90,7 @@ class ProactiveScheduler:
 
     def __init__(
         self,
-        task_runner: Callable[[str], Awaitable[Any]],
+        task_runner: Callable[..., Awaitable[Any]],
         notify: Callable[[str, str, str], Awaitable[None]] | None = None,
     ) -> None:
         self.task_runner = task_runner
@@ -291,11 +110,19 @@ class ProactiveScheduler:
     def enable_job(self, name: str) -> None:
         if name in self.jobs:
             self.jobs[name].enabled = True
+            try:
+                asyncio.get_event_loop().create_task(self._save_job(self.jobs[name]))
+            except Exception:
+                pass
             _log.info("scheduler.enable_job: %s", name)
 
     def disable_job(self, name: str) -> None:
         if name in self.jobs:
             self.jobs[name].enabled = False
+            try:
+                asyncio.get_event_loop().create_task(self._save_job(self.jobs[name]))
+            except Exception:
+                pass
             _log.info("scheduler.disable_job: %s", name)
 
     async def set_job_enabled(self, name: str, enabled: bool) -> bool:
@@ -310,10 +137,48 @@ class ProactiveScheduler:
     def list_jobs(self) -> list[ScheduledJob]:
         return list(self.jobs.values())
 
-    # -- Persistence layer (SCHED-1a) --
+    # -- Startup sync (FIX-89) --
 
-    async def load_from_db(self) -> None:
-        """Load user-created jobs from DB. Called at startup after DEFAULT_ARTEL_JOBS."""
+    async def load_and_sync(self, artel_id: str) -> None:
+        """Load jobs from config, sync with DB states, load user jobs."""
+        # 1. Load jobs from config
+        config_jobs = load_jobs_from_config(artel_id)
+
+        # 2. Load states from DB (enabled, last_run)
+        db_states = await self._load_states_from_db()
+
+        # 3. Merge config with DB states
+        for job in config_jobs:
+            if job.name in db_states:
+                job.enabled = db_states[job.name]["enabled"]
+                job.last_run = db_states[job.name]["last_run"]
+            self.add_job(job)
+            await self._save_job(job, is_system=True)
+
+        # 4. Load user-created jobs from DB
+        await self._load_user_jobs_from_db()
+
+    async def _load_states_from_db(self) -> dict[str, dict]:
+        """Load enabled/last_run states for all jobs from DB."""
+        states: dict[str, dict] = {}
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return states
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(sa_text(
+                    "SELECT name, enabled, last_run "
+                    "FROM scheduled_jobs WHERE artel_id = :aid"
+                ), {"aid": settings.artel_id})
+                for row in result.fetchall():
+                    states[row[0]] = {"enabled": row[1], "last_run": row[2]}
+        except Exception as exc:
+            _log.error("scheduler._load_states_from_db failed: %s", exc)
+        return states
+
+    async def _load_user_jobs_from_db(self) -> None:
+        """Load user-created (non-system) jobs from DB."""
         try:
             from src.organism.memory.database import AsyncSessionLocal
             from sqlalchemy import text as sa_text
@@ -323,12 +188,15 @@ class ProactiveScheduler:
                 result = await session.execute(sa_text(
                     "SELECT name, task_text, schedule_type, time_of_day, weekday, "
                     "interval_minutes, enabled, last_run, artel_id, "
-                    "COALESCE(channel_id, '') as channel_id "
-                    "FROM scheduled_jobs WHERE artel_id = :aid"
+                    "COALESCE(channel_id, '') as channel_id, "
+                    "COALESCE(personality_id, '') as personality_id "
+                    "FROM scheduled_jobs WHERE artel_id = :aid AND is_system = false"
                 ), {"aid": settings.artel_id})
                 rows = result.fetchall()
             loaded = 0
             for row in rows:
+                if row[0] in self.jobs:
+                    continue  # config job already loaded
                 tod = None
                 if row[3]:
                     parts = row[3].split(":")
@@ -344,13 +212,16 @@ class ProactiveScheduler:
                     last_run=row[7],
                     artel_id=row[8],
                     channel_id=row[9] or "",
+                    personality_id=row[10] or "",
                 )
-                self.jobs[job.name] = job  # overwrites system job if same name
+                self.jobs[job.name] = job
                 loaded += 1
             if loaded:
-                _log.info("scheduler.loaded_from_db: %d jobs", loaded)
+                _log.info("scheduler.loaded_user_jobs: %d", loaded)
         except Exception as exc:
-            _log.error("scheduler.load_from_db failed: %s", exc)
+            _log.error("scheduler._load_user_jobs_from_db failed: %s", exc)
+
+    # -- Persistence layer (SCHED-1a) --
 
     async def _save_job(self, job: ScheduledJob, is_system: bool = False) -> None:
         """Upsert a job to DB."""
@@ -365,25 +236,27 @@ class ProactiveScheduler:
                 result = await session.execute(sa_text(
                     "UPDATE scheduled_jobs SET task_text=:tt, schedule_type=:st, "
                     "time_of_day=:tod, weekday=:wd, interval_minutes=:im, "
-                    "enabled=:en, is_system=:sys, channel_id=:cid "
+                    "enabled=:en, is_system=:sys, channel_id=:cid, personality_id=:pid "
                     "WHERE name=:n AND artel_id=:aid"
                 ), {
                     "tt": job.task_text, "st": job.schedule_type, "tod": tod_str,
                     "wd": job.weekday, "im": job.interval_minutes, "en": job.enabled,
                     "sys": is_system, "n": job.name, "aid": job.artel_id,
-                    "cid": job.channel_id,
+                    "cid": job.channel_id, "pid": job.personality_id,
                 })
                 if result.rowcount == 0:
                     await session.execute(sa_text(
                         "INSERT INTO scheduled_jobs "
                         "(name, task_text, schedule_type, time_of_day, weekday, "
-                        "interval_minutes, enabled, artel_id, is_system, channel_id) "
-                        "VALUES (:n, :tt, :st, :tod, :wd, :im, :en, :aid, :sys, :cid)"
+                        "interval_minutes, enabled, artel_id, is_system, "
+                        "channel_id, personality_id) "
+                        "VALUES (:n, :tt, :st, :tod, :wd, :im, :en, :aid, :sys, "
+                        ":cid, :pid)"
                     ), {
                         "n": job.name, "tt": job.task_text, "st": job.schedule_type,
                         "tod": tod_str, "wd": job.weekday, "im": job.interval_minutes,
                         "en": job.enabled, "aid": job.artel_id, "sys": is_system,
-                        "cid": job.channel_id,
+                        "cid": job.channel_id, "pid": job.personality_id,
                     })
                 await session.commit()
         except Exception as exc:
@@ -500,7 +373,7 @@ class ProactiveScheduler:
             _log.warning("scheduler.unknown_internal: %s", command)
 
     async def _loop(self) -> None:
-        """Main scheduler loop — checks every 30 seconds."""
+        """Main scheduler loop \u2014 checks every 30 seconds."""
         while self._running:
             now = datetime.utcnow()
             for job in list(self.jobs.values()):
@@ -516,7 +389,9 @@ class ProactiveScheduler:
                     if job.task_text.startswith("__internal__:"):
                         await self._run_internal(job.task_text)
                     else:
-                        result = await self.task_runner(job.task_text)
+                        result = await self.task_runner(
+                            job.task_text, personality_id=job.personality_id,
+                        )
                         if result.success and self.notify:
                             output = result.output or ""
                             await self.notify(
@@ -526,7 +401,7 @@ class ProactiveScheduler:
                             )
                 except Exception as exc:
                     _log.error(
-                        "scheduler.job_error: %s — %s: %s",
+                        "scheduler.job_error: %s \u2014 %s: %s",
                         job.name, type(exc).__name__, exc,
                     )
             try:
