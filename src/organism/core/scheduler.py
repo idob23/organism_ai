@@ -35,6 +35,7 @@ class ScheduledJob:
     artel_id: str = "default"
     channel_id: str = ""  # Telegram channel to publish results ("" = personal only)
     personality_id: str = ""  # Personality override for this job ("" = use default)
+    requires_approval: bool = False  # If True, send to personal chat for review before publishing
 
 
 def load_jobs_from_config(artel_id: str) -> list[ScheduledJob]:
@@ -76,6 +77,7 @@ def load_jobs_from_config(artel_id: str) -> list[ScheduledJob]:
                 artel_id=settings.artel_id,
                 channel_id=item.get("channel_id", ""),
                 personality_id=item.get("personality_id", ""),
+                requires_approval=item.get("requires_approval", False),
             )
             jobs.append(job)
         except Exception as exc:
@@ -98,6 +100,8 @@ class ProactiveScheduler:
         self.jobs: dict[str, ScheduledJob] = {}
         self._running: bool = False
         self._task: asyncio.Task | None = None
+        # FIX-90: pending publications awaiting human review
+        self._pending_publications: dict[str, dict] = {}
 
     def add_job(self, job: ScheduledJob) -> None:
         self.jobs[job.name] = job
@@ -136,6 +140,25 @@ class ProactiveScheduler:
 
     def list_jobs(self) -> list[ScheduledJob]:
         return list(self.jobs.values())
+
+    # -- Pending publications (FIX-90) --
+
+    def add_pending_publication(self, short_id: str, text: str, channel_id: str, job_name: str) -> None:
+        self._pending_publications[short_id] = {
+            "text": text,
+            "channel_id": channel_id,
+            "job_name": job_name,
+            "created_at": datetime.utcnow(),
+        }
+
+    def get_pending_publication(self, short_id: str) -> dict | None:
+        return self._pending_publications.get(short_id)
+
+    def remove_pending_publication(self, short_id: str) -> dict | None:
+        return self._pending_publications.pop(short_id, None)
+
+    def list_pending_publications(self) -> list[tuple[str, dict]]:
+        return list(self._pending_publications.items())
 
     # -- Startup sync (FIX-89) --
 
@@ -189,7 +212,8 @@ class ProactiveScheduler:
                     "SELECT name, task_text, schedule_type, time_of_day, weekday, "
                     "interval_minutes, enabled, last_run, artel_id, "
                     "COALESCE(channel_id, '') as channel_id, "
-                    "COALESCE(personality_id, '') as personality_id "
+                    "COALESCE(personality_id, '') as personality_id, "
+                    "COALESCE(requires_approval, false) as requires_approval "
                     "FROM scheduled_jobs WHERE artel_id = :aid AND is_system = false"
                 ), {"aid": settings.artel_id})
                 rows = result.fetchall()
@@ -213,6 +237,7 @@ class ProactiveScheduler:
                     artel_id=row[8],
                     channel_id=row[9] or "",
                     personality_id=row[10] or "",
+                    requires_approval=bool(row[11]) if row[11] is not None else False,
                 )
                 self.jobs[job.name] = job
                 loaded += 1
@@ -236,27 +261,30 @@ class ProactiveScheduler:
                 result = await session.execute(sa_text(
                     "UPDATE scheduled_jobs SET task_text=:tt, schedule_type=:st, "
                     "time_of_day=:tod, weekday=:wd, interval_minutes=:im, "
-                    "enabled=:en, is_system=:sys, channel_id=:cid, personality_id=:pid "
+                    "enabled=:en, is_system=:sys, channel_id=:cid, personality_id=:pid, "
+                    "requires_approval=:ra "
                     "WHERE name=:n AND artel_id=:aid"
                 ), {
                     "tt": job.task_text, "st": job.schedule_type, "tod": tod_str,
                     "wd": job.weekday, "im": job.interval_minutes, "en": job.enabled,
                     "sys": is_system, "n": job.name, "aid": job.artel_id,
                     "cid": job.channel_id, "pid": job.personality_id,
+                    "ra": job.requires_approval,
                 })
                 if result.rowcount == 0:
                     await session.execute(sa_text(
                         "INSERT INTO scheduled_jobs "
                         "(name, task_text, schedule_type, time_of_day, weekday, "
                         "interval_minutes, enabled, artel_id, is_system, "
-                        "channel_id, personality_id) "
+                        "channel_id, personality_id, requires_approval) "
                         "VALUES (:n, :tt, :st, :tod, :wd, :im, :en, :aid, :sys, "
-                        ":cid, :pid)"
+                        ":cid, :pid, :ra)"
                     ), {
                         "n": job.name, "tt": job.task_text, "st": job.schedule_type,
                         "tod": tod_str, "wd": job.weekday, "im": job.interval_minutes,
                         "en": job.enabled, "aid": job.artel_id, "sys": is_system,
                         "cid": job.channel_id, "pid": job.personality_id,
+                        "ra": job.requires_approval,
                     })
                 await session.commit()
         except Exception as exc:
@@ -398,6 +426,7 @@ class ProactiveScheduler:
                                 job.artel_id,
                                 f"[{job.name}] {output[:4000]}",
                                 job.channel_id,
+                                job.requires_approval,
                             )
                 except Exception as exc:
                     _log.error(

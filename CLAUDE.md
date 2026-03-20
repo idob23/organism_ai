@@ -93,6 +93,7 @@ organism_ai/
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
 - Спринты 1-9 завершены, FIX-1 → FIX-89, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
 - FIX-89: scheduler config/jobs/{artel_id}.json, personality_id per job, enable/disable persistence
+- FIX-90: requires_approval на ScheduledJob — review mode перед публикацией в канал; /publish /reject_post /pending
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

@@ -34,6 +34,9 @@ HELP_TEXT = (
     "  /agents                  \u2014 list role templates and created agents\n"
     "  /create_agent <role> [name] \u2014 create an agent from a role template\n"
     "  /assign <agent> <task>   \u2014 assign a task to a specific agent\n"
+    "  /pending                 \u2014 show posts awaiting review\n"
+    "  /publish <id>            \u2014 publish a reviewed post to channel\n"
+    "  /reject_post <id>        \u2014 reject a post (discard without publishing)\n"
     "  /help                    \u2014 show this help\n"
     "\n"
     "  (schedule management also available in natural language)\n"
@@ -73,6 +76,14 @@ class CommandHandler:
             return self._handle_schedule_toggle(parts, enable=True)
         elif cmd == "/schedule_disable":
             return self._handle_schedule_toggle(parts, enable=False)
+
+        # FIX-90: pending publication commands — no memory required
+        if cmd == "/publish":
+            return await self._handle_publish(parts)
+        elif cmd == "/reject_post":
+            return await self._handle_reject_post(parts)
+        elif cmd == "/pending":
+            return self._handle_pending()
 
         # Approval commands — no memory required
         if cmd == "/approve":
@@ -574,6 +585,63 @@ class CommandHandler:
             )
         except Exception as exc:
             return f"\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u044f \u0430\u0433\u0435\u043d\u0442\u0430: {exc}"
+
+    # ── Pending publications (FIX-90) ────────────────────────────────────
+
+    def _handle_pending(self) -> str:
+        """Show posts awaiting review: /pending."""
+        if self.scheduler is None:
+            return "Scheduler not available."
+        pubs = self.scheduler.list_pending_publications()
+        if not pubs:
+            return "\u041d\u0435\u0442 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0439 \u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435."
+        lines = ["\U0001f4dd \u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 \u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435:"]
+        for short_id, pub in pubs:
+            preview = pub["text"][:100].replace("\n", " ")
+            lines.append(
+                f"  [{short_id}] \u2192 {pub['channel_id']}: {preview}..."
+            )
+            lines.append(
+                f"    /publish {short_id}   /reject_post {short_id}"
+            )
+        return "\n".join(lines)
+
+    async def _handle_publish(self, parts: list[str]) -> str:
+        """Publish a pending post to its channel: /publish <id>."""
+        if self.scheduler is None:
+            return "Scheduler not available."
+        if len(parts) < 2:
+            return "Usage: /publish <id>"
+        short_id = parts[1].strip()
+        pub = self.scheduler.get_pending_publication(short_id)
+        if pub is None:
+            return f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}"
+        from aiogram import Bot
+        from config.settings import settings
+        bot = Bot(token=settings.telegram_bot_token)
+        try:
+            await bot.send_message(pub["channel_id"], pub["text"])
+        except Exception as e:
+            return f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438: {e}"
+        finally:
+            await bot.session.close()
+        self.scheduler.remove_pending_publication(short_id)
+        return f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e \u0432 {pub['channel_id']}"
+
+    async def _handle_reject_post(self, parts: list[str]) -> str:
+        """Discard a pending post: /reject_post <id>."""
+        if self.scheduler is None:
+            return "Scheduler not available."
+        if len(parts) < 2:
+            return "Usage: /reject_post <id>"
+        short_id = parts[1].strip()
+        pub = self.scheduler.remove_pending_publication(short_id)
+        if pub is None:
+            return f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}"
+        return (
+            f"\u041e\u0442\u043a\u043b\u043e\u043d\u0435\u043d\u043e: "
+            f"{pub.get('job_name') or short_id} \u2192 {pub['channel_id']}"
+        )
 
     async def _handle_assign(self, parts: list[str]) -> str:
         """Assign a task to a specific agent: /assign <agent> <task>."""

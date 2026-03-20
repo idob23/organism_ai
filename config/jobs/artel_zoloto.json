@@ -6,6 +6,7 @@
     "time_of_day": "21:00",
     "personality_id": "artel_zoloto",
     "channel_id": "",
+    "requires_approval": false,
     "enabled_default": false
   },
   {
@@ -15,6 +16,7 @@
     "interval_minutes": 360,
     "personality_id": "artel_zoloto",
     "channel_id": "",
+    "requires_approval": false,
     "enabled_default": false
   },
   {
@@ -25,6 +27,7 @@
     "weekday": 6,
     "personality_id": "",
     "channel_id": "",
+    "requires_approval": false,
     "enabled_default": false
   },
   {
@@ -35,6 +38,7 @@
     "weekday": 6,
     "personality_id": "",
     "channel_id": "",
+    "requires_approval": false,
     "enabled_default": false
   },
   {
@@ -44,6 +48,7 @@
     "time_of_day": "04:00",
     "personality_id": "ai_media",
     "channel_id": "@organism_ai",
+    "requires_approval": true,
     "enabled_default": false
   },
   {
@@ -54,6 +59,7 @@
     "weekday": 0,
     "personality_id": "ai_media",
     "channel_id": "@organism_ai",
+    "requires_approval": true,
     "enabled_default": false
   },
   {
@@ -64,6 +70,7 @@
     "weekday": 2,
     "personality_id": "ai_media",
     "channel_id": "@organism_ai",
+    "requires_approval": true,
     "enabled_default": false
   }
 ]

@@ -260,22 +260,44 @@ async def run_telegram() -> None:
     loop = build_loop(registry, with_orchestrator=True)
 
     # --- Proactive scheduler ---
-    async def _notify(artel_id: str, message: str, channel_id: str = "") -> None:
-        """Send scheduled task result to allowed Telegram users and channel."""
+    async def _notify(artel_id: str, message: str, channel_id: str = "", requires_approval: bool = False) -> None:
+        """Send scheduled task result to allowed Telegram users and channel.
+
+        FIX-90: if channel_id + requires_approval, send review request to personal chat only.
+        Human approves via /publish <id> or rejects via /reject_post <id>.
+        """
+        import uuid as _uuid
         from aiogram import Bot
         bot = Bot(token=settings.telegram_bot_token)
         try:
-            for uid in (settings.allowed_user_ids or []):
-                try:
-                    await bot.send_message(uid, message)
-                except Exception:
-                    pass
-            # FIX-88: publish to channel only if job specifies channel_id
-            if channel_id:
-                try:
-                    await bot.send_message(channel_id, message)
-                except Exception:
-                    pass
+            if channel_id and requires_approval:
+                # Review mode: send to personal chat with approval buttons, NOT to channel
+                short_id = _uuid.uuid4().hex[:8]
+                scheduler.add_pending_publication(short_id, message, channel_id, "")
+                review_msg = (
+                    "\U0001f4dd \u041d\u0410 \u041f\u0420\u041e\u0412\u0415\u0420\u041a\u0423:\n\n"
+                    f"{message}\n\n"
+                    "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+                    f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c: /publish {short_id}\n"
+                    f"\u041e\u0442\u043a\u043b\u043e\u043d\u0438\u0442\u044c: /reject_post {short_id}"
+                )
+                for uid in (settings.allowed_user_ids or []):
+                    try:
+                        await bot.send_message(uid, review_msg)
+                    except Exception:
+                        pass
+            else:
+                # Normal mode: personal chat + channel (if specified)
+                for uid in (settings.allowed_user_ids or []):
+                    try:
+                        await bot.send_message(uid, message)
+                    except Exception:
+                        pass
+                if channel_id:
+                    try:
+                        await bot.send_message(channel_id, message)
+                    except Exception:
+                        pass
         finally:
             await bot.session.close()
 

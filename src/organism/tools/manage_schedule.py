@@ -110,6 +110,13 @@ class ManageScheduleTool(BaseTool):
                         "(e.g. 'ai_media'). Empty = use default personality."
                     ),
                 },
+                "requires_approval": {
+                    "type": "boolean",
+                    "description": (
+                        "If true, result is sent to personal chat for review "
+                        "before publishing to channel. Only relevant when channel_id is set."
+                    ),
+                },
             },
             "required": ["action"],
         }
@@ -160,9 +167,10 @@ class ManageScheduleTool(BaseTool):
             last = job.last_run.strftime("%Y-%m-%d %H:%M UTC") if job.last_run else "never"
             channel_info = f" \u2192 {job.channel_id}" if job.channel_id else ""
             persona_info = f" [{job.personality_id}]" if job.personality_id else ""
+            review_info = " \U0001f4dd" if job.requires_approval else ""
             lines.append(
                 f"- {job.name} [{schedule_desc}] {status} "
-                f"(last run: {last}){channel_info}{persona_info}"
+                f"(last run: {last}){channel_info}{persona_info}{review_info}"
             )
             lines.append(f"  task: {job.task_text[:100]}")
         return ToolResult(output="\n".join(lines), error="", exit_code=0)
@@ -224,6 +232,7 @@ class ManageScheduleTool(BaseTool):
 
         channel_id = input.get("channel_id", "").strip()
         personality_id = input.get("personality_id", "").strip()
+        requires_approval = bool(input.get("requires_approval", False))
 
         job = ScheduledJob(
             name=name,
@@ -236,6 +245,7 @@ class ManageScheduleTool(BaseTool):
             artel_id=settings.artel_id,
             channel_id=channel_id,
             personality_id=personality_id,
+            requires_approval=requires_approval,
         )
 
         await self._scheduler.create_job(job)

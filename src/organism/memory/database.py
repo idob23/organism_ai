@@ -579,6 +579,13 @@ async def _m013_scheduled_jobs_personality_id(conn) -> None:
     ))
 
 
+async def _m014_scheduled_jobs_requires_approval(conn) -> None:
+    """FIX-90: Add requires_approval to scheduled_jobs."""
+    await conn.execute(text(
+        "ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN DEFAULT false"
+    ))
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -595,4 +602,5 @@ _MIGRATIONS = [
     (11, "scheduled_jobs", _m011_scheduled_jobs),
     (12, "scheduled_jobs_channel_id", _m012_scheduled_jobs_channel_id),
     (13, "scheduled_jobs_personality_id", _m013_scheduled_jobs_personality_id),
+    (14, "scheduled_jobs_requires_approval", _m014_scheduled_jobs_requires_approval),
 ]

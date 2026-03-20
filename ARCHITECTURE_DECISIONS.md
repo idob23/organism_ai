@@ -1094,6 +1094,46 @@ Files: `scheduler.py`, `main.py`, `manage_schedule.py`, `database.py`.
 Files: `scheduler.py`, `core/loop.py`, `manage_schedule.py`, `database.py`, `main.py`,
 `benchmark.py`, `config/jobs/artel_zoloto.json`, `config/jobs/default.json`.
 
+### FIX-90: Review перед публикацией в канал — requires_approval на ScheduledJob
+**Problem:** Посты публиковались в Telegram-канал автоматически без проверки человеком.
+Для контента от имени компании нужен ручной review.
+
+**Existing HumanApproval (Q-6.3) не подходит** — он использует `asyncio.Event` с 300s
+таймаутом для in-task confirmation. Review постов требует другой механизм: пост может
+ждать часы, таймаута нет.
+
+**Solution:**
+
+1. `ScheduledJob.requires_approval: bool = False` — per-job флаг. В `config/jobs/artel_zoloto.json`
+   все медиа-задачи (`media_daily_news`, `media_weekly_digest`, `media_weekly_research`) получили
+   `requires_approval: true`.
+
+2. `ProactiveScheduler._pending_publications: dict[str, dict]` — in-memory хранилище
+   постов на проверке. key = `short_id` (8 hex символов). Методы:
+   `add_pending_publication`, `get_pending_publication`, `remove_pending_publication`,
+   `list_pending_publications`. При рестарте теряются (намеренно — in-memory).
+
+3. `_loop()` передаёт `job.requires_approval` в `notify()`.
+
+4. `_notify()` в `main.py` получает `requires_approval: bool = False`. Если
+   `channel_id and requires_approval` — создаёт `short_id`, кладёт в pending, отправляет
+   в личку review-сообщение с `/publish <id>` и `/reject_post <id>`. Канал не трогает.
+   Иначе — обычный режим (личка + канал).
+
+5. `CommandHandler` получает 3 новые команды:
+   - `/pending` — список постов на проверке
+   - `/publish <id>` — отправить пост в канал + убрать из pending
+   - `/reject_post <id>` — удалить из pending без публикации
+
+6. `manage_schedule.py` — `requires_approval` в input_schema, `_action_create`, `_action_list`
+   (показывает 📝 рядом с задачами с requires_approval=True).
+
+7. `database.py` — миграция #14: `ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS
+   requires_approval BOOLEAN DEFAULT false`. `_save_job()` и `_load_user_jobs_from_db()` обновлены.
+
+Files: `scheduler.py`, `main.py`, `commands/handler.py`, `tools/manage_schedule.py`,
+`database.py`, `config/jobs/artel_zoloto.json`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)
