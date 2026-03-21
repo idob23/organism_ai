@@ -45,7 +45,7 @@ python-pptx | fpdf2 | structlog | pydantic-settings | proxyapi.ru (embeddings)
 organism_ai/
 ├── src/organism/
 │   ├── core/           # loop.py, planner.py, evaluator.py, state_machine.py,
-│   │                   # decomposer.py, scheduler.py, personality.py,
+│   │                   # decomposer.py (reserved), scheduler.py, personality.py,
 │   │                   # skill_matcher.py, human_approval.py
 │   ├── tools/          # registry.py + 14 tools:
 │   │                   #   always: code_executor, pptx_creator, text_writer, web_fetch,

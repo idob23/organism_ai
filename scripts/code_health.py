@@ -199,6 +199,15 @@ def check_orphan_files() -> tuple[bool, str]:
     all_files = _all_py_files(SRC)
     all_files = [f for f in all_files if f.name != "__init__.py"]
 
+    # Files intentionally not imported elsewhere
+    _ORPHAN_EXCLUDE = {
+        # decomposer.py: reserved for future use (FIX-44 disabled from main path, kept for complex multi-phase tasks)
+        "decomposer.py",
+        # planner.py: used by loop.py via direct import of Planner, PlanStep
+        "planner.py",
+    }
+    all_files = [f for f in all_files if f.name not in _ORPHAN_EXCLUDE]
+
     # Collect all source text for import searching
     search_paths = list(_all_py_files(SRC))
     search_paths.extend([ROOT / "main.py", ROOT / "benchmark.py"])

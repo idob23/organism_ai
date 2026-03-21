@@ -13,8 +13,7 @@ specialized agents, and agent lifecycle. Focus on recursion safety and dead code
 - src/organism/agents/researcher.py — ResearcherAgent
 - src/organism/agents/writer.py — WriterAgent
 - src/organism/agents/analyst.py — AnalystAgent
-- src/organism/core/planner_module.py — PlannerModule
-- src/organism/core/decomposer.py — TaskDecomposer
+- src/organism/core/decomposer.py — TaskDecomposer (reserved, not in active path)
 - config/roles/*.md — role templates
 - config/agents/*.json — created agent configs
 
@@ -46,8 +45,7 @@ AnalystAgent) is imported from at least one other module.
   (used by _route_choice per FIX-62).
 - Agent cleanup: delete_agent() removes JSON file from config/agents/.
 - Orchestrator state machine: base Orchestrator — is it reachable in current flow?
-- PlannerModule: verify it's imported/used (by Orchestrator for plan step execution).
-- Decomposer: verify it's imported/used outside its own file.
+- Decomposer: reserved module (FIX-44), verify not accidentally imported into active paths.
 
 ## How to verify
 Script should:
