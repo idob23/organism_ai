@@ -215,6 +215,18 @@ class ScheduledJobRecord(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class PendingPublication(Base):
+    __tablename__ = "pending_publications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    short_id = Column(String(16), nullable=False, unique=True, index=True)
+    text = Column(Text, nullable=False)
+    channel_id = Column(String, nullable=False)
+    job_name = Column(String, default="")
+    artel_id = Column(String, default="default")
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class SchemaMigration(Base):
     __tablename__ = "schema_migrations"
 
@@ -589,6 +601,24 @@ async def _m014_scheduled_jobs_requires_approval(conn) -> None:
     ))
 
 
+async def _m015_pending_publications(conn) -> None:
+    """FIX-92: Persistent pending publications for review flow."""
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS pending_publications (
+            id SERIAL PRIMARY KEY,
+            short_id VARCHAR(16) NOT NULL UNIQUE,
+            text TEXT NOT NULL,
+            channel_id VARCHAR NOT NULL,
+            job_name VARCHAR DEFAULT '',
+            artel_id VARCHAR DEFAULT 'default',
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    await conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_pp_short_id ON pending_publications (short_id)"
+    ))
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -606,4 +636,5 @@ _MIGRATIONS = [
     (12, "scheduled_jobs_channel_id", _m012_scheduled_jobs_channel_id),
     (13, "scheduled_jobs_personality_id", _m013_scheduled_jobs_personality_id),
     (14, "scheduled_jobs_requires_approval", _m014_scheduled_jobs_requires_approval),
+    (15, "pending_publications", _m015_pending_publications),
 ]

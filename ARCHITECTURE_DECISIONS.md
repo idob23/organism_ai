@@ -1155,6 +1155,22 @@ score, while CLAUDE.md and actual benchmark had 30 tasks.
 
 Files: `database.py`, `main.py`, `CLAUDE.md`, `ARCHITECTURE_DECISIONS.md`.
 
+### FIX-92: Persist pending publications to DB
+**Problem:** `_pending_publications` was an in-memory `dict` on `ProactiveScheduler`. On bot
+restart (deploy, OOM, Docker restart) all pending review posts were lost silently.
+
+**Solution:**
+1. `PendingPublication` ORM model in `database.py` (short_id, text, channel_id, job_name,
+   artel_id, created_at). Migration #15 creates `pending_publications` table.
+2. Replaced 4 in-memory methods on `ProactiveScheduler` with async DB-backed versions:
+   `add_pending_publication`, `get_pending_publication`, `remove_pending_publication`,
+   `list_pending_publications`. All wrapped in try/except with structlog.
+3. Added `await` at all call sites: `_notify()` in main.py, `_handle_publish()`,
+   `_handle_reject_post()`, `_handle_pending()` in handler.py.
+4. Removed `self._pending_publications` dict entirely.
+
+Files: `database.py`, `scheduler.py`, `main.py`, `commands/handler.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

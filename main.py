@@ -277,7 +277,7 @@ async def run_telegram() -> None:
             if channel_id and requires_approval:
                 # Review mode: send to personal chat with approval buttons, NOT to channel
                 short_id = _uuid.uuid4().hex[:8]
-                scheduler.add_pending_publication(short_id, message, channel_id, "")
+                await scheduler.add_pending_publication(short_id, message, channel_id, "")
                 review_msg = (
                     "\U0001f4dd \u041d\u0410 \u041f\u0420\u041e\u0412\u0415\u0420\u041a\u0423:\n\n"
                     f"{message}\n\n"

@@ -91,10 +91,10 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-91, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
-- FIX-89: scheduler config/jobs/{artel_id}.json, personality_id per job, enable/disable persistence
+- Спринты 1-9 завершены, FIX-1 → FIX-92, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
 - FIX-90: requires_approval на ScheduledJob — review mode перед публикацией в канал; /publish /reject_post /pending
-- FIX-91: ORM-модель ScheduledJobRecord синхронизирована с миграциями #12-14; startup ordering fix в run_telegram()
+- FIX-91: ORM sync + startup ordering + docs sync
+- FIX-92: pending publications persisted to DB (survive restart); migration #15
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

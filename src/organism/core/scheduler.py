@@ -100,9 +100,6 @@ class ProactiveScheduler:
         self.jobs: dict[str, ScheduledJob] = {}
         self._running: bool = False
         self._task: asyncio.Task | None = None
-        # FIX-90: pending publications awaiting human review
-        self._pending_publications: dict[str, dict] = {}
-
     def add_job(self, job: ScheduledJob) -> None:
         self.jobs[job.name] = job
         _log.info("scheduler.add_job: %s (%s)", job.name, job.schedule_type)
@@ -141,24 +138,84 @@ class ProactiveScheduler:
     def list_jobs(self) -> list[ScheduledJob]:
         return list(self.jobs.values())
 
-    # -- Pending publications (FIX-90) --
+    # -- Pending publications (FIX-90, FIX-92: persisted to DB) --
 
-    def add_pending_publication(self, short_id: str, text: str, channel_id: str, job_name: str) -> None:
-        self._pending_publications[short_id] = {
-            "text": text,
-            "channel_id": channel_id,
-            "job_name": job_name,
-            "created_at": datetime.utcnow(),
-        }
+    async def add_pending_publication(self, short_id: str, text: str, channel_id: str, job_name: str) -> None:
+        """Save pending publication to DB."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return
+            async with AsyncSessionLocal() as session:
+                await session.execute(sa_text(
+                    "INSERT INTO pending_publications (short_id, text, channel_id, job_name, artel_id) "
+                    "VALUES (:sid, :txt, :cid, :jn, :aid)"
+                ), {"sid": short_id, "txt": text, "cid": channel_id, "jn": job_name, "aid": settings.artel_id})
+                await session.commit()
+        except Exception as exc:
+            _log.error("scheduler.add_pending_publication failed: %s", exc)
 
-    def get_pending_publication(self, short_id: str) -> dict | None:
-        return self._pending_publications.get(short_id)
+    async def get_pending_publication(self, short_id: str) -> dict | None:
+        """Get pending publication from DB by short_id."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return None
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(sa_text(
+                    "SELECT text, channel_id, job_name, created_at "
+                    "FROM pending_publications WHERE short_id = :sid"
+                ), {"sid": short_id})
+                row = result.fetchone()
+                if row:
+                    return {"text": row[0], "channel_id": row[1], "job_name": row[2], "created_at": row[3]}
+                return None
+        except Exception as exc:
+            _log.error("scheduler.get_pending_publication failed: %s", exc)
+            return None
 
-    def remove_pending_publication(self, short_id: str) -> dict | None:
-        return self._pending_publications.pop(short_id, None)
+    async def remove_pending_publication(self, short_id: str) -> dict | None:
+        """Remove pending publication from DB. Returns the publication or None."""
+        pub = await self.get_pending_publication(short_id)
+        if pub is None:
+            return None
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return pub
+            async with AsyncSessionLocal() as session:
+                await session.execute(sa_text(
+                    "DELETE FROM pending_publications WHERE short_id = :sid"
+                ), {"sid": short_id})
+                await session.commit()
+        except Exception as exc:
+            _log.error("scheduler.remove_pending_publication failed: %s", exc)
+        return pub
 
-    def list_pending_publications(self) -> list[tuple[str, dict]]:
-        return list(self._pending_publications.items())
+    async def list_pending_publications(self) -> list[tuple[str, dict]]:
+        """List all pending publications from DB."""
+        try:
+            from src.organism.memory.database import AsyncSessionLocal
+            from sqlalchemy import text as sa_text
+            if not AsyncSessionLocal:
+                return []
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(sa_text(
+                    "SELECT short_id, text, channel_id, job_name, created_at "
+                    "FROM pending_publications WHERE artel_id = :aid "
+                    "ORDER BY created_at ASC"
+                ), {"aid": settings.artel_id})
+                rows = result.fetchall()
+                return [
+                    (row[0], {"text": row[1], "channel_id": row[2], "job_name": row[3], "created_at": row[4]})
+                    for row in rows
+                ]
+        except Exception as exc:
+            _log.error("scheduler.list_pending_publications failed: %s", exc)
+            return []
 
     # -- Startup sync (FIX-89) --
 

@@ -83,7 +83,7 @@ class CommandHandler:
         elif cmd == "/reject_post":
             return await self._handle_reject_post(parts)
         elif cmd == "/pending":
-            return self._handle_pending()
+            return await self._handle_pending()
 
         # Approval commands — no memory required
         if cmd == "/approve":
@@ -588,11 +588,11 @@ class CommandHandler:
 
     # ── Pending publications (FIX-90) ────────────────────────────────────
 
-    def _handle_pending(self) -> str:
+    async def _handle_pending(self) -> str:
         """Show posts awaiting review: /pending."""
         if self.scheduler is None:
             return "Scheduler not available."
-        pubs = self.scheduler.list_pending_publications()
+        pubs = await self.scheduler.list_pending_publications()
         if not pubs:
             return "\u041d\u0435\u0442 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0439 \u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435."
         lines = ["\U0001f4dd \u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 \u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435:"]
@@ -613,7 +613,7 @@ class CommandHandler:
         if len(parts) < 2:
             return "Usage: /publish <id>"
         short_id = parts[1].strip()
-        pub = self.scheduler.get_pending_publication(short_id)
+        pub = await self.scheduler.get_pending_publication(short_id)
         if pub is None:
             return f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}"
         from aiogram import Bot
@@ -625,7 +625,7 @@ class CommandHandler:
             return f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438: {e}"
         finally:
             await bot.session.close()
-        self.scheduler.remove_pending_publication(short_id)
+        await self.scheduler.remove_pending_publication(short_id)
         return f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e \u0432 {pub['channel_id']}"
 
     async def _handle_reject_post(self, parts: list[str]) -> str:
@@ -635,7 +635,7 @@ class CommandHandler:
         if len(parts) < 2:
             return "Usage: /reject_post <id>"
         short_id = parts[1].strip()
-        pub = self.scheduler.remove_pending_publication(short_id)
+        pub = await self.scheduler.remove_pending_publication(short_id)
         if pub is None:
             return f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}"
         return (
