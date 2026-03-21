@@ -548,6 +548,28 @@ Files: `config/settings.py`, `src/organism/tools/code_executor.py`,
 `main.py`, `benchmark.py`, `.dockerignore`, `.env.example`, `.env.production.example`,
 `config/dev_roles/` (new, 11 files).
 
+## REVIEW-2: Code review role templates
+
+9 specialized reviewer templates + 1 coordinator in config/dev_roles/:
+
+| Template | Scope | Key checks |
+|----------|-------|------------|
+| reviewer_memory | memory/ (14 files) | artel isolation, ORM sync, migrations, connections, embeddings |
+| reviewer_core | core/, llm/, safety/ (9 files) | context chain, media parity, evaluator, tool rounds |
+| reviewer_self_improvement | self_improvement/ (10 files) | PVC integration, auto-improver cycle, dead code |
+| reviewer_tools | tools/, config/skills/ (18 files) | registry sync, schema-execute match, created_files |
+| reviewer_channels | channels/, commands/ (6 files) | command docs, chat history, file delivery, HTML escaping |
+| reviewer_agents | agents/, planner, decomposer (10 files) | recursion guard, dead agents, factory singleton |
+| reviewer_infra | scheduler, MCP, A2A, Docker (12 files) | scheduler persistence, atomic publish, settings completeness |
+| reviewer_docs | all .md documentation (8 files) | file structure sync, benchmark metrics, convention drift |
+| reviewer_quality | benchmark, pre_commit (4 files) | task coverage, score inflation, edge cases |
+| review_coordinator | orchestrates all 9 | cross-module issues, prioritized action plan |
+
+Each template: English instructions for LLM, Russian report output.
+DevReviewTool loads templates by scope, runs code_health.py, returns structured instruction.
+
+Files: `config/dev_roles/*.md` (10 files updated).
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

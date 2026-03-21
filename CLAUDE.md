@@ -83,7 +83,7 @@ organism_ai/
 │   ├── personality/    # default.md, artel_zoloto.md, ai_media.md
 │   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
 │   │                   # causal_analyzer.txt, template_extractor.txt
-│   ├── dev_roles/      # reviewer_*.md stubs (REVIEW-1, filled in REVIEW-2)
+│   ├── dev_roles/      # 9 reviewer templates + coordinator (REVIEW-2)
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
 ├── scripts/            # health_check.py, code_health.py, deploy.sh, backup.sh, restore.sh
 ├── benchmark.py        # 30 задач
