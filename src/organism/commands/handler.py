@@ -52,12 +52,14 @@ class CommandHandler:
         personality=None,
         factory: "AgentFactory | None" = None,
         loop: "CoreLoop | None" = None,
+        bot_sender=None,
     ) -> None:
         self.scheduler = scheduler
         self.approval = approval
         self.personality = personality
         self.factory = factory
         self.loop = loop
+        self.bot_sender = bot_sender
 
     def is_command(self, text: str) -> bool:
         return text.strip().startswith("/")
@@ -73,9 +75,9 @@ class CommandHandler:
         if cmd == "/schedule":
             return self._handle_schedule()
         elif cmd == "/schedule_enable":
-            return self._handle_schedule_toggle(parts, enable=True)
+            return await self._handle_schedule_toggle(parts, enable=True)
         elif cmd == "/schedule_disable":
-            return self._handle_schedule_toggle(parts, enable=False)
+            return await self._handle_schedule_toggle(parts, enable=False)
 
         # FIX-90: pending publication commands — no memory required
         if cmd == "/publish":
@@ -289,7 +291,7 @@ class CommandHandler:
             lines.append(f"  [{status}] {j.name} — {sched} (last: {last})")
         return "\n".join(lines)
 
-    def _handle_schedule_toggle(self, parts: list[str], enable: bool) -> str:
+    async def _handle_schedule_toggle(self, parts: list[str], enable: bool) -> str:
         """Enable or disable a scheduled task."""
         if self.scheduler is None:
             return "Scheduler not available (only in Telegram mode)."
@@ -301,10 +303,10 @@ class CommandHandler:
             available = ", ".join(self.scheduler.jobs.keys()) if self.scheduler.jobs else "none"
             return f"Job not found: {name}\nAvailable: {available}"
         if enable:
-            self.scheduler.enable_job(name)
+            await self.scheduler.enable_job(name)
             return f"Enabled: {name}"
         else:
-            self.scheduler.disable_job(name)
+            await self.scheduler.disable_job(name)
             return f"Disabled: {name}"
 
     def _handle_approval(self, parts: list[str], approved: bool) -> str:
@@ -616,15 +618,11 @@ class CommandHandler:
         pub = await self.scheduler.get_pending_publication(short_id)
         if pub is None:
             return f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}"
-        from aiogram import Bot
-        from config.settings import settings
-        bot = Bot(token=settings.telegram_bot_token)
-        try:
-            await bot.send_message(pub["channel_id"], pub["text"])
-        except Exception as e:
-            return f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438: {e}"
-        finally:
-            await bot.session.close()
+        if not self.bot_sender:
+            return "BotSender not configured."
+        success = await self.bot_sender.send(pub["channel_id"], pub["text"])
+        if not success:
+            return f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 \u0432 {pub['channel_id']}"
         await self.scheduler.remove_pending_publication(short_id)
         return f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e \u0432 {pub['channel_id']}"
 

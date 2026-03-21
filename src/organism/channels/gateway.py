@@ -30,6 +30,7 @@ class Gateway:
         loop: "CoreLoop",
         scheduler: "ProactiveScheduler | None" = None,
         approval: "HumanApproval | None" = None,
+        bot_sender=None,
     ) -> None:
         self.loop = loop
         self.scheduler = scheduler
@@ -42,6 +43,7 @@ class Gateway:
             personality=getattr(loop, "personality", None),
             factory=self.factory,
             loop=loop,
+            bot_sender=bot_sender,
         )
         self._channels: dict[str, BaseChannel] = {}
 

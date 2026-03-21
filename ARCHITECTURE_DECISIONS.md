@@ -1171,6 +1171,27 @@ restart (deploy, OOM, Docker restart) all pending review posts were lost silentl
 
 Files: `database.py`, `scheduler.py`, `main.py`, `commands/handler.py`.
 
+### FIX-93: BotSender + async enable/disable
+**Problem 1:** `Bot(token=...) → send → bot.session.close()` duplicated in 3 places
+(main.py `_send_approval`, main.py `_notify`, handler.py `_handle_publish`). Hard to add
+retry/rate-limiting, risk of session leak.
+
+**Problem 2:** `enable_job()` / `disable_job()` used deprecated
+`asyncio.get_event_loop().create_task()` for fire-and-forget DB persistence. Neighboring
+`set_job_enabled()` already had proper async/await.
+
+**Solution:**
+1. `BotSender` class in `channels/bot_sender.py`: `send(chat_id, text) → bool`,
+   `send_many(chat_ids, text) → int`. One Bot() per call, always closes session.
+2. `_send_approval()` and `_notify()` in main.py refactored to use `bot_sender`.
+3. `_handle_publish()` in handler.py uses `self.bot_sender.send()` instead of direct Bot().
+4. Gateway gains `bot_sender` param, passes to CommandHandler.
+5. `enable_job()` / `disable_job()` → async with `await self._save_job()`.
+6. `_handle_schedule_toggle()` → async with `await`.
+
+Files: `channels/bot_sender.py` (new), `main.py`, `channels/gateway.py`,
+`commands/handler.py`, `core/scheduler.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

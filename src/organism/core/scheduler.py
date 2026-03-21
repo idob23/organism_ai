@@ -108,22 +108,16 @@ class ProactiveScheduler:
         self.jobs.pop(name, None)
         _log.info("scheduler.remove_job: %s", name)
 
-    def enable_job(self, name: str) -> None:
+    async def enable_job(self, name: str) -> None:
         if name in self.jobs:
             self.jobs[name].enabled = True
-            try:
-                asyncio.get_event_loop().create_task(self._save_job(self.jobs[name]))
-            except Exception:
-                pass
+            await self._save_job(self.jobs[name])
             _log.info("scheduler.enable_job: %s", name)
 
-    def disable_job(self, name: str) -> None:
+    async def disable_job(self, name: str) -> None:
         if name in self.jobs:
             self.jobs[name].enabled = False
-            try:
-                asyncio.get_event_loop().create_task(self._save_job(self.jobs[name]))
-            except Exception:
-                pass
+            await self._save_job(self.jobs[name])
             _log.info("scheduler.disable_job: %s", name)
 
     async def set_job_enabled(self, name: str, enabled: bool) -> bool:

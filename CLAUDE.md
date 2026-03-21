@@ -91,10 +91,10 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-92, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
-- FIX-90: requires_approval на ScheduledJob — review mode перед публикацией в канал; /publish /reject_post /pending
+- Спринты 1-9 завершены, FIX-1 → FIX-93, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
 - FIX-91: ORM sync + startup ordering + docs sync
 - FIX-92: pending publications persisted to DB (survive restart); migration #15
+- FIX-93: BotSender (channels/bot_sender.py) — единый отправщик Telegram; async enable/disable_job
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

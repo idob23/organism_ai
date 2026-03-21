@@ -240,19 +240,14 @@ async def run_telegram() -> None:
     registry = build_registry()
     await _connect_mcp(registry)
 
+    # FIX-93: Single BotSender for all Telegram sends
+    from src.organism.channels.bot_sender import BotSender
+    bot_sender = BotSender(settings.telegram_bot_token)
+
     # --- Human-in-the-loop approval ---
     async def _send_approval(message: str) -> None:
         """Send approval request to allowed Telegram users."""
-        from aiogram import Bot
-        bot = Bot(token=settings.telegram_bot_token)
-        try:
-            for uid in (settings.allowed_user_ids or []):
-                try:
-                    await bot.send_message(uid, message)
-                except Exception:
-                    pass
-        finally:
-            await bot.session.close()
+        await bot_sender.send_many(settings.allowed_user_ids or [], message)
 
     approval = HumanApproval(send_fn=_send_approval)
     registry.register(ConfirmUserTool(approval=approval))
@@ -271,39 +266,23 @@ async def run_telegram() -> None:
         Human approves via /publish <id> or rejects via /reject_post <id>.
         """
         import uuid as _uuid
-        from aiogram import Bot
-        bot = Bot(token=settings.telegram_bot_token)
-        try:
-            if channel_id and requires_approval:
-                # Review mode: send to personal chat with approval buttons, NOT to channel
-                short_id = _uuid.uuid4().hex[:8]
-                await scheduler.add_pending_publication(short_id, message, channel_id, "")
-                review_msg = (
-                    "\U0001f4dd \u041d\u0410 \u041f\u0420\u041e\u0412\u0415\u0420\u041a\u0423:\n\n"
-                    f"{message}\n\n"
-                    "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
-                    f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c: /publish {short_id}\n"
-                    f"\u041e\u0442\u043a\u043b\u043e\u043d\u0438\u0442\u044c: /reject_post {short_id}"
-                )
-                for uid in (settings.allowed_user_ids or []):
-                    try:
-                        await bot.send_message(uid, review_msg)
-                    except Exception:
-                        pass
-            else:
-                # Normal mode: personal chat + channel (if specified)
-                for uid in (settings.allowed_user_ids or []):
-                    try:
-                        await bot.send_message(uid, message)
-                    except Exception:
-                        pass
-                if channel_id:
-                    try:
-                        await bot.send_message(channel_id, message)
-                    except Exception:
-                        pass
-        finally:
-            await bot.session.close()
+        if channel_id and requires_approval:
+            # Review mode: send to personal chat with approval buttons, NOT to channel
+            short_id = _uuid.uuid4().hex[:8]
+            await scheduler.add_pending_publication(short_id, message, channel_id, "")
+            review_msg = (
+                "\U0001f4dd \u041d\u0410 \u041f\u0420\u041e\u0412\u0415\u0420\u041a\u0423:\n\n"
+                f"{message}\n\n"
+                "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+                f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c: /publish {short_id}\n"
+                f"\u041e\u0442\u043a\u043b\u043e\u043d\u0438\u0442\u044c: /reject_post {short_id}"
+            )
+            await bot_sender.send_many(settings.allowed_user_ids or [], review_msg)
+        else:
+            # Normal mode: personal chat + channel (if specified)
+            await bot_sender.send_many(settings.allowed_user_ids or [], message)
+            if channel_id:
+                await bot_sender.send(channel_id, message)
 
     scheduler = ProactiveScheduler(
         task_runner=loop.run,
@@ -332,7 +311,7 @@ async def run_telegram() -> None:
                 "Error monitoring active (%s bot) -> chat %s", _bot_type, settings.error_monitor_chat_id
             )
 
-    gateway = Gateway(loop, scheduler=scheduler, approval=approval)
+    gateway = Gateway(loop, scheduler=scheduler, approval=approval, bot_sender=bot_sender)
     channel = TelegramChannel(gateway)
     gateway.register_channel("telegram", channel)
 
