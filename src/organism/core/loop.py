@@ -259,6 +259,15 @@ class CoreLoop:
             "HTML-\u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u0431\u0435\u0437 \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u044f, \u043f\u0440\u0438\u0448\u043b\u0438 JPG \u0438\u043b\u0438 PNG.' \u041f\u0440\u0438\u043c\u0435\u0440 \u043d\u0435\u0447\u0435\u0441\u0442\u043d\u043e\u0433\u043e: "
             "'\u0424\u0430\u0439\u043b \u043d\u0435 \u043f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u043b\u0441\u044f' \u2014 \u0435\u0441\u043b\u0438 \u0442\u044b \u0435\u0433\u043e \u0440\u0435\u0430\u043b\u044c\u043d\u043e \u043f\u043e\u043b\u0443\u0447\u0438\u043b \u0438 \u0447\u0438\u0442\u0430\u043b.",
         ]
+        # FIX-94: Timezone context for tools that need UTC input
+        from config.settings import settings as _tz_settings
+        tz_name = _tz_settings.timezone
+        system_parts.append(
+            f"\n## Timezone\n"
+            f"User timezone: {tz_name}. "
+            f"When user says a time (e.g. '9 \u0443\u0442\u0440\u0430'), it means {tz_name} time. "
+            f"If a tool requires UTC input, convert accordingly."
+        )
         if skill_context:
             system_parts.append(f"\n## How to create this file\n{skill_context}")
         if user_context:

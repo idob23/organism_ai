@@ -1192,6 +1192,26 @@ retry/rate-limiting, risk of session leak.
 Files: `channels/bot_sender.py` (new), `main.py`, `channels/gateway.py`,
 `commands/handler.py`, `core/scheduler.py`.
 
+### FIX-94: Code Review Round 5 — Cleanup
+Three issues fixed:
+
+1. **Dead file removed:** `core/context_budget.py` (~80 lines) was not imported anywhere
+   since FIX-66. File deleted, stale comment in planner.py updated.
+
+2. **Timezone context for schedule tool:** `manage_schedule` description said "All times must
+   be in UTC", but user says "9 утра" meaning local time (Asia/Vladivostok = UTC+10).
+   Added `## Timezone` section to system prompt in `_handle_conversation` with user timezone
+   from settings, so LLM converts local→UTC before calling tools. Updated tool description
+   to reference system context instead of demanding raw UTC.
+
+3. **Atomic `/publish`:** `_handle_publish()` had a race condition — two admins could
+   `/publish` the same post simultaneously (get → send → remove = two sends). Replaced
+   `remove_pending_publication` with `DELETE...RETURNING` (atomic). `_handle_publish` now
+   does remove-first: if send fails, re-adds the post via `add_pending_publication` for retry.
+
+Files: `context_budget.py` (deleted), `loop.py`, `manage_schedule.py`, `scheduler.py`,
+`handler.py`, `planner.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

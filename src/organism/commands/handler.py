@@ -615,15 +615,22 @@ class CommandHandler:
         if len(parts) < 2:
             return "Usage: /publish <id>"
         short_id = parts[1].strip()
-        pub = await self.scheduler.get_pending_publication(short_id)
+        # FIX-94: Atomic remove — only first caller gets the publication
+        pub = await self.scheduler.remove_pending_publication(short_id)
         if pub is None:
             return f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}"
         if not self.bot_sender:
             return "BotSender not configured."
         success = await self.bot_sender.send(pub["channel_id"], pub["text"])
         if not success:
-            return f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 \u0432 {pub['channel_id']}"
-        await self.scheduler.remove_pending_publication(short_id)
+            # Re-add if send failed so user can retry
+            try:
+                await self.scheduler.add_pending_publication(
+                    short_id, pub["text"], pub["channel_id"], pub.get("job_name", ""),
+                )
+            except Exception:
+                pass
+            return f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 \u0432 {pub['channel_id']}. \u041f\u043e\u0441\u0442 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0451\u043d \u0432 \u043e\u0447\u0435\u0440\u0435\u0434\u044c."
         return f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e \u0432 {pub['channel_id']}"
 
     async def _handle_reject_post(self, parts: list[str]) -> str:

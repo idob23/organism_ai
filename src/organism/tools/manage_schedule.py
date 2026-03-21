@@ -47,7 +47,8 @@ class ManageScheduleTool(BaseTool):
             "delete a user-created task, enable or disable a task. "
             "Use when the user wants to set up recurring/periodic tasks, "
             "check what's scheduled, or change schedule settings. "
-            "All times must be in UTC. The scheduler checks every 30 seconds. "
+            "Times should be provided in UTC. If user specifies local time, convert to UTC first "
+            "(user timezone is in system context). The scheduler checks every 30 seconds. "
             "Results of scheduled tasks are automatically delivered to the user's "
             "current chat \u2014 no additional setup needed."
         )

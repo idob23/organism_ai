@@ -171,23 +171,29 @@ class ProactiveScheduler:
             return None
 
     async def remove_pending_publication(self, short_id: str) -> dict | None:
-        """Remove pending publication from DB. Returns the publication or None."""
-        pub = await self.get_pending_publication(short_id)
-        if pub is None:
-            return None
+        """Atomically remove pending publication from DB. Returns the publication or None.
+
+        FIX-94: Uses DELETE...RETURNING to prevent race condition
+        when two admins call /publish simultaneously.
+        """
         try:
             from src.organism.memory.database import AsyncSessionLocal
             from sqlalchemy import text as sa_text
             if not AsyncSessionLocal:
-                return pub
+                return None
             async with AsyncSessionLocal() as session:
-                await session.execute(sa_text(
-                    "DELETE FROM pending_publications WHERE short_id = :sid"
+                result = await session.execute(sa_text(
+                    "DELETE FROM pending_publications WHERE short_id = :sid "
+                    "RETURNING text, channel_id, job_name, created_at"
                 ), {"sid": short_id})
+                row = result.fetchone()
                 await session.commit()
+                if row:
+                    return {"text": row[0], "channel_id": row[1], "job_name": row[2], "created_at": row[3]}
+                return None
         except Exception as exc:
             _log.error("scheduler.remove_pending_publication failed: %s", exc)
-        return pub
+            return None
 
     async def list_pending_publications(self) -> list[tuple[str, dict]]:
         """List all pending publications from DB."""

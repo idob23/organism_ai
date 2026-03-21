@@ -267,7 +267,7 @@ class Planner:
         user_context: str = '',
         task_type_hint: str | None = None,
     ) -> list[PlanStep]:
-        # Use pre-built context from ContextBudget if provided; otherwise build it here
+        # Use pre-built task_context if provided; otherwise build it here
         if task_context is not None:
             full_task = task_context
         else:
