@@ -379,6 +379,84 @@ def check_migration_order() -> tuple[bool, str]:
     return True, f"Migration Order: {len(versions)} migrations, sequential"
 
 
+# ── Check 8: Artel ID Coverage ──────────────────────────────────────────
+
+_ARTEL_TABLES = {
+    "task_memories", "solution_cache", "agent_reflections",
+    "user_profile", "knowledge_rules", "procedural_templates",
+    "chat_messages", "few_shot_examples", "memory_edges",
+}
+
+_ARTEL_ORM_CLASSES = {
+    "TaskMemory", "SolutionCacheEntry", "AgentReflection", "UserProfile",
+    "KnowledgeRule", "ProceduralTemplate", "ChatMessage", "FewShotExample",
+    "MemoryEdge",
+}
+
+_ARTEL_EXCLUDE = {
+    "database.py",       # ORM definitions + migrations
+    "state_machine.py",  # no DB access
+    "planner.py",        # receives pre-filtered data, no direct DB queries
+    "user_facts.py",     # isolates by user_id, not artel_id
+}
+
+_SQL_KEYWORDS = re.compile(
+    r'\b(SELECT|INSERT|UPDATE|DELETE|FROM|JOIN|INTO)\b', re.IGNORECASE,
+)
+
+_ORM_QUERY_CONTEXT = re.compile(
+    r'(select\(|session\.add\(|session\.execute\(|\.where\()',
+)
+
+
+def check_artel_id_coverage() -> tuple[bool, str]:
+    """Verify every file that queries artel_id tables also references artel_id."""
+    targets: list[Path] = _all_py_files(SRC)
+    targets.extend([ROOT / "main.py", ROOT / "benchmark.py"])
+
+    violations: list[str] = []
+    checked = 0
+
+    for fpath in targets:
+        if fpath.name in _ARTEL_EXCLUDE:
+            continue
+
+        content = _read(fpath)
+        if not content:
+            continue
+
+        # Find which artel tables this file references in query context
+        touched_tables: set[str] = set()
+
+        for line in content.split("\n"):
+            # SQL context: line mentions table name + SQL keyword
+            for table in _ARTEL_TABLES:
+                if table in line and _SQL_KEYWORDS.search(line):
+                    touched_tables.add(table)
+
+            # ORM context: line mentions model class + query pattern
+            if _ORM_QUERY_CONTEXT.search(line):
+                for cls in _ARTEL_ORM_CLASSES:
+                    if cls in line:
+                        touched_tables.add(cls)
+
+        if not touched_tables:
+            continue
+
+        checked += 1
+        if "artel_id" not in content:
+            rel = fpath.relative_to(ROOT)
+            tables_str = ", ".join(sorted(touched_tables))
+            violations.append(f"  {rel} references {{{tables_str}}} but has no artel_id filtering")
+
+    if violations:
+        return False, (
+            f"Artel ID Coverage: {checked} files checked\n"
+            + "\n".join(sorted(violations))
+        )
+    return True, f"Artel ID Coverage: {checked} files checked, all have artel_id filtering"
+
+
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -390,6 +468,7 @@ def main() -> int:
         check_dead_imports,
         check_benchmark_count,
         check_migration_order,
+        check_artel_id_coverage,
     ]
 
     print("=== Code Health Report ===\n")

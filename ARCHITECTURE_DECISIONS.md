@@ -554,7 +554,7 @@ DEV_MODE env var (settings.py) gates dev-only tools. Default false, true for dev
 **Sandbox repo access**: `_repo_volumes()` helper in code_executor.py mounts /repo/src/,
 /repo/config/, /repo/*.md as read-only inside Docker sandbox. Both warm and cold paths.
 
-**scripts/code_health.py**: 7 deterministic checks (stdlib only, no src.organism imports):
+**scripts/code_health.py**: 8 deterministic checks (stdlib only, no src.organism imports):
 1. File Structure Sync — .py files vs CLAUDE.md references
 2. Tool Registry Sync — main.py vs benchmark.py build_registry()
 3. Command Sync — HELP_TEXT vs CONVENTIONS.md
@@ -562,6 +562,7 @@ DEV_MODE env var (settings.py) gates dev-only tools. Default false, true for dev
 5. Dead Imports — unused imports from src.organism.*
 6. Benchmark Count — TASKS count vs docs
 7. Migration Order — sequential version numbers
+8. Artel ID Coverage — files querying artel_id tables must reference artel_id (HEALTH-1)
 
 **DevReviewTool** (tools/dev_review.py): runs code_health.py via subprocess, loads
 role templates from config/dev_roles/{scope}.md, returns structured review instruction.
