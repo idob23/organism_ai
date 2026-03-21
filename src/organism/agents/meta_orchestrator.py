@@ -17,6 +17,8 @@ from src.organism.logging.error_handler import get_logger
 
 _log = get_logger("meta_orchestrator")
 
+MAX_DELEGATE_DEPTH = 3
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 _ROUTER_SYSTEM = (
@@ -47,6 +49,7 @@ class MetaOrchestrator:
         self.llm = llm
         self.factory = factory
         self._loop = None  # injected via set_loop()
+        self._current_depth: int = 0
 
     def set_loop(self, loop) -> None:
         """Inject CoreLoop reference after construction (avoids circular dep)."""
@@ -91,6 +94,28 @@ class MetaOrchestrator:
         self, task: str, agent: dict, verbose: bool = True,
     ) -> OrchestratorResult:
         """Run a task as a custom agent via CoreLoop with personality context."""
+        # FIX-95b: Prevent infinite delegate recursion
+        if self._current_depth >= MAX_DELEGATE_DEPTH:
+            _log.warning(
+                "Delegate depth limit reached (%d), refusing delegation",
+                self._current_depth,
+            )
+            return OrchestratorResult(
+                task=task,
+                success=False,
+                output="",
+                duration=0.0,
+                error=(
+                    "\u0414\u043e\u0441\u0442\u0438\u0433\u043d\u0443\u0442 "
+                    "\u043b\u0438\u043c\u0438\u0442 \u0433\u043b\u0443\u0431\u0438\u043d\u044b "
+                    "\u0434\u0435\u043b\u0435\u0433\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f "
+                    f"({MAX_DELEGATE_DEPTH}). "
+                    "\u0417\u0430\u0434\u0430\u0447\u0430 \u0441\u043b\u0438\u0448\u043a\u043e\u043c "
+                    "\u0433\u043b\u0443\u0431\u043e\u043a\u043e \u0432\u043b\u043e\u0436\u0435\u043d\u0430."
+                ),
+            )
+
+        self._current_depth += 1
         start = time.time()
         try:
             # Load personality file
@@ -147,6 +172,8 @@ class MetaOrchestrator:
                 duration=time.time() - start,
                 error=str(exc),
             )
+        finally:
+            self._current_depth -= 1
 
     async def _route_choice(self, task: str, agents: list[dict]) -> str:
         """Ask Haiku which agent should handle the task. Returns agent_id or 'base'."""

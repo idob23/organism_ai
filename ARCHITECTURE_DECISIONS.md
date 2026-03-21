@@ -33,6 +33,14 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-95b: Recursion depth guard for delegate chains (2026-03-21)
+Problem: `manage_agents(delegate)` → `MetaOrchestrator.run_as_agent()` → `CoreLoop.run(skip_orchestrator=True)`.
+Inside that run(), LLM could call `manage_agents(delegate)` again → infinite recursion.
+`skip_orchestrator=True` (FIX-62) only blocks orchestrator routing, not direct tool calls.
+Solution: `MAX_DELEGATE_DEPTH = 3` constant + `_current_depth` counter on MetaOrchestrator.
+`run_as_agent()` checks depth before execution, increments/decrements in try/finally.
+Also removed dead code: `self_improvement/ab_test.py` (ABTester class, zero imports).
+
 ### Q-9.9: Subtask progress in Telegram
 `progress_callback` passed through `IncomingMessage.metadata` →
 `CoreLoop.run()`. During decomposition, Telegram shows "Часть X/Y: ..."
