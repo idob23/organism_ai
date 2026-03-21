@@ -116,6 +116,7 @@ class TextWriterTool(BaseTool):
             return ToolResult(
                 output=content,
                 exit_code=0,
+                created_files=[Path(filename).name],
             )
         except Exception as e:
             return ToolResult(output="", error=str(e), exit_code=1)

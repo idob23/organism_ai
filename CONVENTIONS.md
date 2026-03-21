@@ -86,6 +86,9 @@ python benchmark.py --quick          # Быстрый (7 задач)
 /agents                    — шаблоны ролей и агенты
 /create_agent <role> [name] — создать агента (legacy, предпочтительнее manage_agents)
 /assign <agent> <task>     — задача агенту (legacy, предпочтительнее manage_agents)
+/pending                   — показать посты на проверке
+/publish <id>              — опубликовать пост в канал
+/reject_post <id>          — отклонить пост (удалить без публикации)
 /help                      — все команды
 ```
 

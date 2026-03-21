@@ -8,6 +8,7 @@ import uuid
 
 from sqlalchemy import select, text, func
 
+from config.settings import settings
 from .database import FewShotExample, AsyncSessionLocal
 from src.organism.logging.error_handler import get_logger
 
@@ -73,6 +74,7 @@ class FewShotStore:
                 quality_score=quality_score,
                 tools_used=",".join(tools_used),
                 embedding=embedding,
+                artel_id=settings.artel_id,
             ))
             await session.commit()
 
@@ -130,11 +132,13 @@ class FewShotStore:
                         type_clause = "AND task_type = :ttype"
                         params["ttype"] = task_type
 
+                    params["artel_id"] = settings.artel_id
                     rows = await session.execute(
                         text(f"""
                             SELECT id, task_text, plan_json, tools_used, quality_score
                             FROM few_shot_examples
-                            WHERE embedding IS NOT NULL {type_clause}
+                            WHERE embedding IS NOT NULL
+                              AND artel_id = :artel_id {type_clause}
                             ORDER BY embedding <=> :emb
                             LIMIT :lim
                         """),
@@ -167,6 +171,8 @@ class FewShotStore:
             async with AsyncSessionLocal() as session:
                 stmt = (
                     select(FewShotExample)
+                    .where(text("artel_id = :artel_id"))
+                    .params(artel_id=settings.artel_id)
                     .order_by(FewShotExample.quality_score.desc())
                     .limit(limit)
                 )

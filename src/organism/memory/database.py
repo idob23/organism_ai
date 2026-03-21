@@ -109,6 +109,7 @@ class FewShotExample(Base):
     tools_used = Column(Text, nullable=False)                 # comma-separated: "code_executor,web_search"
     embedding = Column(Vector(1536), nullable=True)           # for semantic similarity search
     usage_count = Column(Integer, default=0)                  # how many times injected as few-shot
+    artel_id = Column(String, default="default")              # FIX-95a
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -125,6 +126,7 @@ class MemoryEdge(Base):
     edge_type = Column(String, nullable=False)      # temporal|causal|entity|procedural
     weight = Column(Float, default=1.0)
     meta_json = Column("metadata", Text, nullable=True)  # JSON string; 'metadata' reserved by SA
+    artel_id = Column(String, default="default")  # FIX-95a
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -178,6 +180,7 @@ class ChatMessage(Base):
     user_id = Column(String, nullable=False, index=True)
     role = Column(String, nullable=False)         # "user" or "assistant"
     content = Column(Text, nullable=False)
+    artel_id = Column(String, default="default")  # FIX-95a
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -619,6 +622,31 @@ async def _m015_pending_publications(conn) -> None:
     ))
 
 
+async def _m016_artel_id_remaining(conn) -> None:
+    """FIX-95a: Add artel_id to chat_messages, few_shot_examples, memory_edges."""
+    tables = ["chat_messages", "few_shot_examples", "memory_edges"]
+    for table in tables:
+        try:
+            await conn.execute(text(
+                f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS artel_id VARCHAR DEFAULT 'default'"
+            ))
+        except Exception:
+            pass
+    # Indexes
+    idx = [
+        ("ix_cm_artel", "chat_messages"),
+        ("ix_fse_artel", "few_shot_examples"),
+        ("ix_me_artel", "memory_edges"),
+    ]
+    for idx_name, table in idx:
+        try:
+            await conn.execute(text(
+                f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} (artel_id)"
+            ))
+        except Exception:
+            pass
+
+
 # Migration registry -- (version, name, function)
 # APPEND ONLY -- never remove or reorder entries
 _MIGRATIONS = [
@@ -637,4 +665,5 @@ _MIGRATIONS = [
     (13, "scheduled_jobs_personality_id", _m013_scheduled_jobs_personality_id),
     (14, "scheduled_jobs_requires_approval", _m014_scheduled_jobs_requires_approval),
     (15, "pending_publications", _m015_pending_publications),
+    (16, "artel_id_remaining", _m016_artel_id_remaining),
 ]

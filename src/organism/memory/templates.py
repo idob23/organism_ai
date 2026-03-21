@@ -10,8 +10,9 @@ import re
 import uuid
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
+from config.settings import settings
 from src.organism.llm.base import LLMProvider, Message
 from src.organism.memory.database import ProceduralTemplate, AsyncSessionLocal
 
@@ -92,8 +93,9 @@ class TemplateExtractor:
                 if code_template and quality_score > existing.avg_quality:
                     existing.code_template = code_template
             else:
+                new_id = uuid.uuid4().hex
                 session.add(ProceduralTemplate(
-                    id=uuid.uuid4().hex,
+                    id=new_id,
                     pattern_name=pattern_name,
                     tools_sequence=tools_json,
                     code_template=code_template,
@@ -101,6 +103,14 @@ class TemplateExtractor:
                     success_count=1,
                     avg_quality=round(quality_score, 4),
                 ))
+                await session.flush()
+                try:
+                    await session.execute(
+                        text("UPDATE procedural_templates SET artel_id = :aid WHERE id = :tid"),
+                        {"aid": settings.artel_id, "tid": new_id},
+                    )
+                except Exception:
+                    pass
             await session.commit()
 
     async def find_template(self, task: str) -> dict | None:
@@ -111,7 +121,11 @@ class TemplateExtractor:
         is >= 0.3, otherwise None.
         """
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(ProceduralTemplate))
+            result = await session.execute(
+                select(ProceduralTemplate).where(
+                    text("artel_id = :artel_id")
+                ).params(artel_id=settings.artel_id)
+            )
             templates = result.scalars().all()
 
         if not templates:

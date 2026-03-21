@@ -8,8 +8,9 @@ system keeps running even if the graph layer is unavailable.
 import json
 import uuid
 
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, text
 
+from config.settings import settings
 from src.organism.memory.database import MemoryEdge, TaskMemory, AsyncSessionLocal
 
 
@@ -51,6 +52,7 @@ class MemoryGraph:
                     edge_type=edge_type,
                     weight=weight,
                     meta_json=meta_str,
+                    artel_id=settings.artel_id,
                 ))
             await session.commit()
 
@@ -76,7 +78,12 @@ class MemoryGraph:
             else:
                 cond = or_(MemoryEdge.from_id == node_id, MemoryEdge.to_id == node_id)
 
-            stmt = select(MemoryEdge).where(cond)
+            stmt = (
+                select(MemoryEdge)
+                .where(cond)
+                .where(text("artel_id = :artel_id"))
+                .params(artel_id=settings.artel_id)
+            )
             if edge_type:
                 stmt = stmt.where(MemoryEdge.edge_type == edge_type)
 
@@ -179,9 +186,9 @@ class MemoryGraph:
                 sa_text(
                     "SELECT id, from_id, to_id, edge_type, weight, metadata "
                     "FROM memory_edges "
-                    "WHERE metadata LIKE :pattern"
+                    "WHERE metadata LIKE :pattern AND artel_id = :artel_id"
                 ),
-                {"pattern": f"%{entity}%"},
+                {"pattern": f"%{entity}%", "artel_id": settings.artel_id},
             )
             rows = result.all()
 

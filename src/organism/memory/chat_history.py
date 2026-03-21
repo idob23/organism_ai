@@ -1,5 +1,6 @@
 """Chat history storage \u2014 save and retrieve recent messages per user."""
 from sqlalchemy import select, text, func
+from config.settings import settings
 from .database import ChatMessage, AsyncSessionLocal
 from src.organism.logging.error_handler import get_logger
 
@@ -19,6 +20,7 @@ class ChatHistory:
                     user_id=user_id,
                     role=role,
                     content=content[:5000],
+                    artel_id=settings.artel_id,
                 ))
                 await session.commit()
         except Exception as e:
@@ -31,6 +33,8 @@ class ChatHistory:
                 stmt = (
                     select(ChatMessage)
                     .where(ChatMessage.user_id == user_id)
+                    .where(text("artel_id = :artel_id"))
+                    .params(artel_id=settings.artel_id)
                     .order_by(ChatMessage.created_at.desc())
                     .limit(limit)
                 )
@@ -48,15 +52,19 @@ class ChatHistory:
         try:
             async with AsyncSessionLocal() as session:
                 count = await session.scalar(
-                    select(func.count()).where(ChatMessage.user_id == user_id)
+                    select(func.count()).where(
+                        ChatMessage.user_id == user_id,
+                        text("artel_id = :artel_id"),
+                    ).params(artel_id=settings.artel_id)
                 )
                 if count and count > MAX_STORED_MESSAGES:
                     await session.execute(text(
                         "DELETE FROM chat_messages WHERE id IN ("
                         "  SELECT id FROM chat_messages WHERE user_id = :uid "
-                        "  ORDER BY created_at ASC LIMIT :n"
+                        "  AND artel_id = :aid ORDER BY created_at ASC LIMIT :n"
                         ")"
-                    ), {"uid": user_id, "n": count - MAX_STORED_MESSAGES})
+                    ), {"uid": user_id, "aid": settings.artel_id,
+                        "n": count - MAX_STORED_MESSAGES})
                     await session.commit()
         except Exception:
             pass

@@ -57,6 +57,17 @@ uses `text("artel_id = :artel_id")` with `.params()` for ORM queries and raw SQL
   get_stats() uses raw SQL with artel_id filter
 - `knowledge_base.py`: get_rules() filters by artel_id; add_rule() sets artel_id on INSERT
 
+### FIX-95a: Artel isolation completion (2026-03-21)
+Remaining tables without artel_id isolation: chat_messages, few_shot_examples, memory_edges.
+Migration `_m016_artel_id_remaining`: adds `artel_id VARCHAR DEFAULT 'default'` + indexes.
+ORM models updated (ChatMessage, FewShotExample, MemoryEdge gain `artel_id` column).
+- `chat_history.py`: save_message sets artel_id; get_recent and cleanup_old filter by artel_id
+- `few_shot_store.py`: save_example sets artel_id; get_examples filters in both vector and fallback paths
+- `templates.py`: _save_template uses UPDATE-after-INSERT (ProceduralTemplate ORM predates artel_id);
+  find_template filters by artel_id
+- `graph.py`: add_edge sets artel_id; get_neighbors and get_entity_subgraph filter by artel_id
+Also fixed: text_writer.py now returns `created_files=[Path(filename).name]` in ToolResult.
+
 ### Q-9.2–Q-9.5: Agent Factory (2026-03-11)
 Role templates in `config/roles/*.md`, `AgentFactory` in `agents/factory.py`,
 `MetaOrchestrator` in `agents/meta_orchestrator.py`. Commands: /agents, /create_agent, /assign.
