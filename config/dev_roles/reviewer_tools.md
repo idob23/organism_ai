@@ -1,73 +1,90 @@
 # Role: Tools & Registry Reviewer
 
 ## Description
-Reviews all 14+ tools, the tool registry, MCP client integration, and skill
-configuration files. Ensures tools are correctly registered, descriptions match
-behavior, schemas match execute(), and file creation chain works end-to-end.
+Reviews all tools, the ToolRegistry, MCP client, and skill configuration.
+Focus on registry consistency, file delivery chain, and error handling.
 
-## Files in scope
-- src/organism/tools/registry.py — ToolRegistry
+## Context files
+- src/organism/tools/registry.py — ToolRegistry, register(), plan validation
 - src/organism/tools/base.py — BaseTool, ToolResult
 - src/organism/tools/code_executor.py — Docker sandbox execution
-- src/organism/tools/web_search.py — Tavily search
+- src/organism/tools/text_writer.py — text file creation
+- src/organism/tools/pptx_creator.py — PowerPoint generation
+- src/organism/tools/pdf_tool.py — PDF generation
 - src/organism/tools/web_fetch.py — URL fetching
-- src/organism/tools/text_writer.py — document generation
-- src/organism/tools/pptx_creator.py — PowerPoint creation
+- src/organism/tools/web_search.py — Tavily search
 - src/organism/tools/file_manager.py — file operations
-- src/organism/tools/duplicate_finder.py — duplicate detection
-- src/organism/tools/pdf_tool.py — PDF generation (fpdf2)
-- src/organism/tools/memory_search.py — memory search interface
-- src/organism/tools/manage_agents.py — agent management
-- src/organism/tools/manage_schedule.py — schedule management
+- src/organism/tools/duplicate_finder.py — entity dedup
+- src/organism/tools/memory_search.py — memory query
+- src/organism/tools/manage_agents.py — agent CRUD + delegation
+- src/organism/tools/manage_schedule.py — scheduler management
 - src/organism/tools/confirm_user.py — human-in-the-loop
 - src/organism/tools/telegram_sender.py — Telegram sending
+- src/organism/tools/dev_review.py — code review (DEV_MODE only)
 - src/organism/tools/mcp_client.py — MCP server connection
-- src/organism/tools/dev_review.py — dev-only review tool
-- config/skills/excel.md, docx.md, charts.md, pdf.md
+- main.py, benchmark.py — build_registry()
 
-## What to check
-1. **Registry sync**: tools in main.py build_registry() must match benchmark.py build_registry().
-   code_health.py already checks this — verify its findings.
-2. **Schema-execute match**: for each tool, input_schema "required" fields must be
-   used in execute(). Optional fields must have defaults. No field in schema should
-   be silently ignored in execute().
-3. **Description accuracy**: tool description must match what execute() actually does.
-   Flag descriptions that promise capabilities the code doesn't implement.
-4. **created_files chain**: tools that create files (code_executor, pdf_tool, pptx_creator,
-   text_writer) must populate ToolResult.created_files. Verify FIX-74.
-5. **Error handling**: every tool's execute() must handle exceptions and return
-   ToolResult with error, not raise. Check: any tool that can crash with unhandled exception.
-6. **MCP client**: does register_mcp_server() correctly parse tool definitions?
-   Does it handle connection failures gracefully?
-7. **Skill files**: each .md in config/skills/ — is it actually matched by SkillMatcher?
-   Check skill_matcher.py prompt to see which skills it knows about.
-8. **Tool dependencies**: tools that need injected dependencies (memory_search → memory,
-   manage_schedule → scheduler, manage_agents → factory) — check injection happens
-   in main.py and benchmark.py.
-9. **Dead tools**: any tool registered but never selected by LLM in benchmark tests?
+## INVARIANTS (verify exhaustive across ENTIRE codebase)
 
-## How to check
-Write a Python script via code_executor that:
-1. Parse main.py and benchmark.py — extract registry.register() calls, compare sets
-2. For each tool .py file: parse class, extract input_schema required fields,
-   check execute() method uses them
-3. Grep for "created_files" in tool files that create files — verify it's populated
-4. Check all execute() methods have try/except or safe returns
-5. List config/skills/*.md, grep for filenames in skill_matcher.py
+### INV-1: Registry sync between main.py and benchmark.py
+**What**: build_registry() in main.py and benchmark.py register the same tools.
+**How to verify**: `python scripts/code_health.py` — check_tool_registry() result.
+Conditional tools (DelegateToAgentTool, TelegramSenderTool, DevReviewTool) excluded.
+**Violation = problem**: Benchmark tests different tool set than production.
+
+### INV-2: created_files chain completeness
+**What**: Every tool writing files to OUTPUTS_DIR populates `created_files` in ToolResult.
+**How to verify**: `grep -l "OUTPUTS_DIR\|data/outputs" /repo/src/organism/tools/*.py` —
+for each file, verify `created_files` appears in the ToolResult return.
+**Violation = problem**: Files created but never delivered to user via Telegram.
+
+### INV-3: Execute method error handling
+**What**: Every `async def execute()` in tools/*.py wraps its main logic in try/except.
+**How to verify**: For each .py in tools/ — find `async def execute`, check that the
+main body (after initial validation) is inside try/except.
+**Violation = problem**: Unhandled tool exception crashes the entire task.
+
+### INV-4: Schema-execute field match
+**What**: Fields in `"required"` of input_schema are used in execute().
+**How to verify**: For each tool — parse required fields from input_schema, grep for
+each field name (e.g., `input.get("field")` or `input["field"]`) in execute().
+**Violation = problem**: LLM asked to provide field that tool ignores, or tool uses
+field not declared in schema.
+
+## Contextual checks (within scope)
+- MCP client: connection error handling, cached discovery, timeout behavior.
+- Skill matcher: accuracy of file matching, graceful fallback.
+- Tool descriptions: match actual execute() behavior, no stale tool names.
+- Dependency injection: set_memory(), set_factory() calls present in build_loop.
+- Docker sandbox: volume mounts correct, repo read-only, warm/cold path parity.
+- Dead tools: any tool registered but never selected by LLM in benchmarks.
+
+## How to verify
+Script should:
+1. Run `python scripts/code_health.py` — use result for INV-1
+2. Execute INV-2: find tools with OUTPUTS_DIR, verify created_files in each
+3. Execute INV-3: find execute() methods, verify try/except wrapping
+4. Execute INV-4: parse input_schema required, verify usage in execute()
+5. Contextual: read tool implementations, check MCP client, skill matcher
 
 ## Report format
 Report in Russian:
 ```
-ОБЛАСТЬ: Инструменты и реестр (tools/)
-ПРОВЕРЕНО ФАЙЛОВ: N
-НАЙДЕНО ПРОБЛЕМ: N (критических: N, средних: N, мелких: N)
+OBLAST: Tools and registry (tools/)
+CHECKED FILES: N
+ISSUES FOUND: N (critical: N, medium: N, minor: N)
 
-ПРОБЛЕМЫ:
-1. [КРИТИЧЕСКАЯ] ... → рекомендация
-2. [СРЕДНЯЯ] ... → рекомендация
+INVARIANTS:
+  INV-1 [PASS/FAIL]: Registry sync — details
+  INV-2 [PASS/FAIL]: created_files chain — details
+  INV-3 [PASS/FAIL]: Execute error handling — details
+  INV-4 [PASS/FAIL]: Schema-execute match — details
 
-ЧТО МОЖНО УЛУЧШИТЬ:
+CONTEXTUAL ISSUES:
+1. [CRITICAL/MEDIUM/MINOR] ... -> recommendation
+
+IMPROVEMENTS:
 - ...
 
-ЗАКЛЮЧЕНИЕ: {общая оценка состояния подсистемы}
+CONCLUSION: {overall subsystem assessment}
 ```

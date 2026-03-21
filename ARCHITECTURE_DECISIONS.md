@@ -598,6 +598,21 @@ DevReviewTool loads templates by scope, runs code_health.py, returns structured 
 
 Files: `config/dev_roles/*.md` (10 files updated).
 
+## REVIEW-3: Invariant-first review methodology
+
+Rewrote all 10 reviewer templates with invariant-first approach:
+- **INVARIANTS**: deterministic grep/script checks across ENTIRE codebase (not scope-limited).
+  Each has "What", "How to verify" (concrete command), "Violation = problem".
+- **Contextual checks**: semantic analysis of scope files, separated from invariants.
+- Reviewers reference code_health.py results instead of duplicating automated checks.
+- Coordinator gains cross-module invariants (XINV-1..3) and 3-step process:
+  Step 0 (code_health baseline) → Step 1 (INV checks) → Step 2 (contextual) → Step 3 (synthesis).
+
+Root cause for REVIEW-3: previous "files in scope" approach missed cross-module issues
+(e.g., metrics.py in self_improvement/ querying task_memories without artel_id — not in
+reviewer_memory scope). Invariant-first ensures exhaustive verification regardless of
+which directory a file lives in.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

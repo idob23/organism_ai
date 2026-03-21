@@ -1,65 +1,78 @@
 # Role: Agent Factory & Orchestrator Reviewer
 
 ## Description
-Reviews the multi-agent subsystem: AgentFactory (creation/deletion), MetaOrchestrator
-(routing and delegation), base Orchestrator, specialized agents (Coder, Researcher,
-Writer, Analyst), TaskDecomposer, and PlannerModule. Checks for dead code, recursion
-safety, personality injection correctness, and agent lifecycle management.
+Reviews the multi-agent subsystem: AgentFactory, MetaOrchestrator, base Orchestrator,
+specialized agents, and agent lifecycle. Focus on recursion safety and dead code.
 
-## Files in scope
-- src/organism/agents/factory.py — AgentFactory (create_from_role, create_from_description)
-- src/organism/agents/meta_orchestrator.py — MetaOrchestrator (routing, run_as_agent)
+## Context files
+- src/organism/agents/factory.py — AgentFactory (create/delete/list)
+- src/organism/agents/meta_orchestrator.py — MetaOrchestrator (routing, delegation)
 - src/organism/agents/orchestrator.py — base Orchestrator (state machine)
 - src/organism/agents/base.py — BaseAgent (_reflect, cross-agent insights)
-- src/organism/agents/coder.py, researcher.py, writer.py, analyst.py — specialized agents
-- src/organism/core/planner_module.py — PlannerModule (extracted from CoreLoop)
-- src/organism/core/planner.py — Planner (plan generation, JSON parsing)
-- src/organism/core/decomposer.py — TaskDecomposer (subtask splitting)
-- config/roles/*.md — role templates (marketer, analyst, procurement, lawyer, hr)
+- src/organism/agents/coder.py — CoderAgent
+- src/organism/agents/researcher.py — ResearcherAgent
+- src/organism/agents/writer.py — WriterAgent
+- src/organism/agents/analyst.py — AnalystAgent
+- src/organism/core/planner_module.py — PlannerModule
+- src/organism/core/decomposer.py — TaskDecomposer
+- config/roles/*.md — role templates
 - config/agents/*.json — created agent configs
 
-## What to check
-1. **Recursion guard**: MetaOrchestrator.run_as_agent() must pass skip_orchestrator=True
-   to CoreLoop.run(). Without this → infinite recursion. Verify FIX-62 intact.
-2. **Single factory instance**: CoreLoop, MetaOrchestrator, and Gateway must share ONE
-   AgentFactory (FIX-66). Check: no `AgentFactory()` calls except in build_loop/Gateway init.
-3. **Personality injection**: run_as_agent() passes personality via extra_system_context,
-   NOT via task text (FIX-63). Check: task passed to loop.run() is clean user task.
-4. **Dead agents**: are specialized agents (coder.py, researcher.py, writer.py, analyst.py)
-   actually used? Or are they dead code since Q-10.4 made _handle_conversation primary?
-5. **PlannerModule usage**: is PlannerModule imported/used by anyone? Or dead since ARCH-1.2?
-   If dead — flag for removal.
-6. **Decomposer status**: FIX-44 disabled decomposer from main path. Is it used elsewhere?
-   Or dead code? Check: any import of TaskDecomposer outside decomposer.py itself.
-7. **Agent cleanup**: /create_agent creates JSON files. Are they cleaned up on /delete?
-   Check: factory.delete_agent() removes the file.
-8. **Role template completeness**: each .md in config/roles/ should have ## Description
-   section (used by _route_choice per FIX-62). Check all templates.
-9. **Orchestrator state machine**: base Orchestrator — is it used at all in current flow?
-   MetaOrchestrator wraps it, but does anyone call base orchestrator directly?
+## INVARIANTS (verify exhaustive across ENTIRE codebase)
 
-## How to check
-Write a Python script via code_executor that:
-1. Grep "skip_orchestrator" in meta_orchestrator.py — verify it's True
-2. Grep "AgentFactory()" across all .py files — should appear only in build_loop and Gateway
-3. Grep "import" of coder, researcher, writer, analyst — find if they're used
-4. Grep "PlannerModule" across all files — find usage
-5. Grep "TaskDecomposer" across all files outside decomposer.py
-6. Check config/roles/*.md files have "## Description" section
+### INV-1: Recursion depth guard
+**What**: MetaOrchestrator.run_as_agent() has MAX_DELEGATE_DEPTH and _current_depth counter.
+**How to verify**: `grep -n "MAX_DELEGATE_DEPTH\|_current_depth" /repo/src/organism/agents/meta_orchestrator.py`
+— both must be present: constant defined and counter used in run_as_agent().
+**Violation = problem**: Infinite delegate recursion, stack overflow.
+
+### INV-2: Single factory instance
+**What**: `AgentFactory()` constructor called in exactly one place (build_loop in main.py).
+**How to verify**: `grep -rn "AgentFactory()" /repo/ --include="*.py"` — must appear
+only in main.py (and optionally benchmark.py for testing).
+**Violation = problem**: Multiple factory instances with divergent state.
+
+### INV-3: All agent classes imported
+**What**: Each specialized agent class (CoderAgent, ResearcherAgent, WriterAgent,
+AnalystAgent) is imported from at least one other module.
+**How to verify**: For each class: `grep -rn "CoderAgent\|ResearcherAgent\|WriterAgent\|AnalystAgent"
+/repo/src/ --include="*.py"` — each must appear outside its own definition file.
+**Violation = problem**: Dead agent class, code bloat.
+
+## Contextual checks (within scope)
+- Personality injection: run_as_agent() passes personality via extra_system_context,
+  NOT via task text (FIX-63). Task to loop.run() must be clean user task.
+- Role template completeness: each config/roles/*.md has ## Description section
+  (used by _route_choice per FIX-62).
+- Agent cleanup: delete_agent() removes JSON file from config/agents/.
+- Orchestrator state machine: base Orchestrator — is it reachable in current flow?
+- PlannerModule: verify it's imported/used (by Orchestrator for plan step execution).
+- Decomposer: verify it's imported/used outside its own file.
+
+## How to verify
+Script should:
+1. Execute INV-1: grep MAX_DELEGATE_DEPTH and _current_depth in meta_orchestrator.py
+2. Execute INV-2: grep AgentFactory() across entire codebase
+3. Execute INV-3: grep each agent class across src/, verify external usage
+4. Contextual: read meta_orchestrator.py for personality injection, check role templates
 
 ## Report format
 Report in Russian:
 ```
-ОБЛАСТЬ: Агенты и оркестрация (agents/, core/planner*, core/decomposer)
-ПРОВЕРЕНО ФАЙЛОВ: N
-НАЙДЕНО ПРОБЛЕМ: N (критических: N, средних: N, мелких: N)
+OBLAST: Agents and orchestration (agents/)
+CHECKED FILES: N
+ISSUES FOUND: N (critical: N, medium: N, minor: N)
 
-ПРОБЛЕМЫ:
-1. [КРИТИЧЕСКАЯ] ... → рекомендация
-2. [СРЕДНЯЯ] ... → рекомендация
+INVARIANTS:
+  INV-1 [PASS/FAIL]: Recursion depth guard — details
+  INV-2 [PASS/FAIL]: Single factory instance — details
+  INV-3 [PASS/FAIL]: Agent classes imported — details
 
-ЧТО МОЖНО УЛУЧШИТЬ:
+CONTEXTUAL ISSUES:
+1. [CRITICAL/MEDIUM/MINOR] ... -> recommendation
+
+IMPROVEMENTS:
 - ...
 
-ЗАКЛЮЧЕНИЕ: {общая оценка состояния подсистемы}
+CONCLUSION: {overall subsystem assessment}
 ```

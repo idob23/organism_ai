@@ -1,63 +1,70 @@
-# Role: Channels, Gateway & Commands Reviewer
+# Role: Channels & Commands Reviewer
 
 ## Description
-Reviews the channel abstraction layer (Gateway, Telegram, CLI), command handler
-(23+ commands), BotSender, and message flow: IncomingMessage → Gateway → CoreLoop →
-OutgoingMessage → Channel. Ensures commands are documented, chat history saved
-correctly, file delivery works, and error handling is consistent.
+Reviews the communication layer: Gateway, Telegram channel, CLI channel,
+command handler, and bot sender. Focus on command sync, HTML safety, and file delivery.
 
-## Files in scope
-- src/organism/channels/base.py — IncomingMessage, OutgoingMessage, BaseChannel
-- src/organism/channels/gateway.py — Gateway (message router, file delivery)
-- src/organism/channels/telegram.py — TelegramChannel (progress, cancel/retry, media)
-- src/organism/channels/cli_channel.py — CLIChannel
-- src/organism/channels/bot_sender.py — BotSender (unified Telegram send)
-- src/organism/commands/handler.py — CommandHandler (23+ commands, HELP_TEXT)
+## Context files
+- src/organism/channels/gateway.py — Gateway: dispatch, response routing, chat_history
+- src/organism/channels/telegram.py — TelegramChannel: aiogram, send/receive, HTML
+- src/organism/channels/cli_channel.py — CLIChannel: interactive mode
+- src/organism/channels/base.py — IncomingMessage, OutgoingMessage
+- src/organism/channels/bot_sender.py — BotSender for unified Telegram sending
+- src/organism/commands/handler.py — CommandHandler, HELP_TEXT, all /commands
+- src/organism/monitoring/error_notifier.py — error notification via Telegram
 
-## What to check
-1. **Command documentation**: every command in handler.py must be in HELP_TEXT AND
-   in CONVENTIONS.md "Команды бота". code_health.py checks this — verify findings.
-2. **Chat history single source**: save_message() must be called ONLY in gateway.py
-   handle_message() for regular tasks, and for /assign (FIX-71). Nowhere else.
-3. **File delivery chain**: TaskResult.created_files → gateway._prepare_response() →
-   metadata["files"] → telegram.py send as document. Verify entire chain works.
-4. **Error propagation**: exceptions in CoreLoop should produce user-friendly error
-   messages in Telegram, not raw tracebacks. Check exception handling in gateway.
-5. **Cancel/retry**: FIX-87 — asyncio.Task.cancel() used, CancelledError caught in
-   telegram.py. Verify: cancel button works, retry button re-runs with original text.
-6. **HTML escaping**: all Telegram output uses HTML parse_mode. Check: _escape_html()
-   applied to user-generated content. Missing = potential HTML injection.
-7. **BotSender session management**: Bot() created per call, session closed always.
-   Check: no session leak on exception in send().
-8. **Progress callback**: tool_progress_callback reaches telegram.py ticker.
-   Check: exception in callback doesn't crash task execution.
-9. **Long text handling**: gateway._TEXT_LIMIT=3500. Text > 3500 → .txt file.
-   Check: edge cases (exactly 3500, 0 length, only whitespace).
-10. **Command routing**: is_command() checks startswith("/"). But what about
-    "/unknown_command"? Does it produce a helpful error or silent failure?
+## INVARIANTS (verify exhaustive across ENTIRE codebase)
 
-## How to check
-Write a Python script via code_executor that:
-1. Parse HELP_TEXT from handler.py — extract all /command names
-2. Parse CONVENTIONS.md — extract all /command names from "Команды бота"
-3. Compare sets — find mismatches
-4. Grep "save_message" across all .py files — list locations
-5. Trace created_files: from base.py ToolResult → loop.py → gateway.py → telegram.py
-6. Check all callback handlers in telegram.py have try/except
+### INV-1: Command sync between HELP_TEXT and CONVENTIONS.md
+**What**: All commands in handler.py HELP_TEXT exist in CONVENTIONS.md and vice versa.
+**How to verify**: `python scripts/code_health.py` — check_command_sync() result.
+**Violation = problem**: Commands visible to user but undocumented, or docs list phantom commands.
+
+### INV-2: HTML escape coverage
+**What**: Every `bot.send_message` or `send()` with `parse_mode="HTML"` uses escaped content.
+**How to verify**: `grep -n "parse_mode" /repo/src/organism/channels/telegram.py` — trace
+that content for each HTML send call goes through `_escape_html` or equivalent.
+**Violation = problem**: HTML injection, broken formatting from user/LLM content.
+
+### INV-3: File delivery chain intact
+**What**: `created_files` from ToolResult reaches telegram send_document end-to-end.
+**How to verify**: `grep -rn "created_files" /repo/src/organism/ --include="*.py"` — trace
+chain: tool execute() -> loop.py -> gateway.py -> telegram.py send_document.
+**Violation = problem**: Files created by tools but never delivered to user.
+
+## Contextual checks (within scope)
+- Cancel/retry: asyncio.Task.cancel() + CancelledError handling correct (FIX-87).
+- Long text handling: messages >4096 chars split correctly, no truncation.
+- BotSender session lifecycle: aiohttp session created/closed, no leaks on exception.
+- Progress callback: fire-and-forget, error doesn't crash main execution.
+- Gateway dispatch: correct routing for commands vs tasks vs media.
+- Chat history single save point: save_message only in gateway.py (cross-ref INV-4 memory).
+- Unknown command handling: /invalid_command produces helpful error, not silent failure.
+
+## How to verify
+Script should:
+1. Run `python scripts/code_health.py` — use result for INV-1
+2. Execute INV-2: grep parse_mode in telegram.py, trace content through _escape_html
+3. Execute INV-3: grep created_files across codebase, verify chain continuity
+4. Contextual: read telegram.py for cancel/retry, text splitting, session management
 
 ## Report format
 Report in Russian:
 ```
-ОБЛАСТЬ: Каналы, Gateway и команды (channels/, commands/)
-ПРОВЕРЕНО ФАЙЛОВ: N
-НАЙДЕНО ПРОБЛЕМ: N (критических: N, средних: N, мелких: N)
+OBLAST: Channels and commands (channels/, commands/)
+CHECKED FILES: N
+ISSUES FOUND: N (critical: N, medium: N, minor: N)
 
-ПРОБЛЕМЫ:
-1. [КРИТИЧЕСКАЯ] ... → рекомендация
-2. [СРЕДНЯЯ] ... → рекомендация
+INVARIANTS:
+  INV-1 [PASS/FAIL]: Command sync — details
+  INV-2 [PASS/FAIL]: HTML escape coverage — details
+  INV-3 [PASS/FAIL]: File delivery chain — details
 
-ЧТО МОЖНО УЛУЧШИТЬ:
+CONTEXTUAL ISSUES:
+1. [CRITICAL/MEDIUM/MINOR] ... -> recommendation
+
+IMPROVEMENTS:
 - ...
 
-ЗАКЛЮЧЕНИЕ: {общая оценка состояния подсистемы}
+CONCLUSION: {overall subsystem assessment}
 ```

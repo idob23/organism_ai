@@ -1,61 +1,71 @@
 # Role: Self-Improvement Pipeline Reviewer
 
 ## Description
-Reviews the entire self-improvement subsystem: prompt optimization, auto-improvement
-cycle, prompt version control, benchmark-driven optimization, evolutionary search,
-and the metrics collection. This is a closed loop: failures → insights → rules →
-behavior change. If any link is broken, the agent degrades silently.
+Reviews the self-improvement subsystem: auto-improvement cycle, prompt versioning,
+benchmark optimization, evolutionary search, and metrics. Focus on loop integrity.
 
-## Files in scope
-- src/organism/self_improvement/optimizer.py — PromptOptimizer (analysis + recommendations)
-- src/organism/self_improvement/auto_improver.py — AutoImprover cycle (failures → patterns → insights)
+## Context files
+- src/organism/self_improvement/optimizer.py — PromptOptimizer
+- src/organism/self_improvement/auto_improver.py — AutoImprover cycle
 - src/organism/self_improvement/prompt_versioning.py — PromptVersionControl (PVC)
 - src/organism/self_improvement/benchmark_optimizer.py — BenchmarkPromptOptimizer
 - src/organism/self_improvement/evolutionary_search.py — evolutionary prompt search
 - src/organism/self_improvement/metrics.py — metrics collection
-- config/prompts/evaluator.txt — evaluator prompt (optimizable)
-- config/prompts/planner_fast.txt, planner_react.txt — planner prompts
-- config/prompts/causal_analyzer.txt, template_extractor.txt — analysis prompts
+- config/prompts/*.txt — optimizable prompt files
 
-## What to check
-1. **PVC integration**: does evaluator.py actually USE PVC to get active prompt version?
-   Or does it always read from file? Check: get_active() call chain.
-2. **Auto-improver cycle completeness**: analyze → find failures → extract patterns →
-   generate insights → (approval) → save to KnowledgeBase. Any broken link?
-3. **Evolutionary search state**: PromptPopulationMember table in database.py —
-   is it actually used? Or is it dead infrastructure from Q-7.4?
-4. **Benchmark optimizer**: does run_quick_benchmark() correctly import and run benchmark
-   tasks? Check: circular import risk (benchmark.py imports from src/, optimizer imports
-   from benchmark.py).
-5. **Prompt file integrity**: all .txt files in config/prompts/ — are they referenced?
-   Any orphan prompt files?
-6. **Metrics collection**: does metrics.py collect anything? Is it called from anywhere?
-   Or dead code?
-7. **INSIGHT-1 integration**: insight verification loop — does it work end-to-end?
-   Check: /insights command shows pending insights, /approve saves to KB.
-8. **Dead code**: functions/classes defined but never called from outside the module.
+## INVARIANTS (verify exhaustive across ENTIRE codebase)
 
-## How to check
-Write a Python script via code_executor that:
-1. Grep for "get_active" and "save_version" in evaluator.py, loop.py — verify PVC is used
-2. Trace auto_improver.py: which methods call which, are all steps connected
-3. Check if evolutionary_search.py is imported ANYWHERE outside self_improvement/
-4. Check metrics.py — is it imported from main.py or any other entry point?
-5. List all .txt files in config/prompts/, grep for their filenames across src/ — find orphans
+### INV-1: Artel isolation in raw SQL
+**What**: Every raw SQL query in self_improvement/*.py to tables with artel_id filters by artel_id.
+**How to verify**: `python scripts/code_health.py` — check_artel_id_coverage() result.
+**Violation = problem**: Metrics/improvements based on other tenant's data.
+
+### INV-2: No dead modules
+**What**: Every .py in self_improvement/ (except __init__.py) is imported from at least
+one file outside self_improvement/.
+**How to verify**: For each file — `grep -rn "from.*self_improvement.*import" /repo/ --include="*.py"`
+excluding self_improvement/ directory itself. Each module must have at least one external import.
+**Violation = problem**: Dead code, maintenance burden.
+
+### INV-3: Prompt files referenced
+**What**: Every .txt file in config/prompts/ is used by at least one .py file.
+**How to verify**: List all config/prompts/*.txt filenames. For each, grep the filename
+(without path) across /repo/src/ --include="*.py". Unreferenced = orphan.
+**Violation = problem**: Orphan prompt file, wasted maintenance.
+
+## Contextual checks (within scope)
+- PVC integration: evaluator.py uses get_active() to load prompt version, not hardcoded file.
+- Auto-improver cycle: analyze_failures → generate_rules → pending_insights → approval → KB.
+  All links connected, no broken step.
+- Evolutionary search: PromptPopulationMember table used, evolve() method callable.
+- Benchmark optimizer: no circular import risk (benchmark.py ↔ src/).
+- INSIGHT-1 loop: pending insights accumulate confirmations, sent for approval at 3+.
+- Metrics collection: MetricsAnalyzer used from commands handler (/stats).
+
+## How to verify
+Script should:
+1. Run `python scripts/code_health.py` — use result for INV-1
+2. Execute INV-2: for each .py in self_improvement/, grep external imports
+3. Execute INV-3: list config/prompts/*.txt, grep for each in src/
+4. Contextual: trace PVC usage in evaluator, auto-improver cycle links, metrics usage
 
 ## Report format
 Report in Russian:
 ```
-ОБЛАСТЬ: Самоулучшение (self_improvement/)
-ПРОВЕРЕНО ФАЙЛОВ: N
-НАЙДЕНО ПРОБЛЕМ: N (критических: N, средних: N, мелких: N)
+OBLAST: Self-improvement (self_improvement/)
+CHECKED FILES: N
+ISSUES FOUND: N (critical: N, medium: N, minor: N)
 
-ПРОБЛЕМЫ:
-1. [КРИТИЧЕСКАЯ] ... → рекомендация
-2. [СРЕДНЯЯ] ... → рекомендация
+INVARIANTS:
+  INV-1 [PASS/FAIL]: Artel isolation — details
+  INV-2 [PASS/FAIL]: No dead modules — details
+  INV-3 [PASS/FAIL]: Prompt files referenced — details
 
-ЧТО МОЖНО УЛУЧШИТЬ:
+CONTEXTUAL ISSUES:
+1. [CRITICAL/MEDIUM/MINOR] ... -> recommendation
+
+IMPROVEMENTS:
 - ...
 
-ЗАКЛЮЧЕНИЕ: {общая оценка состояния подсистемы}
+CONCLUSION: {overall subsystem assessment}
 ```

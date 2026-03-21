@@ -1,7 +1,19 @@
 # Dev Review Roles
 
-Role templates for automated code review (REVIEW-1).
-Each file defines a reviewer personality with domain-specific checklists.
+Role templates for automated code review (REVIEW-1, REVIEW-3).
+
+## Methodology: Invariant-First
+
+Each reviewer template separates two types of checks:
+
+1. **INVARIANTS** — deterministic, exhaustive grep/script checks across the ENTIRE codebase.
+   Each invariant has a concrete "How to verify" command. Results are PASS/FAIL with evidence.
+
+2. **Contextual checks** — semantic analysis of scope-specific files. Requires reading and
+   understanding code, not automatable via simple grep.
+
+Reviewers always execute invariants FIRST, then contextual checks.
+`code_health.py` results are shared with ALL reviewers to avoid duplicate work.
 
 ## Usage
 
@@ -17,6 +29,9 @@ Each file defines a reviewer personality with domain-specific checklists.
 - `self_improvement` -> reviewer_self_improvement.md
 - `all` -> all 9 + review_coordinator.md
 
-## Status
+## Coordinator process
 
-Stubs created in REVIEW-1. Content to be filled in REVIEW-2.
+1. Step 0: Run `python scripts/code_health.py` — share with all reviewers
+2. Step 1: Each reviewer runs INV-* checks (exhaustive grep)
+3. Step 2: Each reviewer runs contextual checks (semantic analysis)
+4. Step 3: Coordinator synthesizes, deduplicates, prioritizes
