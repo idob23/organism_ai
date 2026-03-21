@@ -47,11 +47,12 @@ organism_ai/
 │   ├── core/           # loop.py, planner.py, planner_module.py, evaluator.py,
 │   │                   # decomposer.py, scheduler.py, personality.py,
 │   │                   # skill_matcher.py, human_approval.py
-│   ├── tools/          # registry.py + 13 tools:
+│   ├── tools/          # registry.py + 14 tools:
 │   │                   #   always: code_executor, pptx_creator, text_writer, web_fetch,
 │   │                   #           file_manager, duplicate_finder, pdf_tool, memory_search,
 │   │                   #           manage_agents, manage_schedule
-│   │                   #   conditional: web_search (tavily), telegram_sender (telegram token)
+│   │                   #   conditional: web_search (tavily), telegram_sender (telegram token),
+│   │                   #               dev_review (DEV_MODE)
 │   │                   #   telegram-only: confirm_user (human approval)
 │   │                   # + mcp_client.py (dynamic MCP tools)
 │   ├── agents/         # factory.py, meta_orchestrator.py, orchestrator.py
@@ -82,8 +83,9 @@ organism_ai/
 │   ├── personality/    # default.md, artel_zoloto.md, ai_media.md
 │   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
 │   │                   # causal_analyzer.txt, template_extractor.txt
+│   ├── dev_roles/      # reviewer_*.md stubs (REVIEW-1, filled in REVIEW-2)
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
-├── scripts/            # health_check.py, deploy.sh, backup.sh, restore.sh
+├── scripts/            # health_check.py, code_health.py, deploy.sh, backup.sh, restore.sh
 ├── benchmark.py        # 30 задач
 ├── pre_commit_check.py # Обязателен перед каждым коммитом
 └── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
@@ -91,7 +93,7 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-94, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
+- Спринты 1-9 завершены, FIX-1 → FIX-94, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

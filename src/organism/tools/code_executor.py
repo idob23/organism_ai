@@ -35,6 +35,27 @@ def _docker_host_path(path: str) -> str:
     return p
 
 
+_REPO_FILES = [
+    "CLAUDE.md", "CONVENTIONS.md", "ARCHITECTURE_DECISIONS.md",
+    "ARCHITECTURE_DECISIONS_ARCHIVE.md", "organism_ai_roadmap.md",
+    "benchmark.py", "pre_commit_check.py", "main.py",
+]
+
+
+def _repo_volumes() -> dict:
+    """Read-only mounts exposing project source code inside sandbox."""
+    root = os.getcwd()
+    vols: dict = {
+        _docker_host_path(os.path.join(root, "src")): {"bind": "/repo/src", "mode": "ro"},
+        _docker_host_path(os.path.join(root, "config")): {"bind": "/repo/config", "mode": "ro"},
+    }
+    for fname in _REPO_FILES:
+        fpath = os.path.join(root, fname)
+        if os.path.exists(fpath):
+            vols[_docker_host_path(fpath)] = {"bind": f"/repo/{fname}", "mode": "ro"}
+    return vols
+
+
 class CodeExecutorTool(BaseTool):
 
     SANDBOX_IMAGE = "organism-sandbox"
@@ -55,6 +76,12 @@ class CodeExecutorTool(BaseTool):
             self._warm_output = tempfile.mkdtemp(prefix="organism_warm_out_")
             outputs_dir = os.path.join(os.getcwd(), "data", "outputs")
             os.makedirs(outputs_dir, exist_ok=True)
+            vols = {
+                _docker_host_path(self._warm_sandbox): {"bind": "/sandbox", "mode": "ro"},
+                _docker_host_path(self._warm_output): {"bind": "/output", "mode": "rw"},
+                _docker_host_path(outputs_dir): {"bind": "/data/outputs", "mode": "ro"},
+            }
+            vols.update(_repo_volumes())
             self._warm = self._client.containers.run(
                 image=self.SANDBOX_IMAGE,
                 command=["sleep", "infinity"],
@@ -62,11 +89,7 @@ class CodeExecutorTool(BaseTool):
                 network_mode="none",
                 mem_limit=settings.sandbox_memory,
                 nano_cpus=int(settings.sandbox_cpu * 1e9),
-                volumes={
-                    _docker_host_path(self._warm_sandbox): {"bind": "/sandbox", "mode": "ro"},
-                    _docker_host_path(self._warm_output): {"bind": "/output", "mode": "rw"},
-                    _docker_host_path(outputs_dir): {"bind": "/data/outputs", "mode": "ro"},
-                },
+                volumes=vols,
                 working_dir="/output",
                 detach=True,
                 remove=False,
@@ -101,7 +124,13 @@ class CodeExecutorTool(BaseTool):
             "Output via print(). NO internet access inside sandbox.\n"
             "PATHS: Read existing files from /data/outputs/ (read-only). "
             "ALWAYS save new or updated files to /output/ (writable). "
-            "Print 'Saved files: filename.ext' after saving."
+            "Print 'Saved files: filename.ext' after saving.\n"
+            "REPO ACCESS (read-only):\n"
+            "  /repo/src/ \u2014 Python source code\n"
+            "  /repo/config/ \u2014 configuration files\n"
+            "  /repo/*.md \u2014 system documentation\n"
+            "  /repo/benchmark.py, /repo/main.py \u2014 entry points\n"
+            "Use these paths when asked to analyze, review, or inspect the codebase."
         )
 
     @property
@@ -290,6 +319,12 @@ class CodeExecutorTool(BaseTool):
             outputs_dir = os.path.join(os.getcwd(), "data", "outputs")
             os.makedirs(outputs_dir, exist_ok=True)
 
+            cold_vols = {
+                _docker_host_path(tmp_dir): {"bind": "/sandbox", "mode": "ro"},
+                _docker_host_path(output_dir): {"bind": "/output", "mode": "rw"},
+                _docker_host_path(outputs_dir): {"bind": "/data/outputs", "mode": "ro"},
+            }
+            cold_vols.update(_repo_volumes())
             container = self._client.containers.run(
                 image=self.SANDBOX_IMAGE,
                 command=["python", "/sandbox/code.py"],
@@ -297,11 +332,7 @@ class CodeExecutorTool(BaseTool):
                 network_mode="none",
                 mem_limit=settings.sandbox_memory,
                 nano_cpus=int(settings.sandbox_cpu * 1e9),
-                volumes={
-                    _docker_host_path(tmp_dir): {"bind": "/sandbox", "mode": "ro"},
-                    _docker_host_path(output_dir): {"bind": "/output", "mode": "rw"},
-                    _docker_host_path(outputs_dir): {"bind": "/data/outputs", "mode": "ro"},
-                },
+                volumes=cold_vols,
                 working_dir="/output",
                 detach=True,
                 remove=False,

@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     error_monitor_chat_id: str = Field("", alias="TELEGRAM_ERROR_CHAT_ID")
     error_monitor_interval: int = Field(60, alias="ERROR_MONITOR_INTERVAL")
     timezone: str = Field("Asia/Vladivostok", alias="TIMEZONE")
+    # Dev-only: enables code review agents and dev tools
+    dev_mode: bool = Field(False, alias="DEV_MODE")
 
     @property
     def allowed_user_ids(self) -> list[int]:

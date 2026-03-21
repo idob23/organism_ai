@@ -54,6 +54,10 @@ def build_registry() -> ToolRegistry:
             ]
         except Exception:
             pass
+    # REVIEW-1: Dev-only code review tool
+    if settings.dev_mode:
+        from src.organism.tools.dev_review import DevReviewTool
+        registry.register(DevReviewTool())
     # Q-8.5: Register A2A peer agents
     if settings.a2a_peers:
         try:

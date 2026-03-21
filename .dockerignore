@@ -12,3 +12,5 @@ backups/
 tests/
 benchmark.py
 pre_commit_check.py
+scripts/code_health.py
+config/dev_roles/

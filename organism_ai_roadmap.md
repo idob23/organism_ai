@@ -26,6 +26,7 @@
 - DOCKER-PROD: Production hardening — healthcheck, backup/restore, resource limits ✅
 - BotSender: Centralized Telegram sender (FIX-93) ✅
 - Benchmark: 30/30 задач, quality 0.87–0.89 ✅
+- REVIEW-1: Dev-only code review infrastructure (DEV_MODE, code_health.py, DevReviewTool, dev_roles stubs) ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 

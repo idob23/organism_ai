@@ -457,6 +457,10 @@ def build_registry() -> ToolRegistry:
     registry.register(ManageScheduleTool())
     if settings.tavily_api_key:
         registry.register(WebSearchTool())
+    # REVIEW-1: Dev-only code review tool
+    if settings.dev_mode:
+        from src.organism.tools.dev_review import DevReviewTool
+        registry.register(DevReviewTool())
     return registry
 
 
