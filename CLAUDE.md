@@ -84,16 +84,17 @@ organism_ai/
 │   │                   # causal_analyzer.txt, template_extractor.txt
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
 ├── scripts/            # health_check.py, deploy.sh, backup.sh, restore.sh
-├── benchmark.py        # 29 задач
+├── benchmark.py        # 30 задач
 ├── pre_commit_check.py # Обязателен перед каждым коммитом
 └── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
 ```
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-89, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
+- Спринты 1-9 завершены, FIX-1 → FIX-91, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
 - FIX-89: scheduler config/jobs/{artel_id}.json, personality_id per job, enable/disable persistence
 - FIX-90: requires_approval на ScheduledJob — review mode перед публикацией в канал; /publish /reject_post /pending
+- FIX-91: ORM-модель ScheduledJobRecord синхронизирована с миграциями #12-14; startup ordering fix в run_telegram()
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

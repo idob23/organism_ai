@@ -209,6 +209,9 @@ class ScheduledJobRecord(Base):
     last_run = Column(DateTime, nullable=True)
     artel_id = Column(String, default="default")
     is_system = Column(Boolean, default=False)           # True for DEFAULT_ARTEL_JOBS
+    channel_id = Column(Text, default="")               # FIX-88: target Telegram channel
+    personality_id = Column(Text, default="")            # FIX-89: personality override per job
+    requires_approval = Column(Boolean, default=False)   # FIX-90: review before publishing
     created_at = Column(DateTime, server_default=func.now())
 
 

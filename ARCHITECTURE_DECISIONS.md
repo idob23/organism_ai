@@ -1134,10 +1134,31 @@ Files: `scheduler.py`, `core/loop.py`, `manage_schedule.py`, `database.py`, `mai
 Files: `scheduler.py`, `main.py`, `commands/handler.py`, `tools/manage_schedule.py`,
 `database.py`, `config/jobs/artel_zoloto.json`.
 
+### FIX-91: ORM sync + startup ordering + docs sync
+**Problem 1:** `ScheduledJobRecord` ORM class in `database.py` was missing 3 columns
+(`channel_id`, `personality_id`, `requires_approval`) added by migrations #12-14. On a
+fresh DB, `Base.metadata.create_all` would create the table without them.
+
+**Problem 2:** `run_telegram()` called `scheduler.load_and_sync()` before DB tables were
+guaranteed to exist. `memory.initialize()` (which calls `init_db()`) was only invoked on
+first `CoreLoop.run()` (FIX-24). On a fresh DB, `load_and_sync()` would silently fail.
+
+**Problem 3:** ARCHITECTURE_DECISIONS.md Testing History showed "29 tasks" and wrong quality
+score, while CLAUDE.md and actual benchmark had 30 tasks.
+
+**Solution:**
+1. Added `channel_id`, `personality_id`, `requires_approval` columns to `ScheduledJobRecord`
+   ORM class. Migrations remain idempotent (`IF NOT EXISTS`), no conflict.
+2. Added `await loop.memory.initialize()` in `run_telegram()` before `scheduler.load_and_sync()`.
+   `CoreLoop.run()` safety net preserved (FIX-24).
+3. Synced docs: 30 tasks, quick 7/7 quality 0.89.
+
+Files: `database.py`, `main.py`, `CLAUDE.md`, `ARCHITECTURE_DECISIONS.md`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)
-- 29 tasks total (29/29 success with Docker+DB)
-- Average Quality Score: 0.93
+- 30 tasks total (30/30 success with Docker+DB)
+- Quick benchmark: 7/7, quality 0.89
 - Sprint 9 tasks: Agent Factory, Universal Planner, MCP JSON-RPC — all passing
 - For historical benchmark data, see ARCHITECTURE_DECISIONS_ARCHIVE.md

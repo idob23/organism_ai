@@ -259,6 +259,10 @@ async def run_telegram() -> None:
 
     loop = build_loop(registry, with_orchestrator=True)
 
+    # FIX-91: Initialize DB tables before scheduler tries to read them
+    if loop.memory:
+        await loop.memory.initialize()
+
     # --- Proactive scheduler ---
     async def _notify(artel_id: str, message: str, channel_id: str = "", requires_approval: bool = False) -> None:
         """Send scheduled task result to allowed Telegram users and channel.
