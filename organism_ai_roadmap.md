@@ -13,14 +13,19 @@
 - Sprint 9 (Universal Planner): Q-9.0, Q-9.1, Q-9.6, Q-9.7, Q-9.9, Q-10.1–Q-10.4 ✅
 - Sprint 9 (Skills): SKILL-1 (technical skills system) ✅
 - Sprint 9 (Agent Factory): Q-9.2 (role templates + AgentFactory), Q-9.3 (personality generation), Q-9.4 (MetaOrchestrator), Q-9.5 (commands) ✅
-- Sprint 9 (Fixes): FIX-33 — FIX-71 ✅
+- Sprint 9 (Fixes): FIX-33 — FIX-94 ✅
 - Sprint 9 (Tech debt): Q-9.8 (MCP JSON-RPC 2.0), Q-9.10 (/errors command) ✅
 - AGENT-UX: manage_agents tool — natural language agent management ✅
 - MEM-1: Temporal retrieval — date filtering in memory_search ✅ (+ MEM-1b limit=50, MEM-1c combined+compact+15K)
 - Инфраструктура Claude Code: MCP-1 (Context7 + PostgreSQL) ✅
 - Memory Verification Loop: INSIGHT-1 ✅
-- Benchmark: 29/29 задач, quality 0.89–0.93 ✅
 - MEDIA-LAUNCH: Telegram-канал публикация + ai_media personality + content scheduler jobs ✅
+- TG-UX: Cancel/Retry + HTML output in Telegram ✅
+- PERF-2: Embedding fast timeout + fire-and-forget memory save ✅
+- SCHED-1a/1b: DB persistence for scheduled jobs + ManageScheduleTool ✅
+- DOCKER-PROD: Production hardening — healthcheck, backup/restore, resource limits ✅
+- BotSender: Centralized Telegram sender (FIX-93) ✅
+- Benchmark: 30/30 задач, quality 0.87–0.89 ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 
@@ -40,10 +45,6 @@
 
 - Node.js в sandbox/Dockerfile — для качественных .docx
 - FORMATTER-1: предагрегация данных 1C (отложено до реальных данных, см. ARCHITECTURE_DECISIONS.md)
-
-### Блок 3: Docker Compose для первого клиента (приоритет 1) ✅
-
-DOCKER-PROD: production hardening — healthcheck, backup/restore, resource limits, .dockerignore, deploy script.
 
 ---
 

@@ -61,7 +61,7 @@ organism_ai/
 │   │                   # user_facts.py, graph.py, causal_analyzer.py, templates.py,
 │   │                   # search_policy.py
 │   ├── commands/       # handler.py (23 команды)
-│   ├── channels/       # base.py, gateway.py, telegram.py, cli_channel.py
+│   ├── channels/       # base.py, gateway.py, telegram.py, cli_channel.py, bot_sender.py
 │   ├── llm/            # base.py (TemperatureLocked), claude.py
 │   ├── logging/        # logger.py, error_handler.py
 │   ├── safety/         # validator.py (SafetyValidator)
@@ -92,9 +92,6 @@ organism_ai/
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
 - Спринты 1-9 завершены, FIX-1 → FIX-94, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH
-- FIX-92: pending publications persisted to DB (survive restart); migration #15
-- FIX-93: BotSender (channels/bot_sender.py) — единый отправщик Telegram; async enable/disable_job
-- FIX-94: dead code cleanup, timezone context in system prompt, atomic /publish
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила
@@ -110,5 +107,5 @@ organism_ai/
 ## Ссылки
 - Конвенции кода, CLI, команды бота → **CONVENTIONS.md**
 - Архитектурные решения Sprint 9+ → **ARCHITECTURE_DECISIONS.md**
-- История Sprint 1-8 → **ARCHITECTURE_DECISIONS_ARCHIVE.md**
+- История Sprint 1-9 (early) → **ARCHITECTURE_DECISIONS_ARCHIVE.md**
 - Архитектурные принципы → **organism_architecture_principles.md**

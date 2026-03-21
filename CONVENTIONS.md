@@ -58,7 +58,7 @@ python main.py --stats               # Статистика памяти
 python main.py --improve --days 7    # Auto-improvement
 python main.py --optimize-prompts    # Оптимизация промптов
 python main.py --serve-mcp           # MCP-сервер (порт 8091)
-python benchmark.py                  # Полный benchmark (29 задач)
+python benchmark.py                  # Полный benchmark (30 задач)
 python benchmark.py --quick          # Быстрый (7 задач)
 ```
 
