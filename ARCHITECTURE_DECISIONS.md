@@ -33,6 +33,15 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-100: BotSender long message handling (2026-03-22)
+Problem: Scheduler job `media_daily_news` generated a post (success=True) but `bot_sender.send_many`
+failed on ALL recipients: `Bad Request: message is too long`. Telegram limit is 4096 chars.
+Gateway handles this via `_TEXT_LIMIT=3500` + .txt fallback, but scheduler/approval paths go
+through BotSender directly, bypassing Gateway.
+Solution: `_TG_LIMIT=4000` constant + `_split_text()` static method on BotSender. Splits by
+last `\n` before limit, fallback to hard cut. Applied to both `send()` and `send_many()`.
+No signature changes, no file-sending (not BotSender's responsibility).
+
 ### FIX-98: Review findings cleanup (2026-03-21)
 Four fixes from code review:
 1. `file_manager.py` write action now returns `created_files=[path.name]` for file delivery chain.

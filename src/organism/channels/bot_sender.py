@@ -6,6 +6,8 @@ from src.organism.logging.error_handler import get_logger
 
 _log = get_logger("channels.bot_sender")
 
+_TG_LIMIT = 4000  # Telegram max is 4096, keep margin
+
 
 class BotSender:
     """Centralized Telegram message sender. One instance per process."""
@@ -13,11 +15,31 @@ class BotSender:
     def __init__(self, token: str) -> None:
         self._token = token
 
+    @staticmethod
+    def _split_text(text: str) -> list[str]:
+        """Split text into chunks that fit Telegram message limit."""
+        if len(text) <= _TG_LIMIT:
+            return [text]
+        parts: list[str] = []
+        remaining = text
+        while remaining:
+            if len(remaining) <= _TG_LIMIT:
+                parts.append(remaining)
+                break
+            # Find last newline before limit
+            cut = remaining.rfind("\n", 0, _TG_LIMIT)
+            if cut <= 0:
+                cut = _TG_LIMIT
+            parts.append(remaining[:cut])
+            remaining = remaining[cut:].lstrip("\n")
+        return parts
+
     async def send(self, chat_id: int | str, text: str) -> bool:
         """Send message to a single chat. Returns True on success."""
         bot = Bot(token=self._token)
         try:
-            await bot.send_message(chat_id, text)
+            for part in self._split_text(text):
+                await bot.send_message(chat_id, part)
             return True
         except Exception as exc:
             _log.warning("bot_sender.send failed (%s): %s", chat_id, exc)
@@ -30,11 +52,13 @@ class BotSender:
         if not chat_ids:
             return 0
         bot = Bot(token=self._token)
+        parts = self._split_text(text)
         sent = 0
         try:
             for cid in chat_ids:
                 try:
-                    await bot.send_message(cid, text)
+                    for part in parts:
+                        await bot.send_message(cid, part)
                     sent += 1
                 except Exception as exc:
                     _log.warning("bot_sender.send_many failed (%s): %s", cid, exc)
