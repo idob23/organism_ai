@@ -67,7 +67,7 @@ class FileManagerTool(BaseTool):
             elif action == "write":
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(input.get("content", ""), encoding="utf-8")
-                return ToolResult(output=f"Written: {path.name}")
+                return ToolResult(output=f"Written: {path.name}", created_files=[path.name])
 
             elif action == "append":
                 path.parent.mkdir(parents=True, exist_ok=True)

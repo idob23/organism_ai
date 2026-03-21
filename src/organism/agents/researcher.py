@@ -69,10 +69,10 @@ class ResearcherAgent(BaseAgent):
                 f"[Pre-fetched research data — use this to answer the task]:\n{search_context}"
             )
             loop = CoreLoop(llm, self.registry)
-            loop_result = await loop.run(enriched, verbose=False)
+            loop_result = await loop.run(enriched, verbose=False, skip_orchestrator=True)
         else:
             loop = CoreLoop(llm, self.registry)
-            loop_result = await loop.run(task, verbose=False)
+            loop_result = await loop.run(task, verbose=False, skip_orchestrator=True)
 
         return AgentResult(
             agent=self.name, task=task,

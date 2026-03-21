@@ -44,7 +44,7 @@ class CoderAgent(BaseAgent):
         llm = TemperatureLocked(self.llm, self.temperature)
         loop = CoreLoop(llm, self.registry)
         loop.MAX_RETRIES = self.max_iterations
-        loop_result = await loop.run(effective_task, verbose=False)
+        loop_result = await loop.run(effective_task, verbose=False, skip_orchestrator=True)
 
         result = AgentResult(
             agent=self.name, task=task,

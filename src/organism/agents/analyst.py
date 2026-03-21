@@ -30,7 +30,7 @@ class AnalystAgent(BaseAgent):
         )
         llm = TemperatureLocked(self.llm, self.temperature)
         loop = CoreLoop(llm, self.registry)
-        loop_result = await loop.run(enriched, verbose=False)
+        loop_result = await loop.run(enriched, verbose=False, skip_orchestrator=True)
         return AgentResult(
             agent=self.name, task=task,
             output=loop_result.output, success=loop_result.success,

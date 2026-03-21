@@ -44,7 +44,7 @@ python-pptx | fpdf2 | structlog | pydantic-settings | proxyapi.ru (embeddings)
 ```
 organism_ai/
 ├── src/organism/
-│   ├── core/           # loop.py, planner.py, planner_module.py, evaluator.py,
+│   ├── core/           # loop.py, planner.py, evaluator.py, state_machine.py,
 │   │                   # decomposer.py, scheduler.py, personality.py,
 │   │                   # skill_matcher.py, human_approval.py
 │   ├── tools/          # registry.py + 14 tools:
@@ -60,7 +60,7 @@ organism_ai/
 │   ├── memory/         # manager.py, longterm.py, database.py, embeddings.py, working.py,
 │   │                   # solution_cache.py, knowledge_base.py, few_shot_store.py,
 │   │                   # user_facts.py, graph.py, causal_analyzer.py, templates.py,
-│   │                   # search_policy.py
+│   │                   # search_policy.py, chat_history.py
 │   ├── commands/       # handler.py (23 команды)
 │   ├── channels/       # base.py, gateway.py, telegram.py, cli_channel.py, bot_sender.py
 │   ├── llm/            # base.py (TemperatureLocked), claude.py
@@ -93,7 +93,7 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-96, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2
+- Спринты 1-9 завершены, FIX-1 → FIX-98, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

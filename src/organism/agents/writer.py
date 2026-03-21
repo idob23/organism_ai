@@ -139,7 +139,7 @@ class WriterAgent(BaseAgent):
         try:
             llm = TemperatureLocked(self.llm, self.temperature)
             loop = CoreLoop(llm, self.registry)
-            loop_result = await loop.run(task)
+            loop_result = await loop.run(task, skip_orchestrator=True)
             return AgentResult(
                 agent=self.name, task=task,
                 output=loop_result.answer or loop_result.error or "",

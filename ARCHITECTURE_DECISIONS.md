@@ -33,6 +33,13 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-98: Review findings cleanup (2026-03-21)
+Four fixes from code review:
+1. `file_manager.py` write action now returns `created_files=[path.name]` for file delivery chain.
+2. CLAUDE.md file tree: added `state_machine.py` (core/), `chat_history.py` (memory/), removed dead `planner_module.py`.
+3. Deleted dead `planner_module.py` (zero external imports — only self-references).
+4. Added `skip_orchestrator=True` to all `loop.run()` calls in specialized agents (coder, analyst, researcher, writer) to prevent recursive orchestration when agents spawn CoreLoop internally.
+
 ### FIX-95b: Recursion depth guard for delegate chains (2026-03-21)
 Problem: `manage_agents(delegate)` → `MetaOrchestrator.run_as_agent()` → `CoreLoop.run(skip_orchestrator=True)`.
 Inside that run(), LLM could call `manage_agents(delegate)` again → infinite recursion.
