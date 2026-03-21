@@ -48,6 +48,7 @@ def _repo_volumes() -> dict:
     vols: dict = {
         _docker_host_path(os.path.join(root, "src")): {"bind": "/repo/src", "mode": "ro"},
         _docker_host_path(os.path.join(root, "config")): {"bind": "/repo/config", "mode": "ro"},
+        _docker_host_path(os.path.join(root, "scripts")): {"bind": "/repo/scripts", "mode": "ro"},
     }
     for fname in _REPO_FILES:
         fpath = os.path.join(root, fname)
@@ -128,6 +129,7 @@ class CodeExecutorTool(BaseTool):
             "REPO ACCESS (read-only):\n"
             "  /repo/src/ \u2014 Python source code\n"
             "  /repo/config/ \u2014 configuration files\n"
+            "  /repo/scripts/ \u2014 health check and utility scripts\n"
             "  /repo/*.md \u2014 system documentation\n"
             "  /repo/benchmark.py, /repo/main.py \u2014 entry points\n"
             "Use these paths when asked to analyze, review, or inspect the codebase."
