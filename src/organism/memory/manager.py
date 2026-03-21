@@ -13,7 +13,8 @@ from .chat_history import ChatHistory
 from .solution_cache import SolutionCache
 from .knowledge_base import KnowledgeBase
 from .database import init_db, AgentReflection, TaskMemory, AsyncSessionLocal
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, text
+from config.settings import settings
 from src.organism.llm.base import LLMProvider
 
 
@@ -185,9 +186,10 @@ class MemoryManager:
     ) -> None:
         await self.initialize()
         task_hash = hashlib.sha256(task.strip().lower().encode()).hexdigest()[:16]
+        _ref_id = uuid.uuid4().hex
         async with AsyncSessionLocal() as session:
             session.add(AgentReflection(
-                id=uuid.uuid4().hex,
+                id=_ref_id,
                 agent_name=agent_name,
                 task_hash=task_hash,
                 score=score,
@@ -198,6 +200,15 @@ class MemoryManager:
                 reflection_confidence=reflection_confidence,
             ))
             await session.commit()
+            # FIX-96: set artel_id (column from migration, not in ORM)
+            try:
+                await session.execute(
+                    text("UPDATE agent_reflections SET artel_id = :aid WHERE id = :rid"),
+                    {"aid": settings.artel_id, "rid": _ref_id},
+                )
+                await session.commit()
+            except Exception:
+                pass
 
     async def get_cross_agent_insights(
         self, current_agent: str, task_text: str, limit: int = 5
@@ -222,6 +233,8 @@ class MemoryManager:
                             AgentReflection.corrective_action.isnot(None),
                         )
                     )
+                    .where(text("artel_id = :artel_id"))
+                    .params(artel_id=settings.artel_id)
                     .order_by(AgentReflection.created_at.desc())
                     .limit(50)
                 )

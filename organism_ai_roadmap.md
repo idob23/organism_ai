@@ -30,6 +30,7 @@
 - REVIEW-2: Code review role templates — 9 reviewers + coordinator (memory, core, tools, channels, agents, infra, docs, quality, self_improvement) ✅
 - FIX-95a: Artel isolation completion — chat_messages, few_shot_examples, memory_edges + text_writer created_files ✅
 - FIX-95b: Recursion depth guard for delegate chains + dead code cleanup (ab_test.py) ✅
+- FIX-96: Artel isolation final pass — manager.py, metrics.py, auto_improver.py + dead import cleanup ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 
+from config.settings import settings
 from src.organism.llm.base import LLMProvider, Message
 from src.organism.memory.database import AsyncSessionLocal
 from src.organism.logging.error_handler import get_logger, log_exception
@@ -67,10 +68,11 @@ class AutoImprover:
                         FROM task_memories
                         WHERE success = false
                           AND created_at >= :cutoff
+                          AND artel_id = :artel_id
                         ORDER BY created_at DESC
                         LIMIT 100
                     """),
-                    {"cutoff": cutoff},
+                    {"cutoff": cutoff, "artel_id": settings.artel_id},
                 )).fetchall()
         except Exception as e:
             log_exception(_log, "Failed to query failures from task_memories", e)

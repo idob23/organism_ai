@@ -76,6 +76,14 @@ ORM models updated (ChatMessage, FewShotExample, MemoryEdge gain `artel_id` colu
 - `graph.py`: add_edge sets artel_id; get_neighbors and get_entity_subgraph filter by artel_id
 Also fixed: text_writer.py now returns `created_files=[Path(filename).name]` in ToolResult.
 
+### FIX-96: Artel isolation final pass (2026-03-21)
+Last files with unfiltered artel_id queries:
+- `manager.py`: save_reflection() sets artel_id via UPDATE-after-INSERT (AgentReflection ORM
+  predates artel_id column); get_cross_agent_insights() filters by artel_id
+- `metrics.py`: all 3 raw SQL queries to task_memories now include WHERE artel_id = :artel_id
+- `auto_improver.py`: analyze_failures() SQL query filters by artel_id
+Also removed dead import `log_exception` from `a2a/protocol.py`.
+
 ### Q-9.2–Q-9.5: Agent Factory (2026-03-11)
 Role templates in `config/roles/*.md`, `AgentFactory` in `agents/factory.py`,
 `MetaOrchestrator` in `agents/meta_orchestrator.py`. Commands: /agents, /create_agent, /assign.

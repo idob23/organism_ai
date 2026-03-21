@@ -1,4 +1,5 @@
 ﻿from sqlalchemy import text
+from config.settings import settings
 from src.organism.memory.database import AsyncSessionLocal
 
 
@@ -14,7 +15,8 @@ class MetricsAnalyzer:
                     AVG(duration) as avg_duration,
                     AVG(steps_count) as avg_steps
                 FROM task_memories
-            """))
+                WHERE artel_id = :artel_id
+            """), {"artel_id": settings.artel_id})
             row = result.fetchone()
             total = row[0] or 0
             successful = row[1] or 0
@@ -25,11 +27,11 @@ class MetricsAnalyzer:
                        AVG(duration) as avg_dur,
                        SUM(CASE WHEN success THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate
                 FROM task_memories
-                WHERE tools_used != ''
+                WHERE tools_used != '' AND artel_id = :artel_id
                 GROUP BY tools_used
                 ORDER BY cnt DESC
                 LIMIT 10
-            """))
+            """), {"artel_id": settings.artel_id})
             tool_stats = [
                 {
                     "tools": row[0],
@@ -44,9 +46,10 @@ class MetricsAnalyzer:
             result3 = await session.execute(text("""
                 SELECT success, duration
                 FROM task_memories
+                WHERE artel_id = :artel_id
                 ORDER BY created_at DESC
                 LIMIT 20
-            """))
+            """), {"artel_id": settings.artel_id})
             recent = result3.fetchall()
             last_10 = recent[:10]
             prev_10 = recent[10:]

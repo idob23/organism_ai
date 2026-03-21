@@ -21,7 +21,7 @@ from typing import Any
 
 from src.organism.tools.base import BaseTool, ToolResult
 from src.organism.tools.mcp_client import MCPClient, MCPServerConfig
-from src.organism.logging.error_handler import get_logger, log_exception
+from src.organism.logging.error_handler import get_logger
 
 _log = get_logger("a2a")
 
