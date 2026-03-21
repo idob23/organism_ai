@@ -392,7 +392,6 @@ class ProactiveScheduler:
                     await session.execute(sa_text("SELECT cleanup_expired_cache()"))
                     await session.execute(sa_text("SELECT cleanup_old_reflections(1000)"))
                     await session.execute(sa_text("SELECT cleanup_old_errors(30)"))
-                    await session.execute(sa_text("SELECT cleanup_old_edges(5000)"))
                     await session.commit()
                 _log.info("Weekly DB cleanup completed")
             except Exception as e:
