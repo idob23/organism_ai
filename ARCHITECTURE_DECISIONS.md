@@ -33,6 +33,19 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-102: Professional quality PPTX + PDF (2026-03-22)
+PPTX overhaul:
+- Real PowerPoint bullets via XML (a:buChar) instead of single-paragraph text blobs
+- Two themes: light (default, for projectors) and dark (screens) via Theme dataclass
+- Speaker notes support (optional "notes" field per slide)
+- Improved layout: centered title slide with accent line, content slides with proper bullets
+- Expand content: threshold 200→300 chars, max_tokens 600→1000, model fast→balanced
+PDF improvements:
+- Adaptive column widths proportional to content length (_calc_col_widths)
+- Removed silent [:50] truncation — proportional max_chars with ellipsis fallback
+- Page numbers via OrganismPDF subclass with footer() + alias_nb_pages()
+- Better heading spacing: 8px before H1, 6px before H2, no extra spacing for first element
+
 ### FIX-101: Conversation-first identity reframing (2026-03-22)
 Problem: Agent behaved as tool-executor, not thinking assistant. "autonomous AI assistant" framing
 + "if you have the right tool, use it" suppressed Claude's natural conversation behavior.

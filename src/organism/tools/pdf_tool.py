@@ -28,20 +28,46 @@ def _draw_hr(pdf):
     pdf.ln(5)
 
 
-def _draw_heading(pdf, text, font_name, size, color):
+def _draw_heading(pdf, text, font_name, size, color, is_first_on_page=False):
+    if not is_first_on_page:
+        spacing = 8 if size >= 14 else 6
+        pdf.ln(spacing)
     pdf.set_font(font_name, style="B", size=size)
     pdf.set_text_color(*color)
     pdf.multi_cell(w=0, h=size * 0.7, text=_clean_markdown(text),
                    new_x="LMARGIN", new_y="NEXT")
     pdf.set_font(font_name, size=11)
     pdf.set_text_color(0, 0, 0)
-    pdf.ln(2)
+    after = 6 if size >= 14 else 4
+    pdf.ln(after)
 
 
 def _draw_text(pdf, text, font_name):
     pdf.set_font(font_name, size=11)
     pdf.set_text_color(0, 0, 0)
     pdf.multi_cell(w=0, h=7, text=text, new_x="LMARGIN", new_y="NEXT")
+
+
+def _calc_col_widths(rows, num_cols, available_width):
+    """Column widths proportional to max content length."""
+    max_lengths = [0] * num_cols
+    for row in rows:
+        for i, cell in enumerate(row):
+            if i < num_cols:
+                max_lengths[i] = max(max_lengths[i], len(str(cell).strip()))
+
+    MIN_COL = 20
+    total = sum(max(ml, 3) for ml in max_lengths)
+    if total == 0:
+        return [available_width / num_cols] * num_cols
+
+    widths = []
+    for ml in max_lengths:
+        w = max(available_width * max(ml, 3) / total, MIN_COL)
+        widths.append(w)
+
+    scale = available_width / sum(widths)
+    return [w * scale for w in widths]
 
 
 def _draw_table(pdf, table_lines, font_name):
@@ -57,7 +83,8 @@ def _draw_table(pdf, table_lines, font_name):
         return
 
     num_cols = max(len(r) for r in rows)
-    col_width = (pdf.w - 40) / num_cols
+    available_width = pdf.w - 40
+    col_widths = _calc_col_widths(rows, num_cols, available_width)
 
     for row_idx, row in enumerate(rows):
         while len(row) < num_cols:
@@ -77,8 +104,14 @@ def _draw_table(pdf, table_lines, font_name):
             else:
                 pdf.set_fill_color(255, 255, 255)
 
-        for cell in row:
-            pdf.cell(col_width, 8, _clean_markdown(cell)[:50], border=1, fill=True)
+        for i, cell in enumerate(row):
+            cw = col_widths[i] if i < len(col_widths) else col_widths[-1]
+            cleaned = _clean_markdown(cell)
+            # Truncate proportionally to column width, with ellipsis
+            max_chars = max(int(cw / 2.2), 8)
+            if len(cleaned) > max_chars:
+                cleaned = cleaned[:max_chars - 1] + "\u2026"
+            pdf.cell(cw, 8, cleaned, border=1, fill=True)
         pdf.ln()
 
     pdf.set_text_color(0, 0, 0)
@@ -89,9 +122,19 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
     """Synchronous PDF creation via fpdf2 (FIX-77: full markdown support)."""
     from fpdf import FPDF
 
-    pdf = FPDF()
+    class OrganismPDF(FPDF):
+        _font_name = "Helvetica"
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font(self._font_name, size=9)
+            self.set_text_color(150, 150, 150)
+            self.cell(0, 10, f"{self.page_no()} / {{nb}}", align="C")
+
+    pdf = OrganismPDF()
+    pdf.alias_nb_pages()
     pdf.set_margin(20)
-    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_auto_page_break(auto=True, margin=25)
     pdf.add_page()
 
     # FIX-57c: DejaVuSans for Cyrillic, Helvetica fallback
@@ -105,6 +148,8 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
             font_name = "DejaVu"
     except Exception:
         font_name = "Helvetica"
+
+    pdf._font_name = font_name
 
     # Title
     if title:
@@ -120,6 +165,7 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
 
     lines = content.split("\n")
     i = 0
+    is_first_content = True
     while i < len(lines):
         line = lines[i].strip()
 
@@ -133,6 +179,7 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
         if re.match(r'^[-*_]{3,}$', line):
             _draw_hr(pdf)
             i += 1
+            is_first_content = False
             continue
 
         # Table block (lines containing |, not headings)
@@ -146,15 +193,19 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
             except Exception:
                 for tl in table_lines:
                     _draw_text(pdf, _clean_markdown(tl), font_name)
+            is_first_content = False
             continue
 
         # Headings (check ### before ## before #)
         if line.startswith('### '):
-            _draw_heading(pdf, line[4:], font_name, size=12, color=(51, 51, 51))
+            _draw_heading(pdf, line[4:], font_name, size=12, color=(51, 51, 51),
+                         is_first_on_page=is_first_content)
         elif line.startswith('## '):
-            _draw_heading(pdf, line[3:], font_name, size=13, color=(30, 58, 95))
+            _draw_heading(pdf, line[3:], font_name, size=13, color=(30, 58, 95),
+                         is_first_on_page=is_first_content)
         elif line.startswith('# '):
-            _draw_heading(pdf, line[2:], font_name, size=15, color=(30, 58, 95))
+            _draw_heading(pdf, line[2:], font_name, size=15, color=(30, 58, 95),
+                         is_first_on_page=is_first_content)
 
         # Bullet lists
         elif line.startswith('- ') or line.startswith('* '):
@@ -168,6 +219,7 @@ def _create_pdf_sync(filename: str, content: str, title: str, out_path: Path) ->
         else:
             _draw_text(pdf, _clean_markdown(line), font_name)
 
+        is_first_content = False
         i += 1
 
     pdf.output(str(out_path))

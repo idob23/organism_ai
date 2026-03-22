@@ -44,6 +44,13 @@ pdf_tool supports full markdown rendering:
 
 For best results, instruct text_writer to use tables for financial data and structured comparisons.
 
+## Automatic features
+
+- Page numbers — added automatically (format: "1 / N" at bottom center)
+- Table columns — adaptive width proportional to content length
+- No data truncation — tables handle long content gracefully
+- Heading spacing — professional spacing between sections
+
 ## When NOT to use the two-step pipeline
 
 - Quick 1-2 page PDFs — use pdf_tool with content directly
