@@ -33,6 +33,27 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-106: Prevent unreviewed channel publishing + natural language publish flow (2026-03-23)
+Problem: Scheduler generates post → sends for review → user says "Publish" → agent hallucinates
+a different post and sends it to the public channel via telegram_sender bypassing review.
+Three structural defects + UX issue (user shouldn't need /publish <id>).
+
+Solution — 4 structural parts:
+1) telegram_sender: hard block on channel sends. If chat_id starts with `@` or `-100` → returns
+   error pointing to manage_schedule. No prompt rules, no conditional logic — structural restriction.
+2) manage_schedule: extended with `publish`, `reject_post`, `list_pending` actions + `set_bot_sender`
+   setter (mirrors set_scheduler pattern). publish atomically removes from pending, sends via
+   BotSender, re-adds on failure. reject_post atomically removes. list_pending shows formatted list.
+3) loop._handle_conversation: injects pending publications into system prompt when non-empty.
+   Agent sees [short_id] → channel: preview and knows to call manage_schedule action=publish.
+   Empty pending = section not added (no context pollution). Wrapped in try/except.
+4) main._notify: after sending review message, saves it to chat_history for all allowed_user_ids.
+   Agent sees the review message in conversation history and can act on voice/text "Publish".
+
+Why not prompt rules: structural restriction (tool-level block) is more reliable than
+"never send to channels" instruction that can be overridden by task context.
+Why not new tools: manage_schedule already owns publication lifecycle, extending it keeps cohesion.
+
 ### FIX-104: Three-level epistemic honesty (2026-03-22)
 Problem: Agent confidently hallucinated product details (names, prices, providers) without
 searching first. Existing "Epistemic honesty" section only covered post-hoc tool result reporting.

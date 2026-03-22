@@ -15,6 +15,7 @@ from .base import BaseTool, ToolResult
 
 if TYPE_CHECKING:
     from src.organism.core.scheduler import ProactiveScheduler
+    from src.organism.channels.bot_sender import BotSender
 
 _log = get_logger("tools.manage_schedule")
 
@@ -28,11 +29,15 @@ class ManageScheduleTool(BaseTool):
 
     def __init__(self) -> None:
         self._scheduler: ProactiveScheduler | None = None
+        self._bot_sender: BotSender | None = None
 
     # \u2500\u2500 Dependency injection (setter pattern) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
     def set_scheduler(self, scheduler: ProactiveScheduler) -> None:
         self._scheduler = scheduler
+
+    def set_bot_sender(self, bot_sender: BotSender) -> None:
+        self._bot_sender = bot_sender
 
     # \u2500\u2500 BaseTool interface \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -43,10 +48,12 @@ class ManageScheduleTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Manage scheduled tasks \u2014 list current jobs, create a new recurring task, "
-            "delete a user-created task, enable or disable a task. "
+            "Manage scheduled tasks and pending publications \u2014 "
+            "list/create/delete/enable/disable jobs, "
+            "publish or reject posts awaiting review. "
             "Use when the user wants to set up recurring/periodic tasks, "
-            "check what's scheduled, or change schedule settings. "
+            "check what's scheduled, change schedule settings, "
+            "or publish/reject a pending channel post. "
             "Times should be provided in UTC. If user specifies local time, convert to UTC first "
             "(user timezone is in system context). The scheduler checks every 30 seconds. "
             "Results of scheduled tasks are automatically delivered to the user's "
@@ -60,7 +67,8 @@ class ManageScheduleTool(BaseTool):
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "create", "delete", "enable", "disable"],
+                    "enum": ["list", "create", "delete", "enable", "disable",
+                             "publish", "reject_post", "list_pending"],
                     "description": "Action to perform",
                 },
                 "name": {
@@ -118,6 +126,13 @@ class ManageScheduleTool(BaseTool):
                         "before publishing to channel. Only relevant when channel_id is set."
                     ),
                 },
+                "short_id": {
+                    "type": "string",
+                    "description": (
+                        "Publication ID from the pending list "
+                        "(for publish/reject_post actions)"
+                    ),
+                },
             },
             "required": ["action"],
         }
@@ -140,11 +155,18 @@ class ManageScheduleTool(BaseTool):
             return await self._action_set_enabled(input, True)
         elif action == "disable":
             return await self._action_set_enabled(input, False)
+        elif action == "publish":
+            return await self._action_publish(input)
+        elif action == "reject_post":
+            return await self._action_reject_post(input)
+        elif action == "list_pending":
+            return await self._action_list_pending()
         else:
             return ToolResult(
                 output="",
                 error=f"Unknown action: {action}. "
-                      "Valid: list, create, delete, enable, disable",
+                      "Valid: list, create, delete, enable, disable, "
+                      "publish, reject_post, list_pending",
                 exit_code=1,
             )
 
@@ -299,6 +321,82 @@ class ManageScheduleTool(BaseTool):
             output=f"\u0417\u0430\u0434\u0430\u0447\u0430 {name}: {state}",
             error="", exit_code=0,
         )
+
+    async def _action_publish(self, input: dict[str, Any]) -> ToolResult:
+        short_id = input.get("short_id", "").strip()
+        if not short_id:
+            return ToolResult(output="", error="'short_id' is required", exit_code=1)
+        pub = await self._scheduler.remove_pending_publication(short_id)
+        if pub is None:
+            return ToolResult(
+                output="",
+                error=f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f "
+                      f"\u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}",
+                exit_code=1,
+            )
+        if not self._bot_sender:
+            # Re-add so it's not lost, then return error
+            await self._scheduler.add_pending_publication(
+                short_id, pub["text"], pub["channel_id"], pub.get("job_name", ""),
+            )
+            return ToolResult(
+                output="",
+                error="BotSender \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d",
+                exit_code=1,
+            )
+        success = await self._bot_sender.send(pub["channel_id"], pub["text"])
+        if not success:
+            try:
+                await self._scheduler.add_pending_publication(
+                    short_id, pub["text"], pub["channel_id"], pub.get("job_name", ""),
+                )
+            except Exception:
+                pass
+            return ToolResult(
+                output="",
+                error=(
+                    f"\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 "
+                    f"\u0432 {pub['channel_id']}. "
+                    "\u041f\u043e\u0441\u0442 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0451\u043d "
+                    "\u0432 \u043e\u0447\u0435\u0440\u0435\u0434\u044c."
+                ),
+                exit_code=1,
+            )
+        return ToolResult(
+            output=f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e \u0432 {pub['channel_id']}",
+            error="", exit_code=0,
+        )
+
+    async def _action_reject_post(self, input: dict[str, Any]) -> ToolResult:
+        short_id = input.get("short_id", "").strip()
+        if not short_id:
+            return ToolResult(output="", error="'short_id' is required", exit_code=1)
+        pub = await self._scheduler.remove_pending_publication(short_id)
+        if pub is None:
+            return ToolResult(
+                output="",
+                error=f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f "
+                      f"\u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}",
+                exit_code=1,
+            )
+        return ToolResult(
+            output=f"\u041e\u0442\u043a\u043b\u043e\u043d\u0435\u043d\u043e: {short_id}",
+            error="", exit_code=0,
+        )
+
+    async def _action_list_pending(self) -> ToolResult:
+        pubs = await self._scheduler.list_pending_publications()
+        if not pubs:
+            return ToolResult(
+                output="\u041d\u0435\u0442 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0439 "
+                       "\u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435",
+                error="", exit_code=0,
+            )
+        lines = []
+        for short_id, pub in pubs:
+            preview = pub["text"][:200]
+            lines.append(f"[{short_id}] \u2192 {pub['channel_id']}: {preview}")
+        return ToolResult(output="\n".join(lines), error="", exit_code=0)
 
     # \u2500\u2500 Helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 

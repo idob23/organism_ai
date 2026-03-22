@@ -284,6 +284,14 @@ async def run_telegram() -> None:
                 f"\u041e\u0442\u043a\u043b\u043e\u043d\u0438\u0442\u044c: /reject_post {short_id}"
             )
             await bot_sender.send_many(settings.allowed_user_ids or [], review_msg)
+            if loop.memory:
+                for _uid in (settings.allowed_user_ids or []):
+                    try:
+                        await loop.memory.chat_history.save_message(
+                            str(_uid), "assistant", review_msg[:5000]
+                        )
+                    except Exception:
+                        pass
         else:
             # Normal mode: personal chat + channel (if specified)
             await bot_sender.send_many(settings.allowed_user_ids or [], message)
@@ -300,6 +308,7 @@ async def run_telegram() -> None:
     try:
         mst = loop.registry.get("manage_schedule")
         mst.set_scheduler(scheduler)
+        mst.set_bot_sender(bot_sender)
     except KeyError:
         pass
     scheduler.start()

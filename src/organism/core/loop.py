@@ -317,6 +317,31 @@ class CoreLoop:
             system_parts.append(f"\n## \u0417\u0430\u0434\u0430\u0447\u0438, \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043d\u044b\u0435 \u043f\u043e \u0437\u0430\u043f\u0440\u043e\u0441\u0443 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f\n{recent_work_context}")
         if longterm_context:
             system_parts.append(f"\n## \u041f\u043e\u0445\u043e\u0436\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 \u043f\u0430\u043c\u044f\u0442\u0438\n{longterm_context}")
+        # FIX-106: Pending publications — inject so agent can publish via natural language
+        if self.scheduler:
+            try:
+                _pending = await self.scheduler.list_pending_publications()
+                if _pending:
+                    _pending_lines = [
+                        "\u0415\u0441\u0442\u044c \u043f\u043e\u0441\u0442\u044b, "
+                        "\u043e\u0436\u0438\u0434\u0430\u044e\u0449\u0438\u0435 \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438. "
+                        "\u0415\u0441\u043b\u0438 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c "
+                        "\u043f\u0440\u043e\u0441\u0438\u0442 \u043e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c "
+                        "\u2014 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 "
+                        "manage_schedule action=publish short_id=<id>."
+                    ]
+                    for _sid, _pub in _pending:
+                        _preview = _pub["text"][:200]
+                        _pending_lines.append(
+                            f"[{_sid}] \u2192 {_pub['channel_id']}: {_preview}"
+                        )
+                    system_parts.append(
+                        "\n## \u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 "
+                        "\u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435\n"
+                        + "\n".join(_pending_lines)
+                    )
+            except Exception:
+                pass
         # FIX-63: Extra system context from MetaOrchestrator (agent personality)
         if extra_system_context:
             system_parts.append(f"\n{extra_system_context}")

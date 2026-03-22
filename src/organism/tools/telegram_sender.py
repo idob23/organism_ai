@@ -16,8 +16,10 @@ class TelegramSenderTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Send messages or files to a Telegram chat. "
-            "Use to deliver results, reports, or notifications to the user."
+            "Send messages to a user's personal Telegram chat. "
+            "Use to deliver results, reports, or notifications to the user. "
+            "Cannot send to channels \u2014 for channel publishing use "
+            "manage_schedule tool with action=publish."
         )
 
     @property
@@ -38,8 +40,20 @@ class TelegramSenderTool(BaseTool):
         }
 
     async def execute(self, input: dict[str, Any]) -> ToolResult:
-        chat_id = input["chat_id"]
+        chat_id = str(input["chat_id"])
         text = input["text"]
+
+        if chat_id.startswith("@") or chat_id.startswith("-100"):
+            return ToolResult(
+                output="",
+                error=(
+                    "\u041e\u0442\u043f\u0440\u0430\u0432\u043a\u0430 \u0432 \u043a\u0430\u043d\u0430\u043b\u044b "
+                    "\u0447\u0435\u0440\u0435\u0437 telegram_sender \u0437\u0430\u043f\u0440\u0435\u0449\u0435\u043d\u0430. "
+                    "\u0414\u043b\u044f \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 \u043f\u043e\u0441\u0442\u043e\u0432 "
+                    "\u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 manage_schedule action=publish."
+                ),
+                exit_code=1,
+            )
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:
