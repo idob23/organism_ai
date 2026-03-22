@@ -29,6 +29,8 @@ class MCPServerConfig:
     url: str            # base URL, e.g. "http://192.168.1.100:8080"
     api_key: str = ""   # optional auth token
     enabled: bool = True
+    artel_id: str = ""  # EMAIL-ARCH: reserved for multi-artel MCP routing
+    timeout: int = 30   # EMAIL-ARCH: per-server timeout in seconds
 
 
 class MCPClient:
@@ -52,7 +54,8 @@ class MCPClient:
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
         try:
-            async with httpx.AsyncClient(timeout=DISCOVERY_TIMEOUT) as client:
+            disc_timeout = min(self.config.timeout, DISCOVERY_TIMEOUT)
+            async with httpx.AsyncClient(timeout=disc_timeout) as client:
                 resp = await client.post(
                     f"{self.config.url.rstrip('/')}/tools/list",
                     headers=headers,
@@ -78,7 +81,8 @@ class MCPClient:
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
         try:
-            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+            timeout = self.config.timeout or DEFAULT_TIMEOUT
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(
                     f"{self.config.url.rstrip('/')}/tools/call",
                     headers=headers,
@@ -104,7 +108,7 @@ class MCPClient:
                 )
         except httpx.TimeoutException:
             return ToolResult(
-                output="", error=f"MCP timeout ({DEFAULT_TIMEOUT}s)", exit_code=-1,
+                output="", error=f"MCP timeout ({timeout}s)", exit_code=-1,
             )
         except Exception as e:
             return ToolResult(output="", error=f"MCP call failed: {e}", exit_code=1)

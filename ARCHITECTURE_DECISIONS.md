@@ -724,6 +724,46 @@ send_email description instructs agent to use confirm_with_user before sending.
    plain-text tokens on first read).
 7. **Defensive coding**: try/except on all Gmail API calls with structured error responses.
 
+## EMAIL-ARCH: MCP Artel Isolation + Per-Server Timeout (2026-03-22)
+
+### MCP Artel Isolation (architectural debt)
+
+**Current state:** MCP servers (1C, email) run as one instance per bot process.
+All artels connected to the same bot share the same MCP servers — same inbox, same 1C data.
+
+**Why it is not a problem now:** single artel deployment (artel_zoloto). One bot = one client.
+
+**Solution when scaling (not now):**
+
+- **Option A** — MCP server per artel (each artel gets its own email MCP with its own OAuth token).
+  Recommended: cleanest separation, MCP servers stay stateless.
+  `MCPServerConfig.artel_id` field already reserved; `MCP_SERVERS` env can be extended:
+  `[{"name":"email","url":"http://localhost:8092","artel_id":"zoloto"}]`
+  `MCPClient` at registration time binds tools to that artel.
+- **Option B** — artel_id in MCP tool arguments (servers filter by artel at the tool level).
+- **Option C** — MCP routing in MCPClient (different server URLs for different artels).
+
+**Extension point reserved:** `MCPServerConfig.artel_id: str = ""` — not used in logic,
+documents the future hook. Parsed from `MCP_SERVERS` env JSON, ignored if absent.
+
+`code_health.py check_artel_id_coverage()` checks `src/organism/` files only — MCPTool
+wrappers in `mcp_client.py` are excluded by design (they delegate to external servers).
+
+### Per-Server Timeout
+
+**Problem:** `DEFAULT_TIMEOUT = 30s` was global. `read_inbox(max_results=50)` or large 1C
+datasets can legitimately take 15-20s. No way to configure per-server without code changes.
+
+**Solution:** `MCPServerConfig.timeout: int = 30` — per-server override, backward-compatible.
+
+- `MCPClient.call_tool()`: uses `self.config.timeout or DEFAULT_TIMEOUT`
+- `MCPClient.discover_tools()`: uses `min(self.config.timeout, DISCOVERY_TIMEOUT)` —
+  discovery capped at 10s regardless of server timeout
+- `MCP_SERVERS` env: `{"name":"email","url":"...","timeout":45}` — sets 45s for email server
+- `main.py` MCPServerConfig construction: reads `timeout` from JSON (`default=30`)
+
+Default 30s unchanged — fully backward-compatible.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

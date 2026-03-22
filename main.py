@@ -49,6 +49,8 @@ def build_registry() -> ToolRegistry:
                     url=srv.get("url", ""),
                     api_key=srv.get("api_key", ""),
                     enabled=srv.get("enabled", True),
+                    artel_id=srv.get("artel_id", ""),
+                    timeout=srv.get("timeout", 30),
                 )
                 for srv in servers
             ]
