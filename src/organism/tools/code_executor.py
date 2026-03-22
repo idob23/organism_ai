@@ -70,8 +70,25 @@ class CodeExecutorTool(BaseTool):
         self._warm_lock = threading.Lock()
         self._init_warm()
 
+    def _cleanup_stale_warm(self) -> None:
+        """Remove any leftover organism-warm containers from previous runs."""
+        try:
+            stale = self._client.containers.list(all=True, filters={"name": "organism-warm"})
+            count = 0
+            for c in stale:
+                try:
+                    c.remove(force=True)
+                    _log.info("Cleaned up stale warm container: %s", c.name)
+                    count += 1
+                except Exception as e:
+                    _log.warning("Failed to remove stale container %s: %s", c.name, e)
+            _log.info("Stale warm cleanup: removed %d containers", count)
+        except Exception as e:
+            _log.warning("Stale warm cleanup failed (continuing): %s", e)
+
     def _init_warm(self) -> None:
         """Start a warm container with sleep infinity for reuse."""
+        self._cleanup_stale_warm()
         try:
             self._warm_sandbox = tempfile.mkdtemp(prefix="organism_warm_sb_")
             self._warm_output = tempfile.mkdtemp(prefix="organism_warm_out_")
