@@ -39,6 +39,7 @@ Haiku = классификация/роутинг. Sonnet = исполнение
 Python 3.11+ | Claude API (Sonnet/Haiku) | PostgreSQL + pgvector | aiogram 3.x
 Docker (sandbox) | aiohttp (MCP) | Tavily (search) | numpy (duplicate_finder)
 python-pptx | fpdf2 | structlog | pydantic-settings | proxyapi.ru (embeddings)
+google-api-python-client | google-auth-oauthlib (Gmail MCP)
 
 ## Структура файлов
 ```
@@ -71,6 +72,7 @@ organism_ai/
 │   │                     # prompt_versioning.py, benchmark_optimizer.py,
 │   │                     # evolutionary_search.py
 │   ├── mcp_1c/         # server.py (1С MCP, demo/live)
+│   ├── mcp_email/      # auth.py (OAuth2), server.py (Gmail MCP, 5 tools)
 │   ├── mcp_serve/      # server.py (Organism как MCP-сервер)
 │   ├── a2a/            # protocol.py (Agent-to-Agent delegation)
 │   └── monitoring/     # error_notifier.py

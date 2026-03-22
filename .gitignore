@@ -41,3 +41,6 @@ data/secrets/
 data/outputs/
 data/workspace/
 data/logs/
+
+config/gmail/credentials.json
+config/gmail/token.json

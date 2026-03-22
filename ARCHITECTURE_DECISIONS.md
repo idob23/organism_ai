@@ -674,6 +674,32 @@ Root cause for REVIEW-3: previous "files in scope" approach missed cross-module 
 reviewer_memory scope). Invariant-first ensures exhaustive verification regardless of
 which directory a file lives in.
 
+## EMAIL-MCP: Gmail Integration (March 2026)
+
+**Decision**: Standalone MCP server for Gmail, same pattern as mcp_1c (Q-8.2).
+
+Architecture:
+- `src/organism/mcp_email/auth.py` — OAuth2 flow (google-auth-oauthlib)
+  - Scope: `gmail.modify` (send + read + labels, NOT full access)
+  - First run: interactive browser flow (InstalledAppFlow.run_local_server)
+  - Subsequent: automatic refresh via token.json
+  - Lazy init: auth happens on first tool call, not server startup
+- `src/organism/mcp_email/server.py` — aiohttp MCP server (port 8092)
+  - 5 tools: send_email, read_inbox, read_email, search_emails, list_labels
+  - Gmail API is synchronous → run_in_executor for async handlers
+  - HTML body extraction: recursive payload traversal, prefer text/plain
+  - Body truncated to 5000 chars to prevent context overflow
+  - JSON-RPC 2.0 endpoint for Cursor/Claude Desktop compatibility
+
+Why gmail.modify not gmail.full: modify covers send+read+labels+drafts,
+which is everything needed. Full includes permanent deletion — unnecessary risk.
+
+Why lazy auth: server can start without token; first actual tool call triggers
+auth. --auth flag for explicit first-time setup.
+
+Integration: MCPClient (Q-8.1) connects via MCP_SERVERS env config.
+send_email description instructs agent to use confirm_with_user before sending.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)
