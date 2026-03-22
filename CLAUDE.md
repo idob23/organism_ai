@@ -72,7 +72,7 @@ organism_ai/
 │   │                     # prompt_versioning.py, benchmark_optimizer.py,
 │   │                     # evolutionary_search.py
 │   ├── mcp_1c/         # server.py (1С MCP, demo/live)
-│   ├── mcp_email/      # auth.py (OAuth2), server.py (Gmail MCP, 5 tools)
+│   ├── mcp_email/      # auth.py (OAuth2, thread-safe), server.py (Gmail MCP, 6 tools)
 │   ├── mcp_serve/      # server.py (Organism как MCP-сервер)
 │   ├── a2a/            # protocol.py (Agent-to-Agent delegation)
 │   └── monitoring/     # error_notifier.py

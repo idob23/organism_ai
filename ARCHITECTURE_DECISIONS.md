@@ -710,6 +710,20 @@ send_email description instructs agent to use confirm_with_user before sending.
 - Graceful degradation: if email server not running → 0 email tools, bot works normally
 - Server launch is user's responsibility (dev: separate terminal, prod: docker-compose)
 
+### EMAIL-FIX: Hardening (March 2026)
+
+7 issues fixed:
+1. **Thread safety**: module-level `threading.Lock` + `_cached_service` singleton in auth.py.
+   Server's `_get_service()` delegates to auth.py (single source of truth, no double caching).
+2. **From header**: `_get_sender_email()` with cache fetches profile once, adds From to all outgoing.
+3. **Batch API**: `_fetch_messages_metadata()` uses `svc.new_batch_http_request()` — 2 HTTP calls
+   instead of N+1 for read_inbox/search_emails.
+4. Thread lock (covered by #1).
+5. **reply_to_email**: 6th tool with In-Reply-To/References headers, threadId, reply_all support.
+6. **Token obfuscation**: base64-encoded token.json with backward compatibility (auto-migrates
+   plain-text tokens on first read).
+7. **Defensive coding**: try/except on all Gmail API calls with structured error responses.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

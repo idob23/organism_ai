@@ -1,4 +1,4 @@
-"""EMAIL-MCP: Gmail MCP server with OAuth2 \u2014 send, read, search, labels.
+"""EMAIL-MCP: Gmail MCP server with OAuth2 \u2014 send, read, search, reply, labels.
 
 Standalone HTTP server exposing Gmail operations via MCP protocol.
 Pattern follows src/organism/mcp_1c/server.py.
@@ -119,6 +119,32 @@ MCP_TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "reply_to_email",
+        "description": (
+            "Reply to an email. Keeps thread and adds Re: to subject. "
+            "IMPORTANT: agent MUST use confirm_with_user before replying."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "string",
+                    "description": "ID of the email to reply to (from read_inbox or search_emails)",
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Reply text",
+                },
+                "reply_all": {
+                    "type": "boolean",
+                    "description": "Reply to all recipients",
+                    "default": False,
+                },
+            },
+            "required": ["message_id", "body"],
+        },
+    },
+    {
         "name": "list_labels",
         "description": "List all email labels (folders)",
         "inputSchema": {
@@ -162,21 +188,32 @@ class MCPEmailServer:
     """MCP-protocol HTTP handler for Gmail operations."""
 
     def __init__(self) -> None:
-        self._service = None  # lazy init
+        self._sender_email: str | None = None
         self._handlers: dict[str, Any] = {
             "send_email": self._h_send_email,
             "read_inbox": self._h_read_inbox,
             "read_email": self._h_read_email,
             "search_emails": self._h_search_emails,
+            "reply_to_email": self._h_reply_to_email,
             "list_labels": self._h_list_labels,
         }
 
     def _get_service(self):
-        """Lazy init Gmail service \u2014 auth on first call."""
-        if self._service is None:
-            from .auth import get_gmail_service
-            self._service = get_gmail_service()
-        return self._service
+        """Get Gmail service \u2014 delegates to auth.py singleton."""
+        from .auth import get_gmail_service
+        return get_gmail_service()
+
+    def _get_sender_email(self) -> str:
+        """Get authenticated user's email address (cached)."""
+        if self._sender_email is None:
+            try:
+                svc = self._get_service()
+                profile = svc.users().getProfile(userId="me").execute()
+                self._sender_email = profile.get("emailAddress", "")
+            except Exception as e:
+                _log.warning(f"Failed to get sender email: {e}")
+                self._sender_email = ""
+        return self._sender_email
 
     # \u2500\u2500 HTTP endpoints \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -246,7 +283,7 @@ class MCPEmailServer:
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "organism-email", "version": "1.0"},
+                    "serverInfo": {"name": "organism-email", "version": "1.1"},
                 },
             })
 
@@ -308,23 +345,28 @@ class MCPEmailServer:
         else:
             msg = MIMEText(body_text)
 
+        msg["From"] = self._get_sender_email()
         msg["To"] = to
         msg["Subject"] = subject
         if cc:
             msg["Cc"] = cc
 
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        svc.users().messages().send(
-            userId="me", body={"raw": raw},
-        ).execute()
+        try:
+            svc.users().messages().send(
+                userId="me", body={"raw": raw},
+            ).execute()
+        except Exception as e:
+            return {"error": f"Failed to send email: {e}"}
 
         return {
             "status": "sent",
+            "from": self._get_sender_email(),
             "to": to,
             "subject": subject,
         }
 
-    def _h_read_inbox(self, args: dict) -> list[dict]:
+    def _h_read_inbox(self, args: dict) -> list[dict] | dict:
         svc = self._get_service()
         max_results = args.get("max_results", 10)
         unread_only = args.get("unread_only", False)
@@ -337,35 +379,27 @@ class MCPEmailServer:
         if unread_only:
             kwargs["q"] = "is:unread"
 
-        resp = svc.users().messages().list(**kwargs).execute()
-        messages = resp.get("messages", [])
+        try:
+            resp = svc.users().messages().list(**kwargs).execute()
+        except Exception as e:
+            return {"error": f"Gmail API error: {e}", "emails": []}
 
-        results = []
-        for m in messages:
-            meta = svc.users().messages().get(
-                userId="me", id=m["id"], format="metadata",
-                metadataHeaders=["From", "Subject", "Date"],
-            ).execute()
-            headers = {h["name"]: h["value"] for h in meta.get("payload", {}).get("headers", [])}
-            label_ids = meta.get("labelIds", [])
-            results.append({
-                "id": m["id"],
-                "from": headers.get("From", ""),
-                "subject": headers.get("Subject", ""),
-                "date": headers.get("Date", ""),
-                "snippet": meta.get("snippet", ""),
-                "unread": "UNREAD" in label_ids,
-            })
+        messages = resp.get("messages") or []
+        if not messages:
+            return []
 
-        return results
+        return self._fetch_messages_metadata(svc, [m["id"] for m in messages])
 
     def _h_read_email(self, args: dict) -> dict:
         svc = self._get_service()
         message_id = args["message_id"]
 
-        msg = svc.users().messages().get(
-            userId="me", id=message_id, format="full",
-        ).execute()
+        try:
+            msg = svc.users().messages().get(
+                userId="me", id=message_id, format="full",
+            ).execute()
+        except Exception as e:
+            return {"error": f"Failed to read email {message_id}: {e}"}
 
         headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
         body_text = self._extract_body(msg.get("payload", {}))
@@ -381,38 +415,99 @@ class MCPEmailServer:
             "body": body_text,
         }
 
-    def _h_search_emails(self, args: dict) -> list[dict]:
+    def _h_search_emails(self, args: dict) -> list[dict] | dict:
         svc = self._get_service()
         query = args["query"]
         max_results = args.get("max_results", 10)
 
-        resp = svc.users().messages().list(
-            userId="me", q=query, maxResults=max_results,
-        ).execute()
-        messages = resp.get("messages", [])
-
-        results = []
-        for m in messages:
-            meta = svc.users().messages().get(
-                userId="me", id=m["id"], format="metadata",
-                metadataHeaders=["From", "Subject", "Date"],
+        try:
+            resp = svc.users().messages().list(
+                userId="me", q=query, maxResults=max_results,
             ).execute()
-            headers = {h["name"]: h["value"] for h in meta.get("payload", {}).get("headers", [])}
-            label_ids = meta.get("labelIds", [])
-            results.append({
-                "id": m["id"],
-                "from": headers.get("From", ""),
-                "subject": headers.get("Subject", ""),
-                "date": headers.get("Date", ""),
-                "snippet": meta.get("snippet", ""),
-                "unread": "UNREAD" in label_ids,
-            })
+        except Exception as e:
+            return {"error": f"Gmail API error: {e}", "emails": []}
 
-        return results
+        messages = resp.get("messages") or []
+        if not messages:
+            return []
 
-    def _h_list_labels(self, args: dict) -> list[dict]:
+        return self._fetch_messages_metadata(svc, [m["id"] for m in messages])
+
+    def _h_reply_to_email(self, args: dict) -> dict:
         svc = self._get_service()
-        resp = svc.users().labels().list(userId="me").execute()
+        message_id = args["message_id"]
+        body_text = args["body"]
+        reply_all = args.get("reply_all", False)
+
+        # Fetch original message headers
+        try:
+            original = svc.users().messages().get(
+                userId="me", id=message_id, format="metadata",
+                metadataHeaders=["From", "To", "Cc", "Subject", "Message-ID"],
+            ).execute()
+        except Exception as e:
+            return {"error": f"Failed to read original email {message_id}: {e}"}
+
+        headers = {
+            h["name"]: h["value"]
+            for h in original.get("payload", {}).get("headers", [])
+        }
+        thread_id = original.get("threadId", "")
+
+        to = headers.get("From", "")
+        subject = headers.get("Subject", "")
+        if not subject.lower().startswith("re:"):
+            subject = f"Re: {subject}"
+
+        msg = MIMEText(body_text)
+        msg["From"] = self._get_sender_email()
+        msg["To"] = to
+        msg["Subject"] = subject
+
+        # Threading headers
+        original_msg_id = headers.get("Message-ID", "")
+        if original_msg_id:
+            msg["In-Reply-To"] = original_msg_id
+            msg["References"] = original_msg_id
+
+        if reply_all:
+            cc_parts = []
+            if headers.get("To"):
+                cc_parts.append(headers["To"])
+            if headers.get("Cc"):
+                cc_parts.append(headers["Cc"])
+            sender = self._get_sender_email()
+            cc_all = ", ".join(cc_parts)
+            cc_filtered = ", ".join(
+                addr.strip() for addr in cc_all.split(",")
+                if sender.lower() not in addr.lower()
+            )
+            if cc_filtered:
+                msg["Cc"] = cc_filtered
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        try:
+            svc.users().messages().send(
+                userId="me",
+                body={"raw": raw, "threadId": thread_id},
+            ).execute()
+        except Exception as e:
+            return {"error": f"Failed to send reply: {e}"}
+
+        return {
+            "status": "replied",
+            "from": self._get_sender_email(),
+            "to": to,
+            "subject": subject,
+            "thread_id": thread_id,
+        }
+
+    def _h_list_labels(self, args: dict) -> list[dict] | dict:
+        svc = self._get_service()
+        try:
+            resp = svc.users().labels().list(userId="me").execute()
+        except Exception as e:
+            return {"error": f"Gmail API error: {e}"}
         labels = resp.get("labels", [])
         return [
             {"id": lb["id"], "name": lb["name"], "type": lb.get("type", "")}
@@ -420,6 +515,43 @@ class MCPEmailServer:
         ]
 
     # \u2500\u2500 Helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+    def _fetch_messages_metadata(self, svc, message_ids: list[str]) -> list[dict]:
+        """Fetch metadata for multiple messages using Gmail batch API."""
+        results: list[dict | None] = [None] * len(message_ids)
+
+        def _make_callback(index: int):
+            def callback(request_id, response, exception):
+                if exception:
+                    _log.warning(f"Batch fetch error for message: {exception}")
+                    return
+                h = {
+                    hdr["name"]: hdr["value"]
+                    for hdr in response.get("payload", {}).get("headers", [])
+                }
+                label_ids = response.get("labelIds", [])
+                results[index] = {
+                    "id": response["id"],
+                    "from": h.get("From", ""),
+                    "subject": h.get("Subject", ""),
+                    "date": h.get("Date", ""),
+                    "snippet": response.get("snippet", ""),
+                    "unread": "UNREAD" in label_ids,
+                }
+            return callback
+
+        batch = svc.new_batch_http_request()
+        for i, msg_id in enumerate(message_ids):
+            batch.add(
+                svc.users().messages().get(
+                    userId="me", id=msg_id, format="metadata",
+                    metadataHeaders=["From", "Subject", "Date"],
+                ),
+                callback=_make_callback(i),
+            )
+        batch.execute()
+
+        return [r for r in results if r is not None]
 
     @staticmethod
     def _extract_body(payload: dict) -> str:
