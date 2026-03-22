@@ -132,7 +132,9 @@ class CodeExecutorTool(BaseTool):
             "  /repo/scripts/ \u2014 health check and utility scripts\n"
             "  /repo/*.md \u2014 system documentation\n"
             "  /repo/benchmark.py, /repo/main.py \u2014 entry points\n"
-            "Use these paths when asked to analyze, review, or inspect the codebase."
+            "Use these paths to analyze, review, or inspect the codebase. "
+            "NEVER write to /repo/ \u2014 it is strictly read-only. "
+            "If you find an issue in the code, report it to the user; do not attempt to fix it."
         )
 
     @property

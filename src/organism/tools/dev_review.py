@@ -42,6 +42,8 @@ class DevReviewTool(BaseTool):
             "Run code review on the codebase (dev-only). "
             "Runs deterministic health checks, loads review role templates, "
             "and returns a structured review instruction.\n"
+            "This is an analysis-only tool. It identifies issues and reports them. "
+            "It does NOT fix code. Found problems should be reported to the user.\n"
             "Scopes: memory, core, tools, channels, agents, infra, "
             "docs, quality, self_improvement, all."
         )

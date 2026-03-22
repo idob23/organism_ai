@@ -33,6 +33,19 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-101: Conversation-first identity reframing (2026-03-22)
+Problem: Agent behaved as tool-executor, not thinking assistant. "autonomous AI assistant" framing
++ "if you have the right tool, use it" suppressed Claude's natural conversation behavior.
+Users asking questions got tool calls instead of answers; agent tried to write to /repo/ (read-only).
+Solution: Rewrote system prompt identity section. "You are Organism AI — autonomous AI assistant"
+replaced with conversation-first framing. Key changes:
+- Identity: "smart assistant with tools, knows when to talk vs act"
+- Communication: "understand first, then act" — tools only for real actions (search, calc, files)
+- Clarification: "if unclear, ask — don't guess"
+- /repo/ guard: explicit "read-only, report issues, don't fix" in system prompt + code_executor desc
+- dev_review: "analysis-only, does NOT fix code"
+Benchmark: 29/30, quality 0.89 (task #9 multi-agent flaky, pre-existing).
+
 ### FIX-100: BotSender long message handling (2026-03-22)
 Problem: Scheduler job `media_daily_news` generated a post (success=True) but `bot_sender.send_many`
 failed on ALL recipients: `Bad Request: message is too long`. Telegram limit is 4096 chars.
