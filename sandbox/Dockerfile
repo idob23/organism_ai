@@ -23,7 +23,8 @@ WORKDIR /sandbox
 COPY fonts/ /sandbox/fonts/
 
 # SKILL-1: docx library installed locally in /sandbox
-RUN npm init -y && npm install --fetch-timeout=120000 docx 2>/dev/null || true
+RUN npm init -y && npm install --fetch-timeout=120000 docx && \
+    node -e "require('docx'); console.log('docx OK')"
 
 # Neprivilegirovannyj polzovatel
 RUN useradd -m -u 1000 sandbox && \

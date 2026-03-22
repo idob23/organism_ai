@@ -33,6 +33,15 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-103: Professional quality DOCX + Excel skills (2026-03-22)
+Dockerfile: removed `2>/dev/null || true` from npm install docx, added `node -e "require('docx')"`
+verification. Fail-fast on build instead of silent runtime crash.
+docx.md: full rewrite — professional template with headers/footers (document title + page numbers),
+color scheme (COLORS object), bullet lists via `{ bullet: { level: 0 } }`, styled tables with
+dark headers and alternating rows, horizontal lines via border, HeadingLevel support.
+excel.md: extended with formulas (SUM, percentage, number_format), multi-sheet support,
+conditional formatting (CellIsRule), and 1C SharedStrings.xml quirk fix (capital S → lowercase).
+
 ### FIX-102: Professional quality PPTX + PDF (2026-03-22)
 PPTX overhaul:
 - Real PowerPoint bullets via XML (a:buChar) instead of single-paragraph text blobs

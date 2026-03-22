@@ -69,3 +69,62 @@ print("Saved files: report.xlsx")
 - Суммы — жирный шрифт, выделенный фон
 - Файл всегда сохранять в /output/, print "Saved files: filename.xlsx"
 - Для финансовых данных: формат ячейки '#,##0.00 ₽'
+
+## Формулы
+```python
+# Формула суммы
+ws.cell(row=total_row, column=3).value = f'=SUM(C3:C{total_row-1})'
+# Процент
+ws.cell(row=3, column=4).value = '=C3/B3*100'
+# Формат числа
+ws.cell(row=3, column=3).number_format = '#,##0.00 ₽'
+# Формат процента
+ws.cell(row=3, column=4).number_format = '0.0%'
+```
+
+## Несколько листов
+```python
+ws1 = wb.active
+ws1.title = "Данные"
+ws2 = wb.create_sheet("Сводка")
+# Формула ссылка на другой лист
+ws2.cell(row=1, column=1).value = "=Данные!A1"
+```
+
+## Условное форматирование
+```python
+from openpyxl.formatting.rule import CellIsRule
+# Красный если значение > 100000
+ws.conditional_formatting.add('C3:C100',
+    CellIsRule(operator='greaterThan', formula=['100000'],
+              fill=PatternFill("solid", fgColor="FFCCCC")))
+# Зелёный если значение < 50000
+ws.conditional_formatting.add('C3:C100',
+    CellIsRule(operator='lessThan', formula=['50000'],
+              fill=PatternFill("solid", fgColor="CCFFCC")))
+```
+
+## Чтение файлов из 1С (SharedStrings.xml quirk)
+1С экспортирует .xlsx с `SharedStrings.xml` (заглавная S), а openpyxl ожидает `sharedStrings.xml`.
+Если при открытии файла из 1С ошибка — перепакуй:
+```python
+import zipfile, shutil, tempfile
+
+def fix_1c_xlsx(input_path, output_path=None):
+    if output_path is None:
+        output_path = input_path
+    tmp = tempfile.mktemp(suffix='.xlsx')
+    with zipfile.ZipFile(input_path, 'r') as zin:
+        with zipfile.ZipFile(tmp, 'w') as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                name = item.filename
+                if name == 'xl/SharedStrings.xml':
+                    name = 'xl/sharedStrings.xml'
+                zout.writestr(name, data)
+    shutil.move(tmp, output_path)
+    return output_path
+
+# fix_1c_xlsx('/data/outputs/file_from_1c.xlsx')
+# wb = openpyxl.load_workbook('/data/outputs/file_from_1c.xlsx')
+```
