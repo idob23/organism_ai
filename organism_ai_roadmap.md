@@ -32,6 +32,7 @@
 - FIX-95b: Recursion depth guard for delegate chains + dead code cleanup (ab_test.py) ✅
 - FIX-96: Artel isolation final pass — manager.py, metrics.py, auto_improver.py + dead import cleanup ✅
 - EMAIL-MCP: Gmail MCP server — OAuth2 auth, 5 tools (send, read_inbox, read_email, search, labels), port 8092 ✅
+- EMAIL-MCP-2: Bot integration — planner confirm_with_user rule, env config, docs ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 
@@ -56,7 +57,7 @@
 
 ## Фаза 3: Интеграции
 
-- ~~Email MCP сервер~~ ✅ EMAIL-MCP (server ready, integration in next step)
+- ~~Email MCP сервер~~ ✅ EMAIL-MCP + EMAIL-MCP-2 (server + bot integration complete)
 - Google Calendar MCP — управление расписанием артели
 - Документооборот — шаблоны путевых листов, актов, табелей
 

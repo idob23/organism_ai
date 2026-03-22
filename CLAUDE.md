@@ -108,6 +108,16 @@ organism_ai/
 7. Миграции → APPEND в `_MIGRATIONS` в database.py, НИКОГДА не переставлять
 8. После задачи → обновить CLAUDE.md + ARCHITECTURE_DECISIONS.md + git commit с префиксом задачи
 
+## Email MCP (опционально)
+```bash
+# Первичная авторизация (один раз, нужен браузер):
+python -m src.organism.mcp_email.server --auth
+# Запуск сервера:
+python -m src.organism.mcp_email.server --port 8092
+# Добавить в .env:
+MCP_SERVERS=[..., {"name":"email","url":"http://localhost:8092"}]
+```
+
 ## Ссылки
 - Конвенции кода, CLI, команды бота → **CONVENTIONS.md**
 - Архитектурные решения Sprint 9+ → **ARCHITECTURE_DECISIONS.md**

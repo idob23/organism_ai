@@ -700,6 +700,16 @@ auth. --auth flag for explicit first-time setup.
 Integration: MCPClient (Q-8.1) connects via MCP_SERVERS env config.
 send_email description instructs agent to use confirm_with_user before sending.
 
+### EMAIL-MCP-2: Bot Integration
+
+**Decision**: env-only integration, no subprocess auto-start, no code changes to main.py.
+
+- Email MCP connects via same MCP_SERVERS env as 1C — unified mechanism
+- Planner prompts gain one safety rule: confirm_with_user before mcp_email_send_email
+- No tool enumeration in prompts — agent discovers email tools via MCP discovery
+- Graceful degradation: if email server not running → 0 email tools, bot works normally
+- Server launch is user's responsibility (dev: separate terminal, prod: docker-compose)
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

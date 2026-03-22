@@ -59,6 +59,7 @@ RULES:
 - For documents/reports: text_writer or pdf_tool
 - For current information: web_search first, never web_fetch as first step
 - For write operations to external systems: confirm_with_user first
+- For email: confirm_with_user required before mcp_email_send_email
 - Use {{step_N_output}} to pass results between steps
 - Maximum 10 steps
 - All outputs in Russian
