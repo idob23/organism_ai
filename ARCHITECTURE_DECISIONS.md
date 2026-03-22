@@ -33,6 +33,16 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-104: Three-level epistemic honesty (2026-03-22)
+Problem: Agent confidently hallucinated product details (names, prices, providers) without
+searching first. Existing "Epistemic honesty" section only covered post-hoc tool result reporting.
+Solution: Replaced with three-level confidence framework:
+1) Know for certain (math, syntax, common facts) — answer immediately
+2) May be wrong (products, APIs, prices, dates, companies, specs) — search first via web_search
+3) Don't know — say so directly and offer to search
+Preserved the post-hoc rule: describe tool results as-is, never fabricate failure explanations.
+web_search availability: conditional on TAVILY_API_KEY (registered in main.py:37).
+
 ### FIX-103: Professional quality DOCX + Excel skills (2026-03-22)
 Dockerfile: removed `2>/dev/null || true` from npm install docx, added `node -e "require('docx')"`
 verification. Fail-fast on build instead of silent runtime crash.
