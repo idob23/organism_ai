@@ -265,23 +265,25 @@ async def run_telegram() -> None:
         await loop.memory.initialize()
 
     # --- Proactive scheduler ---
-    async def _notify(artel_id: str, message: str, channel_id: str = "", requires_approval: bool = False) -> None:
+    async def _notify(artel_id: str, message: str, channel_id: str = "", requires_approval: bool = False, job_name: str = "") -> None:
         """Send scheduled task result to allowed Telegram users and channel.
 
         FIX-90: if channel_id + requires_approval, send review request to personal chat only.
-        Human approves via /publish <id> or rejects via /reject_post <id>.
+        FIX-107: store clean text in pending (no prefix, no truncation);
+                 review message shows label + natural-language hint instead of slash commands.
         """
         import uuid as _uuid
+        label = f"[{job_name}] " if job_name else ""
         if channel_id and requires_approval:
-            # Review mode: send to personal chat with approval buttons, NOT to channel
+            # Review mode: store CLEAN text in pending, show label only in review message
             short_id = _uuid.uuid4().hex[:8]
-            await scheduler.add_pending_publication(short_id, message, channel_id, "")
+            await scheduler.add_pending_publication(short_id, message, channel_id, job_name)
             review_msg = (
                 "\U0001f4dd \u041d\u0410 \u041f\u0420\u041e\u0412\u0415\u0420\u041a\u0423:\n\n"
-                f"{message}\n\n"
+                f"{label}{message[:4000]}\n\n"
                 "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
-                f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c: /publish {short_id}\n"
-                f"\u041e\u0442\u043a\u043b\u043e\u043d\u0438\u0442\u044c: /reject_post {short_id}"
+                "\u0421\u043a\u0430\u0436\u0438 \u00ab\u043f\u0443\u0431\u043b\u0438\u043a\u0443\u0439\u00bb "
+                "\u0438\u043b\u0438 \u00ab\u043e\u0442\u043a\u043b\u043e\u043d\u044f\u0439\u00bb"
             )
             await bot_sender.send_many(settings.allowed_user_ids or [], review_msg)
             if loop.memory:
@@ -294,9 +296,10 @@ async def run_telegram() -> None:
                         pass
         else:
             # Normal mode: personal chat + channel (if specified)
-            await bot_sender.send_many(settings.allowed_user_ids or [], message)
+            notify_text = f"{label}{message[:4000]}" if label else message
+            await bot_sender.send_many(settings.allowed_user_ids or [], notify_text)
             if channel_id:
-                await bot_sender.send(channel_id, message)
+                await bot_sender.send(channel_id, notify_text)
 
     scheduler = ProactiveScheduler(
         task_runner=loop.run,
@@ -309,6 +312,7 @@ async def run_telegram() -> None:
         mst = loop.registry.get("manage_schedule")
         mst.set_scheduler(scheduler)
         mst.set_bot_sender(bot_sender)
+        mst.set_approval(approval)
     except KeyError:
         pass
     scheduler.start()

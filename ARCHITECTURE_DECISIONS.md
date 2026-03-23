@@ -33,6 +33,33 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### FIX-107: Clean pending text + confirm before publish (2026-03-23)
+Problem: Two bugs after FIX-106:
+1) Pending text was dirty: chain-of-thought in result.output, [job_name] prefix baked in,
+   truncated to 4000 chars before storage.
+2) manage_schedule action=publish had no confirmation — agent could publish when user only
+   asked to "look at" pending posts.
+
+Solution:
+1) scheduler._loop(): use `result.answer or result.output` (answer = clean final LLM response,
+   no CoT). Pass job.name as separate 5th param to notify. Remove [job_name] prefix and [:4000]
+   truncation from notify call.
+2) main._notify(): add job_name param. In requires_approval branch: store clean message in
+   pending_publications (no prefix, full text); show [job_name] label only in review_msg.
+   Replace /publish / /reject_post slash commands in review_msg with natural-language hint
+   "Скажи «публикуй» или «отклоняй»". Normal branch: prepend label to notify text.
+3) manage_schedule._action_publish(): get → confirm → remove → send pattern.
+   get_pending_publication() (read-only peek, post stays in queue). If approval configured:
+   request_approval() → if rejected, return "отменена", post stays in queue.
+   After approval: atomic remove_pending_publication + send. BotSender check before remove
+   to avoid losing the post. Re-add on send failure.
+   set_approval() setter added; self._approval injected from main.py after set_bot_sender.
+   Without approval (benchmark/CLI): publishes directly without confirmation.
+
+Why confirm before publish: publishing to a public channel is an irreversible external action.
+Identical pattern to ConfirmUserTool — HumanApproval.request_approval() sends /approve|/reject
+prompt via Telegram and waits up to 300s. User who said "look at pending" gets no accidental publish.
+
 ### FIX-106: Prevent unreviewed channel publishing + natural language publish flow (2026-03-23)
 Problem: Scheduler generates post → sends for review → user says "Publish" → agent hallucinates
 a different post and sends it to the public channel via telegram_sender bypassing review.

@@ -93,7 +93,7 @@ class ProactiveScheduler:
     def __init__(
         self,
         task_runner: Callable[..., Awaitable[Any]],
-        notify: Callable[[str, str, str], Awaitable[None]] | None = None,
+        notify: Callable[[str, str, str, bool, str], Awaitable[None]] | None = None,
     ) -> None:
         self.task_runner = task_runner
         self.notify = notify
@@ -477,12 +477,13 @@ class ProactiveScheduler:
                             job.task_text, personality_id=job.personality_id,
                         )
                         if result.success and self.notify:
-                            output = result.output or ""
+                            output = result.answer or result.output or ""
                             await self.notify(
                                 job.artel_id,
-                                f"[{job.name}] {output[:4000]}",
+                                output,
                                 job.channel_id,
                                 job.requires_approval,
+                                job.name,
                             )
                 except Exception as exc:
                     _log.error(

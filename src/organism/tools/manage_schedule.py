@@ -30,6 +30,7 @@ class ManageScheduleTool(BaseTool):
     def __init__(self) -> None:
         self._scheduler: ProactiveScheduler | None = None
         self._bot_sender: BotSender | None = None
+        self._approval = None
 
     # \u2500\u2500 Dependency injection (setter pattern) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -38,6 +39,9 @@ class ManageScheduleTool(BaseTool):
 
     def set_bot_sender(self, bot_sender: BotSender) -> None:
         self._bot_sender = bot_sender
+
+    def set_approval(self, approval) -> None:
+        self._approval = approval
 
     # \u2500\u2500 BaseTool interface \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -326,7 +330,9 @@ class ManageScheduleTool(BaseTool):
         short_id = input.get("short_id", "").strip()
         if not short_id:
             return ToolResult(output="", error="'short_id' is required", exit_code=1)
-        pub = await self._scheduler.remove_pending_publication(short_id)
+
+        # Step 1: read-only peek — publication stays in queue until confirmed
+        pub = await self._scheduler.get_pending_publication(short_id)
         if pub is None:
             return ToolResult(
                 output="",
@@ -334,14 +340,36 @@ class ManageScheduleTool(BaseTool):
                       f"\u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}",
                 exit_code=1,
             )
-        if not self._bot_sender:
-            # Re-add so it's not lost, then return error
-            await self._scheduler.add_pending_publication(
-                short_id, pub["text"], pub["channel_id"], pub.get("job_name", ""),
+
+        # Step 2: confirm before irreversible external action (Telegram only)
+        if self._approval:
+            preview = pub["text"][:500]
+            description = (
+                f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c "
+                f"\u0432 {pub['channel_id']}?\n\n{preview}"
             )
+            approved = await self._approval.request_approval(description)
+            if not approved:
+                return ToolResult(
+                    output="\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f "
+                           "\u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430",
+                    error="", exit_code=0,
+                )
+
+        # Step 3: atomic remove + send
+        if not self._bot_sender:
             return ToolResult(
                 output="",
                 error="BotSender \u043d\u0435 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043d",
+                exit_code=1,
+            )
+        pub = await self._scheduler.remove_pending_publication(short_id)
+        if pub is None:
+            # Race: another process published it between peek and remove
+            return ToolResult(
+                output="",
+                error=f"\u041f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u044f "
+                      f"\u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430: {short_id}",
                 exit_code=1,
             )
         success = await self._bot_sender.send(pub["channel_id"], pub["text"])
