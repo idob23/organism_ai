@@ -2,6 +2,8 @@
 
 Adapted from src/organism/memory/embeddings.py — no internal imports.
 Lazy singleton AsyncOpenAI client, 5s timeout, 0 retries.
+
+API-PUBLIC-2: get_embeddings_batch() for bulk requests (1 API call per 100 texts).
 """
 
 import os
@@ -31,7 +33,7 @@ def _get_client() -> openai.AsyncOpenAI | None:
 
     kwargs: dict = {
         "api_key": api_key,
-        "timeout": 5.0,
+        "timeout": 30.0,
         "max_retries": 0,
     }
     if base_url:
@@ -62,3 +64,36 @@ async def get_embedding(text: str) -> list[float]:
     except Exception as e:
         _log.warning("embedding_failed", error=str(e))
         return []
+
+
+_BATCH_CHUNK = 100  # OpenAI limit per request
+
+
+async def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
+    """Get embeddings for multiple texts in minimal API calls.
+
+    Chunks into groups of 100 (OpenAI batch limit).
+    Returns list aligned with input: empty list for failed items.
+    """
+    client = _get_client()
+    if client is None:
+        return [[] for _ in texts]
+
+    truncated = [t[:2000] for t in texts]
+    result: list[list[float]] = []
+
+    for i in range(0, len(truncated), _BATCH_CHUNK):
+        chunk = truncated[i : i + _BATCH_CHUNK]
+        try:
+            response = await client.embeddings.create(
+                model="text-embedding-3-small",
+                input=chunk,
+            )
+            # response.data is sorted by index
+            sorted_data = sorted(response.data, key=lambda d: d.index)
+            result.extend(d.embedding for d in sorted_data)
+        except Exception as e:
+            _log.warning("batch_embedding_failed", error=str(e), chunk_start=i)
+            result.extend([] for _ in chunk)
+
+    return result

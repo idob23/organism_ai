@@ -837,6 +837,22 @@ Key decisions:
 Stack: FastAPI, uvicorn, openai, numpy, aiosqlite, structlog, python-dotenv.
 Dockerfile: python:3.11-slim.
 
+### API-PUBLIC-2: Batch embeddings optimization (2026-03-25)
+
+**Problem:** Sequential embedding calls (one per entity) made latency O(N) — 8 entities
+took ~7s, 50 entities would take ~75s. OpenAI embeddings API supports batch input.
+
+**Solution:** `get_embeddings_batch(texts)` in `embeddings.py` — single API call with
+`input=list[str]`. Chunks >100 texts (OpenAI limit). `dedup.py` calls batch instead of
+sequential loop.
+
+Results (8 entities):
+- Before: 6858ms (sequential, 8 API calls)
+- After: 2202ms (batch, 1 API call)
+- Improvement: ~3x on 8 entities, scales to ~50x on 50 entities (1 call vs 50)
+
+Client timeout raised from 5s to 30s to accommodate large batches.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

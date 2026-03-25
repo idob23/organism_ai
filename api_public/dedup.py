@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import structlog
 
-from embeddings import get_embedding
+from embeddings import get_embeddings_batch
 
 _log = structlog.get_logger("dedup")
 
@@ -38,14 +38,15 @@ async def find_duplicates(
     """Compute embeddings, compare pairs, return grouped duplicates."""
     start = time.monotonic()
 
-    # 1. Compute embeddings (skip empty/whitespace-only)
-    embeddings: list[tuple[str, list[float]]] = []
-    for name in entities:
-        if not name or not name.strip():
-            continue
-        emb = await get_embedding(name)
-        if emb:
-            embeddings.append((name, emb))
+    # 1. Filter empty/whitespace, then batch-embed in one API call
+    valid_names = [name for name in entities if name and name.strip()]
+    raw_vectors = await get_embeddings_batch(valid_names) if valid_names else []
+
+    embeddings: list[tuple[str, list[float]]] = [
+        (name, vec)
+        for name, vec in zip(valid_names, raw_vectors)
+        if vec
+    ]
 
     if len(embeddings) < 2:
         elapsed = int((time.monotonic() - start) * 1000)
