@@ -38,9 +38,11 @@ async def find_duplicates(
     """Compute embeddings, compare pairs, return grouped duplicates."""
     start = time.monotonic()
 
-    # 1. Compute embeddings
+    # 1. Compute embeddings (skip empty/whitespace-only)
     embeddings: list[tuple[str, list[float]]] = []
     for name in entities:
+        if not name or not name.strip():
+            continue
         emb = await get_embedding(name)
         if emb:
             embeddings.append((name, emb))
