@@ -88,6 +88,15 @@ organism_ai/
 │   ├── dev_roles/      # 9 reviewer templates + coordinator (REVIEW-2)
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
 ├── scripts/            # health_check.py, code_health.py, deploy.sh, backup.sh, restore.sh
+├── api_public/         # Standalone Deduplication API (FastAPI, SQLite, Docker)
+│   ├── app.py          # FastAPI app — /v1/deduplicate, /v1/health, /v1/usage
+│   ├── dedup.py        # Dedup logic (embeddings + cosine + union-find)
+│   ├── embeddings.py   # OpenAI embeddings client (standalone)
+│   ├── auth.py         # API key auth (X-API-Key header, tiers)
+│   ├── rate_limit.py   # In-memory rate limiting by key
+│   ├── usage.py        # SQLite usage tracking (aiosqlite)
+│   ├── Dockerfile      # Python 3.11-slim + uvicorn
+│   └── requirements.txt
 ├── benchmark.py        # 30 задач
 ├── pre_commit_check.py # Обязателен перед каждым коммитом
 └── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
@@ -107,6 +116,19 @@ organism_ai/
 6. Новая команда → HELP_TEXT в handler.py И секция Commands в CONVENTIONS.md
 7. Миграции → APPEND в `_MIGRATIONS` в database.py, НИКОГДА не переставлять
 8. После задачи → обновить CLAUDE.md + ARCHITECTURE_DECISIONS.md + git commit с префиксом задачи
+
+## Public API (api_public/)
+Автономный Deduplication API — первый коммерческий продукт. FastAPI + SQLite.
+Не импортирует src/organism/. Своя точка входа, свой Docker.
+```bash
+cd api_public && pip install -r requirements.txt
+cp .env.example .env   # OPENAI_API_KEY + API_KEYS
+uvicorn app:app --host 0.0.0.0 --port 8080
+# Docker:
+docker build -t dedup-api ./api_public && docker run -p 8080:8080 --env-file .env dedup-api
+```
+Эндпоинты: POST /v1/deduplicate, GET /v1/health, GET /v1/usage
+Тарифы: free (100/day, 50 ent), basic (1000/day, 200 ent), pro (10000/day, 500 ent)
 
 ## Email MCP (опционально)
 ```bash

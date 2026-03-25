@@ -812,6 +812,31 @@ datasets can legitimately take 15-20s. No way to configure per-server without co
 
 Default 30s unchanged — fully backward-compatible.
 
+### API-PUBLIC-1: Deduplication API v1 — standalone FastAPI service (2026-03-25)
+
+**Problem:** Need a commercial API product to monetize the duplicate detection capability
+already proven in Q-8.3 (DuplicateFinderTool). Must be deployable independently without
+the full Organism platform.
+
+**Solution:** Standalone service in `api_public/` — copies and adapts core logic from
+`duplicate_finder.py` + `embeddings.py`, zero imports from `src/organism/`.
+
+Key decisions:
+- **Separate codebase** (not a route on the bot): independent deployment, scaling, and lifecycle.
+  API consumers don't need Telegram, PostgreSQL, or the agent platform.
+- **SQLite for usage tracking** (not PostgreSQL): single-file DB, zero ops overhead for MVP.
+  Sufficient for tracking API calls. Can migrate to PostgreSQL later if needed.
+- **In-memory rate limiting**: no Redis dependency. Resets on restart — acceptable for MVP.
+  Backed by persistent SQLite usage stats for billing/analytics.
+- **API key auth via env vars**: no user registration system. Keys provisioned manually.
+  Tier system (free/basic/pro) controls rate limits and entity caps per request.
+- **Expanded entity limit**: 500 max (up from 200 in internal tool) for pro tier.
+- **FastAPI + Pydantic**: auto-generated OpenAPI docs (/docs, /redoc), strict typing.
+- **Fire-and-forget usage writes**: SQLite recording doesn't block API response.
+
+Stack: FastAPI, uvicorn, openai, numpy, aiosqlite, structlog, python-dotenv.
+Dockerfile: python:3.11-slim.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)
