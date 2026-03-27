@@ -263,8 +263,15 @@
                 hideProgress();
 
                 if (!response.ok) {
-                    const err = await response.json().catch(() => ({ detail: 'Server error' }));
-                    throw new Error(err.detail || 'HTTP ' + response.status);
+                    const errBody = await response.json().catch(() => null);
+                    const detail = errBody && errBody.detail ? errBody.detail : '';
+                    if (response.status === 429) {
+                        throw new Error('Лимит запросов исчерпан (5 в день). Попробуйте завтра.');
+                    } else if (response.status === 422) {
+                        throw new Error(detail || 'Ошибка валидации данных');
+                    } else {
+                        throw new Error('Ошибка сервера. Попробуйте позже.');
+                    }
                 }
 
                 const result = await response.json();
