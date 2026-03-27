@@ -348,7 +348,9 @@ async def deduplicate_file(
     _cleanup_sessions()
 
     # IP rate limit
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = request.headers.get("X-Real-IP") \
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() \
+        or (request.client.host if request.client else "unknown")
     allowed, remaining = check_ip_rate_limit(client_ip)
     if not allowed:
         raise HTTPException(
