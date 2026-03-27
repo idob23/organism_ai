@@ -89,12 +89,14 @@ organism_ai/
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
 ├── scripts/            # health_check.py, code_health.py, deploy.sh, backup.sh, restore.sh
 ├── api_public/         # Standalone Deduplication API (FastAPI, SQLite, Docker)
-│   ├── app.py          # FastAPI app — /v1/deduplicate, /v1/health, /v1/usage
+│   ├── app.py          # FastAPI app — /v1/deduplicate, /v1/health, /v1/usage,
+│   │                   #   /v1/deduplicate-file, /v1/download-report, GET /
 │   ├── dedup.py        # Dedup logic (embeddings + cosine + union-find)
 │   ├── embeddings.py   # OpenAI embeddings client (standalone)
 │   ├── auth.py         # API key auth (X-API-Key header, tiers)
-│   ├── rate_limit.py   # In-memory rate limiting by key
+│   ├── rate_limit.py   # In-memory rate limiting by key + IP
 │   ├── usage.py        # SQLite usage tracking (aiosqlite)
+│   ├── static/         # Web UI (index.html, style.css) — drag-and-drop dedup
 │   ├── Dockerfile      # Python 3.11-slim + uvicorn
 │   └── requirements.txt
 ├── benchmark.py        # 30 задач
@@ -104,7 +106,7 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3
+- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила
@@ -127,8 +129,10 @@ uvicorn app:app --host 0.0.0.0 --port 8080
 # Docker:
 docker build -t dedup-api ./api_public && docker run -p 8080:8080 --env-file .env dedup-api
 ```
-Эндпоинты: POST /v1/deduplicate, GET /v1/health, GET /v1/usage
-Тарифы: free (100/day, 50 ent), basic (1000/day, 200 ent), pro (10000/day, 500 ent)
+API эндпоинты: POST /v1/deduplicate, GET /v1/health, GET /v1/usage
+Web UI: GET / (drag-and-drop xlsx/csv), POST /v1/deduplicate-file, GET /v1/download-report
+Тарифы API: free (100/day, 50 ent), basic (1000/day, 200 ent), pro (10000/day, 500 ent)
+Web UI: 5 запросов/день по IP, до 500 записей, 1C xlsx fix (SharedStrings.xml)
 
 ## Email MCP (опционально)
 ```bash

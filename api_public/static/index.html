@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DedupAI — Найди дубликаты в базе</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">DedupAI</div>
+            <h1>Найди дубликаты в своей базе за 10 секунд</h1>
+            <p class="subtitle">Загрузите выгрузку из 1С, Excel или CSV &mdash; AI найдёт все дубликаты</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- Drop zone -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">&#128196;</div>
+                <div class="drop-zone-text">Перетащите файл сюда</div>
+                <button class="drop-zone-btn" type="button">Выберите файл</button>
+                <div class="drop-zone-formats">.xlsx, .xls, .csv &mdash; до 5 МБ</div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+            </div>
+
+            <!-- File info -->
+            <div class="file-info" id="fileInfo">
+                <span id="fileName"></span>
+                <button class="remove-file" id="removeFile" title="Убрать файл">&times;</button>
+            </div>
+
+            <!-- Column selection -->
+            <div class="column-section" id="columnSection">
+                <label for="columnSelect">Выберите колонку с названиями:</label>
+                <select id="columnSelect">
+                    <option value="">-- выберите колонку --</option>
+                </select>
+                <div class="preview-info" id="previewInfo"></div>
+            </div>
+
+            <!-- Submit -->
+            <button class="submit-btn" id="submitBtn" type="button">Найти дубликаты</button>
+
+            <!-- Error -->
+            <div class="error-message" id="errorMsg"></div>
+
+            <!-- Progress -->
+            <div class="progress-section" id="progressSection">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-text">Анализируем... это занимает 5&ndash;30 секунд</div>
+            </div>
+
+            <!-- Results -->
+            <div class="results-section" id="resultsSection">
+                <div class="results-summary" id="resultsSummary"></div>
+                <div id="groupsContainer"></div>
+                <a class="download-btn" id="downloadBtn" href="#">Скачать полный отчёт (XLSX)</a>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            Organism AI &mdash; автоматизация бизнеса с помощью ИИ<br>
+            Telegram: <a href="https://t.me/organism_ai" target="_blank">@organism_ai</a>
+        </div>
+    </footer>
+
+    <!-- SheetJS for client-side xlsx/csv parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // DOM elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const removeFileBtn = document.getElementById('removeFile');
+        const columnSection = document.getElementById('columnSection');
+        const columnSelect = document.getElementById('columnSelect');
+        const previewInfo = document.getElementById('previewInfo');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const progressSection = document.getElementById('progressSection');
+        const progressBar = document.getElementById('progressBar');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsSummary = document.getElementById('resultsSummary');
+        const groupsContainer = document.getElementById('groupsContainer');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+        const FREE_GROUPS = 5;
+
+        let currentFile = null;
+        let parsedData = null; // {headers: [...], rows: [[...]]}
+        let sessionId = null;
+
+        // ── Drag & Drop ──
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+        });
+
+        removeFileBtn.addEventListener('click', resetAll);
+
+        // ── File handling ──
+
+        function handleFile(file) {
+            hideError();
+            hideResults();
+
+            // Validate extension
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+                showError('Неподдерживаемый формат. Загрузите .xlsx, .xls или .csv файл.');
+                return;
+            }
+
+            // Validate size
+            if (file.size > MAX_FILE_SIZE) {
+                showError('Файл слишком большой. Максимальный размер — 5 МБ.');
+                return;
+            }
+
+            currentFile = file;
+            fileName.textContent = file.name + ' (' + formatSize(file.size) + ')';
+            fileInfo.classList.add('visible');
+            dropZone.style.display = 'none';
+
+            // Parse with SheetJS
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                    if (!jsonData || jsonData.length < 2) {
+                        showError('Файл пуст или содержит только заголовки.');
+                        return;
+                    }
+
+                    const headers = jsonData[0].map(h => (h || '').toString().trim());
+                    const rows = jsonData.slice(1);
+
+                    parsedData = { headers, rows };
+                    showColumnSelection(headers);
+                } catch (err) {
+                    showError('Ошибка чтения файла: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showColumnSelection(headers) {
+            columnSelect.innerHTML = '<option value="">-- выберите колонку --</option>';
+            headers.forEach((h, i) => {
+                if (h) {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = h;
+                    columnSelect.appendChild(opt);
+                }
+            });
+            columnSection.classList.add('visible');
+            previewInfo.textContent = '';
+            previewInfo.className = 'preview-info';
+            submitBtn.classList.remove('visible');
+        }
+
+        columnSelect.addEventListener('change', function() {
+            const colIdx = parseInt(this.value);
+            if (isNaN(colIdx) || !parsedData) {
+                previewInfo.textContent = '';
+                previewInfo.className = 'preview-info';
+                submitBtn.classList.remove('visible');
+                return;
+            }
+
+            const colName = parsedData.headers[colIdx];
+            let count = 0;
+            for (const row of parsedData.rows) {
+                const val = (row[colIdx] || '').toString().trim();
+                if (val) count++;
+            }
+
+            if (count < 2) {
+                previewInfo.textContent = 'В колонке "' + colName + '" менее 2 записей. Выберите другую колонку.';
+                previewInfo.className = 'preview-info warning';
+                submitBtn.classList.remove('visible');
+                return;
+            }
+
+            if (count > 500) {
+                previewInfo.innerHTML = 'Найдено <strong>' + count + '</strong> записей в колонке "' + escapeHtml(colName) + '".<br>' +
+                    'В колонке ' + count + ' записей, будут обработаны первые 500. ' +
+                    'Для больших файлов свяжитесь с нами: <a href="https://t.me/organism_ai" target="_blank">@organism_ai</a>';
+                previewInfo.className = 'preview-info warning';
+            } else {
+                previewInfo.innerHTML = 'Найдено <strong>' + count + '</strong> записей в колонке "' + escapeHtml(colName) + '"';
+                previewInfo.className = 'preview-info';
+            }
+
+            submitBtn.classList.add('visible');
+        });
+
+        // ── Submit ──
+
+        submitBtn.addEventListener('click', async function() {
+            if (!currentFile || !parsedData) return;
+
+            const colIdx = parseInt(columnSelect.value);
+            if (isNaN(colIdx)) return;
+
+            const colName = parsedData.headers[colIdx];
+            hideError();
+            hideResults();
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Обработка...';
+            showProgress();
+
+            try {
+                const formData = new FormData();
+                formData.append('file', currentFile);
+                formData.append('column_name', colName);
+                formData.append('threshold', '0.85');
+
+                const response = await fetch('/v1/deduplicate-file', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                hideProgress();
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({ detail: 'Server error' }));
+                    throw new Error(err.detail || 'HTTP ' + response.status);
+                }
+
+                const result = await response.json();
+                sessionId = result.session_id;
+                showResults(result);
+            } catch (err) {
+                hideProgress();
+                showError(err.message || 'Произошла ошибка при обработке');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Найти дубликаты';
+            }
+        });
+
+        // ── Results display ──
+
+        function showResults(result) {
+            const groups = result.groups || [];
+            const total = result.total_entities || 0;
+            const timeMs = result.processing_time_ms || 0;
+
+            if (groups.length === 0) {
+                resultsSummary.innerHTML = '<div class="results-no-duplicates">Дубликатов не найдено!</div>' +
+                    '<p class="stats">Проверено ' + total + ' записей за ' + (timeMs / 1000).toFixed(1) + ' сек</p>';
+                groupsContainer.innerHTML = '';
+                downloadBtn.classList.remove('visible');
+                resultsSection.classList.add('visible');
+                return;
+            }
+
+            resultsSummary.innerHTML =
+                '<h2>Найдено ' + groups.length + ' групп' + pluralGroup(groups.length) + ' дубликатов</h2>' +
+                '<div class="stats">из ' + total + ' записей за ' + (timeMs / 1000).toFixed(1) + ' сек</div>';
+
+            let html = '';
+
+            // Free groups (first 5)
+            const freeGroups = groups.slice(0, FREE_GROUPS);
+            freeGroups.forEach((g, i) => {
+                html += renderGroup(g, i + 1);
+            });
+
+            // Blurred groups
+            if (groups.length > FREE_GROUPS) {
+                const remaining = groups.length - FREE_GROUPS;
+                const blurredGroups = groups.slice(FREE_GROUPS, FREE_GROUPS + 3);
+
+                html += '<div class="blurred-overlay">';
+                html += '<div class="blurred-groups">';
+                blurredGroups.forEach((g, i) => {
+                    html += renderGroup(g, FREE_GROUPS + i + 1);
+                });
+                html += '</div>';
+                html += '<div class="blur-message">';
+                html += '<p>Ещё ' + remaining + ' групп' + pluralGroup(remaining) + '</p>';
+                html += '<div class="price">Скачайте полный отчёт &mdash; 290 руб</div>';
+                html += '</div>';
+                html += '</div>';
+            }
+
+            groupsContainer.innerHTML = html;
+
+            // Download button
+            downloadBtn.href = '/v1/download-report?session_id=' + sessionId;
+            downloadBtn.classList.add('visible');
+
+            resultsSection.classList.add('visible');
+        }
+
+        function renderGroup(group, num) {
+            const simPercent = Math.round(group.similarity * 100);
+            let html = '<div class="group-card">';
+            html += '<div class="group-header">';
+            html += '<span class="group-number">Группа ' + num + '</span>';
+            html += '<span class="group-similarity">' + simPercent + '%</span>';
+            html += '</div>';
+            html += '<ul class="group-items">';
+            group.items.forEach(item => {
+                html += '<li>' + escapeHtml(item) + '</li>';
+            });
+            html += '</ul>';
+            html += '</div>';
+            return html;
+        }
+
+        // ── Progress ──
+
+        function showProgress() {
+            progressSection.classList.add('visible');
+            progressBar.style.width = '0%';
+            // Animate progress bar (fake progress)
+            let width = 0;
+            const interval = setInterval(() => {
+                if (width >= 90) {
+                    clearInterval(interval);
+                    return;
+                }
+                width += Math.random() * 8;
+                if (width > 90) width = 90;
+                progressBar.style.width = width + '%';
+            }, 500);
+            progressBar._interval = interval;
+        }
+
+        function hideProgress() {
+            if (progressBar._interval) clearInterval(progressBar._interval);
+            progressBar.style.width = '100%';
+            setTimeout(() => {
+                progressSection.classList.remove('visible');
+            }, 300);
+        }
+
+        // ── Helpers ──
+
+        function resetAll() {
+            currentFile = null;
+            parsedData = null;
+            sessionId = null;
+            fileInput.value = '';
+            fileInfo.classList.remove('visible');
+            columnSection.classList.remove('visible');
+            submitBtn.classList.remove('visible');
+            dropZone.style.display = '';
+            hideError();
+            hideResults();
+        }
+
+        function hideResults() {
+            resultsSection.classList.remove('visible');
+            downloadBtn.classList.remove('visible');
+            groupsContainer.innerHTML = '';
+        }
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.classList.add('visible');
+        }
+
+        function hideError() {
+            errorMsg.classList.remove('visible');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        function pluralGroup(n) {
+            // Simplified Russian plural for "групп(а/ы)"
+            const mod10 = n % 10;
+            const mod100 = n % 100;
+            if (mod100 >= 11 && mod100 <= 19) return '';
+            if (mod10 === 1) return 'а';
+            if (mod10 >= 2 && mod10 <= 4) return 'ы';
+            return '';
+        }
+    })();
+    </script>
+</body>
+</html>

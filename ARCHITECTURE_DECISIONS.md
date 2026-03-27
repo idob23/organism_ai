@@ -33,6 +33,36 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### API-PUBLIC-3: Web UI for Deduplication API (2026-03-27)
+Problem: Deduplication API (api_public/) had only programmatic access via API keys. Needed a
+self-service web interface for business users to upload xlsx/csv files from 1C and find duplicates
+without technical knowledge or API keys.
+
+Solution — 6 parts:
+1) static/index.html: Single-page app with drag-and-drop file upload, client-side xlsx/csv parsing
+   via SheetJS CDN, column selection, record count preview, progress bar, results table with first
+   5 groups free + blurred remainder, and xlsx report download. Mobile-responsive, Inter font.
+2) static/style.css: Minimalist design, primary color #2563eb, system-ui fallback.
+3) app.py — POST /v1/deduplicate-file: Accepts multipart UploadFile + column_name + threshold.
+   No API key required (public). IP rate limited (5/day). Parses xlsx (with 1C fix) or csv,
+   extracts up to 500 values from specified column, calls existing find_duplicates(), stores result
+   in in-memory session dict (30min TTL) for report download.
+4) app.py — GET /v1/download-report: Generates xlsx report with two sheets (Duplicates + Summary)
+   via openpyxl, returns as StreamingResponse attachment.
+5) app.py — GET / + static mount: Serves index.html at root, mounts /static/ after all routes.
+6) rate_limit.py — IP-based rate limiting: check_ip_rate_limit() / record_ip_request() with
+   separate _ip_counters dict, IP_DAILY_LIMIT=5. Independent from API-key rate limiting.
+7) fix_1c_xlsx(): Rewrites xlsx zip to rename xl/SharedStrings.xml -> xl/sharedStrings.xml
+   (1C exports with capital S, openpyxl doesn't understand it).
+
+Why no framework (React/Vue): target users are non-technical, page is simple enough for vanilla
+HTML+JS. Zero build step, CDN-only dependencies (SheetJS, Google Fonts).
+Why in-memory sessions: simplest approach, auto-cleanup on TTL. No persistence needed for reports.
+Why IP rate limit separate from API-key limit: web UI has no API keys, needs independent throttling.
+
+Dependencies added: openpyxl, python-multipart.
+Existing endpoints (/v1/deduplicate, /v1/health, /v1/usage) unchanged.
+
 ### FIX-107: Clean pending text + confirm before publish (2026-03-23)
 Problem: Two bugs after FIX-106:
 1) Pending text was dirty: chain-of-thought in result.output, [job_name] prefix baked in,
