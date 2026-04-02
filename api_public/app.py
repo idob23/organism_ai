@@ -343,7 +343,7 @@ async def deduplicate_file(
     request: Request,
     file: UploadFile,
     column_name: str = Form(...),
-    threshold: float = Form(default=0.85),
+    threshold: float = Form(default=0.92),
 ):
     _cleanup_sessions()
 

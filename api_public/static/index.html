@@ -254,7 +254,7 @@
                 const formData = new FormData();
                 formData.append('file', currentFile);
                 formData.append('column_name', colName);
-                formData.append('threshold', '0.85');
+                formData.append('threshold', '0.92');
 
                 const response = await fetch('/v1/deduplicate-file', {
                     method: 'POST',
