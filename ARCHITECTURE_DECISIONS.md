@@ -63,6 +63,25 @@ Why IP rate limit separate from API-key limit: web UI has no API keys, needs ind
 Dependencies added: openpyxl, python-multipart.
 Existing endpoints (/v1/deduplicate, /v1/health, /v1/usage) unchanged.
 
+### API-PUBLIC-3d: Raise default threshold to 0.92 for web UI (2026-04-02)
+Problem: At threshold 0.85, embeddings flag items differing only in numeric parameters as
+duplicates (e.g. "АВВ 3Р 0,5А" vs "АВВ 3Р 8А"). For 1C nomenclature this produces too many
+false positives.
+Solution: Changed default threshold from 0.85 to 0.92 in /v1/deduplicate-file Form param
+(app.py) and in the web UI JS FormData (index.html). API endpoint /v1/deduplicate keeps 0.85
+for key-authenticated clients who can set their own threshold.
+
+### API-PUBLIC-3e: Numeric false positive filter for dedup (2026-04-02)
+Problem: Even with higher threshold, embeddings can still match items that differ only in
+numeric parameters (amperage, article numbers, diameters).
+Solution: _filter_numeric_false_positives() in dedup.py — post-processing step between pair
+detection (step 3) and union-find grouping (step 4). For each pair, extracts a text "skeleton"
+by replacing all numeric tokens (regex: r'[\d]+(?:[,.][\d]+)?') with '#', normalizes to
+lowercase. If skeletons match but number lists differ → false positive, pair removed.
+If skeletons differ (word reorder like "ООО Ромашка" vs "Ромашка ООО") → real duplicate, kept.
+After filtering, union-find rebuilds from remaining pairs; single-element groups vanish.
+No external dependencies (only stdlib re). API interface unchanged.
+
 ### FIX-107: Clean pending text + confirm before publish (2026-03-23)
 Problem: Two bugs after FIX-106:
 1) Pending text was dirty: chain-of-thought in result.output, [job_name] prefix baked in,

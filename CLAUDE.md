@@ -106,7 +106,7 @@ organism_ai/
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3
+- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила
@@ -133,6 +133,9 @@ API эндпоинты: POST /v1/deduplicate, GET /v1/health, GET /v1/usage
 Web UI: GET / (drag-and-drop xlsx/csv), POST /v1/deduplicate-file, GET /v1/download-report
 Тарифы API: free (100/day, 50 ent), basic (1000/day, 200 ent), pro (10000/day, 500 ent)
 Web UI: 5 запросов/день по IP, до 500 записей, 1C xlsx fix (SharedStrings.xml)
+Thresholds: API default 0.85, Web UI default 0.92 (stricter for 1C nomenclature)
+Post-filter: _filter_numeric_false_positives() in dedup.py removes pairs with same
+text skeleton but different numbers (e.g. "АВВ 3Р 0,5А" vs "АВВ 3Р 8А")
 
 ## Email MCP (опционально)
 ```bash
