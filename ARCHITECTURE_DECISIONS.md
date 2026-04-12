@@ -33,6 +33,29 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### BENCH-1: Golden Evaluator + Deterministic Checks (2026-04-12)
+Problem: Two conceptual issues with the benchmark:
+1) Goodhart's law — BenchmarkPromptOptimizer optimized evaluator.txt via PVC, then measured
+   quality using that same optimized evaluator. The system optimized for a softer evaluator,
+   not better actual quality.
+2) LLM evaluator couldn't catch numeric errors — tasks with exact answers (e.g. 2000g/day,
+   15M rub revenue) always got ~0.8 from LLM judge even if calculations were wrong.
+
+Solution — two parts:
+A) Golden Evaluator: config/prompts/evaluator_golden.txt — frozen copy of evaluator.txt with
+   "DO NOT MODIFY" header. Evaluator(golden=True) reads this file directly, bypasses PVC,
+   never calls record_quality/auto_rollback, never increments _eval_count. CoreLoop gains
+   optional `evaluator` param; benchmark.py creates golden_evaluator and passes it in.
+   Production CoreLoop (main.py) continues using PVC-managed evaluator — no change.
+B) Expected checks: benchmark_checks.py with check_numeric(), check_contains_all(),
+   run_expected_check(). Tasks with `expected` field get deterministic score (fraction of
+   matched values). Tasks without `expected` use golden LLM evaluator as before.
+   Tasks 1,7,8 = numeric check; Task 2 = contains_all check.
+
+Files: config/prompts/evaluator_golden.txt (new), benchmark_checks.py (new),
+src/organism/core/evaluator.py (golden param), src/organism/core/loop.py (evaluator param),
+benchmark.py (golden evaluator + expected logic + Chk column in table).
+
 ### API-PUBLIC-3: Web UI for Deduplication API (2026-03-27)
 Problem: Deduplication API (api_public/) had only programmatic access via API keys. Needed a
 self-service web interface for business users to upload xlsx/csv files from 1C and find duplicates

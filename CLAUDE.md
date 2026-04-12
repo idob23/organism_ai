@@ -84,6 +84,7 @@ organism_ai/
 │   ├── jobs/           # {artel_id}.json (scheduled jobs config, FIX-89)
 │   ├── personality/    # default.md, artel_zoloto.md, ai_media.md
 │   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
+│   │                   # evaluator_golden.txt (BENCH-1, frozen benchmark judge)
 │   │                   # causal_analyzer.txt, template_extractor.txt
 │   ├── dev_roles/      # 9 reviewer templates + coordinator (REVIEW-2)
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
@@ -99,14 +100,15 @@ organism_ai/
 │   ├── static/         # Web UI (index.html, style.css) — drag-and-drop dedup
 │   ├── Dockerfile      # Python 3.11-slim + uvicorn
 │   └── requirements.txt
-├── benchmark.py        # 30 задач
+├── benchmark.py        # 30 задач (golden evaluator + expected checks, BENCH-1)
+├── benchmark_checks.py # Детерминистические проверки (numeric, contains_all)
 ├── pre_commit_check.py # Обязателен перед каждым коммитом
 └── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
 ```
 
 ## Текущие метрики (март 2026)
 - Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e
+- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

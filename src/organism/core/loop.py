@@ -119,11 +119,14 @@ class CoreLoop:
             return "\u041f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0437\u0430\u043f\u0440\u043e\u0441."
         return output
 
-    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None, orchestrator=None, factory=None) -> None:
+    def __init__(self, llm: LLMProvider, registry: ToolRegistry, memory: MemoryManager | None = None, personality=None, scheduler=None, orchestrator=None, factory=None, evaluator: Evaluator | None = None) -> None:
         self.llm = llm
         self.registry = registry
-        pvc = PromptVersionControl() if memory is not None else None
-        self.evaluator = Evaluator(llm, pvc=pvc)
+        if evaluator is not None:
+            self.evaluator = evaluator
+        else:
+            pvc = PromptVersionControl() if memory is not None else None
+            self.evaluator = Evaluator(llm, pvc=pvc)
         self.validator = SafetyValidator()
         self.logger = Logger()
         self.skill_matcher = SkillMatcher(llm)

@@ -25,12 +25,18 @@ class EvalResult:
 class Evaluator:
 
     def __init__(
-        self, llm: LLMProvider, pvc: "PromptVersionControl | None" = None
+        self, llm: LLMProvider, pvc: "PromptVersionControl | None" = None,
+        golden: bool = False,
     ) -> None:
         self.llm = llm
         self.pvc = pvc
+        self.golden = golden
         self._eval_count = 0
         self._pvc_seeded = False
+        if golden:
+            self._golden_prompt = Path(
+                "config/prompts/evaluator_golden.txt"
+            ).read_text(encoding="utf-8")
 
     async def evaluate(
         self,
@@ -68,6 +74,15 @@ class Evaluator:
             f"Output: {result.output[:800] if result.output else '(empty)'}\n"
             f"Stderr: {result.error[:300] if result.error else '(none)'}"
         )
+
+        # BENCH-1: Golden evaluator — isolated from PVC and self-improvement
+        if self.golden:
+            response = await self.llm.complete(
+                messages=[Message(role="user", content=prompt)],
+                system=self._golden_prompt,
+                model_tier="fast",
+            )
+            return self._parse(response.content)
 
         # Q-7.2: Use PVC-managed prompt if available
         eval_prompt = EVALUATOR_PROMPT

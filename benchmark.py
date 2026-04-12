@@ -39,9 +39,11 @@ from src.organism.tools.pptx_creator import PptxCreatorTool
 from src.organism.tools.text_writer import TextWriterTool
 from src.organism.tools.registry import ToolRegistry
 from src.organism.core.loop import CoreLoop
+from src.organism.core.evaluator import Evaluator
 from src.organism.memory.manager import MemoryManager
 from src.organism.commands.handler import CommandHandler
 from config.settings import settings
+from benchmark_checks import run_expected_check
 
 # ── Task definitions ──────────────────────────────────────────────────────────
 #
@@ -68,6 +70,11 @@ TASKS = [
             "\u0432\u044b\u0440\u0443\u0447\u043a\u0443, \u0438\u0442\u043e\u0433\u043e\u0432\u0443\u044e "
             "\u0432\u044b\u0440\u0443\u0447\u043a\u0443"
         ),
+        "expected": {
+            "check_type": "numeric",
+            "values": [2000, 15_000_000, 2_250_000_000],
+            "tolerance": 0.01,
+        },
     },
     {
         "id": 2,
@@ -81,6 +88,14 @@ TASKS = [
             "\u044d\u043a\u0441\u043a\u0430\u0432\u0430\u0442\u043e\u0440 300 \u043b/\u0434\u0435\u043d\u044c "
             "* 70 \u0440\u0443\u0431/\u043b, 5 \u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043d\u0435\u0439"
         ),
+        "expected": {
+            "check_type": "contains_all",
+            "values": [
+                "\u0431\u0443\u043b\u044c\u0434\u043e\u0437\u0435\u0440",
+                "\u044d\u043a\u0441\u043a\u0430\u0432\u0430\u0442\u043e\u0440",
+                "35000", "21000", "280000",
+            ],
+        },
     },
     {
         "id": 3,
@@ -148,6 +163,11 @@ TASKS = [
             "\u0418\u0442\u043e\u0433: \u043f\u0440\u0438\u0431\u044b\u043b\u044c "
             "\u0438 \u0440\u0435\u043d\u0442\u0430\u0431\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c %"
         ),
+        "expected": {
+            "check_type": "numeric",
+            "values": [5_000_000, 33.33],
+            "tolerance": 0.02,
+        },
     },
     {
         "id": 8,
@@ -163,6 +183,11 @@ TASKS = [
             "\u0434\u043e\u0431\u044b\u0447\u0443 \u0438 \u043e\u0431\u0449\u0443\u044e "
             "\u0432\u044b\u0440\u0443\u0447\u043a\u0443"
         ),
+        "expected": {
+            "check_type": "numeric",
+            "values": [2000, 15_000_000, 2_250_000_000],
+            "tolerance": 0.01,
+        },
     },
     {
         "id": 9,
@@ -431,6 +456,7 @@ class BenchmarkResult:
     tools_used: list = field(default_factory=list)
     cache_hit: bool = False
     error: str = ""
+    check_method: str = "llm"
 
 
 # ── Infrastructure (mirrors main.py) ─────────────────────────────────────────
@@ -477,6 +503,24 @@ async def run_loop_task(task_def: dict, loop: CoreLoop) -> BenchmarkResult:
         # Cache hits: TaskResult has steps=[] (cache returns before any tool execution)
         cache_hit = result.success and len(result.steps) == 0
         tools_used = sorted({s.tool for s in result.steps if s.success})
+
+        # BENCH-1: Deterministic expected check overrides LLM quality
+        expected = task_def.get("expected")
+        if expected:
+            output = result.output or result.answer or ""
+            score, reason = run_expected_check(output, expected)
+            return BenchmarkResult(
+                id=task_def["id"],
+                type=task_def["type"],
+                task=task_text,
+                success=score >= 0.8,
+                quality_score=score,
+                duration=duration,
+                tools_used=tools_used,
+                cache_hit=cache_hit,
+                error=reason if score < 1.0 else "",
+                check_method="det",
+            )
 
         return BenchmarkResult(
             id=task_def["id"],
@@ -614,10 +658,10 @@ def _fmt_tools(tools: list) -> str:
 
 
 def print_table(results: list[BenchmarkResult]) -> None:
-    LINE = "=" * 102
+    LINE = "=" * 108
     HEADER = (
         f"  {'#':>2}  {'Type':<14}  {'Task':<40}  "
-        f"{'OK':>2}  {'Qual':>5}  {'Time':>6}  {'Tools':<18}  Cache"
+        f"{'OK':>2}  {'Qual':>5}  {'Time':>6}  {'Chk':<3}  {'Tools':<18}  Cache"
     )
     print(f"\n{LINE}")
     print(HEADER)
@@ -627,11 +671,12 @@ def print_table(results: list[BenchmarkResult]) -> None:
         ok = "OK" if r.success else "--"
         qual = f"{r.quality_score:.2f}" if r.quality_score > 0 else " n/a"
         t = f"{r.duration:.1f}s"
+        chk = r.check_method
         tools_col = _fmt_tools(r.tools_used)
         cache_col = "HIT" if r.cache_hit else "-"
         print(
             f"  {r.id:>2}  {r.type:<14}  {_trunc(r.task, 40)}  "
-            f"{ok:>2}  {qual:>5}  {t:>6}  {tools_col:<18}  {cache_col}"
+            f"{ok:>2}  {qual:>5}  {t:>6}  {chk:<3}  {tools_col:<18}  {cache_col}"
         )
 
     print(LINE)
@@ -687,6 +732,7 @@ def save_json(results: list[BenchmarkResult], mode: str) -> Path:
                 "tools_used": r.tools_used,
                 "cache_hit": r.cache_hit,
                 "error": r.error[:200] if r.error else "",
+                "check_method": r.check_method,
             }
             for r in results
         ],
@@ -745,7 +791,10 @@ async def run_benchmark(quick: bool) -> None:
     except Exception:
         pass
 
-    loop = CoreLoop(llm, registry, memory=memory, personality=personality)
+    # BENCH-1: Golden evaluator — frozen prompt, isolated from PVC/self-improvement
+    golden_evaluator = Evaluator(llm=llm, pvc=None, golden=True)
+    loop = CoreLoop(llm, registry, memory=memory, personality=personality,
+                    evaluator=golden_evaluator)
 
     # Scheduler for /schedule command tests (not started — just provides job list)
     from src.organism.core.scheduler import ProactiveScheduler, load_jobs_from_config
