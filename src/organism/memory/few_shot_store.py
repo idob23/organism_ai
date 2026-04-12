@@ -21,6 +21,32 @@ TOP_K = 3                # how many to inject into planner prompt
 
 class FewShotStore:
 
+    @staticmethod
+    def infer_task_type(tools_used: list[str]) -> str:
+        """Infer task_type from tools list (no LLM call).
+
+        Returns one of: code | writing | research | data |
+        presentation | mixed | conversation.
+        """
+        if not tools_used:
+            return "conversation"
+        s = set(tools_used)
+        if "pptx_creator" in s:
+            return "presentation"
+        if "duplicate_finder" in s:
+            return "data"
+        if "code_executor" in s and "file_manager" in s and "web_search" not in s:
+            return "data"
+        if "code_executor" in s:
+            return "code"
+        if ("web_search" in s or "web_fetch" in s) and "code_executor" not in s:
+            return "research"
+        if ("text_writer" in s or "pdf_tool" in s) and "code_executor" not in s:
+            return "writing"
+        if s <= {"manage_agents", "manage_schedule", "memory_search"}:
+            return "conversation"
+        return "mixed"
+
     async def save_example(
         self,
         task_text: str,

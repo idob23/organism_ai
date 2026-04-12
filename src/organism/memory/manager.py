@@ -152,6 +152,30 @@ class MemoryManager:
             self.working.last_task_id = task_id
         except Exception:
             pass
+        # FIX-FEWSHOT: save successful task as few-shot example (fire-and-forget)
+        should_save_fewshot = (
+            success
+            and quality_score >= 0.75
+            and tools_used
+            and not any(
+                t in ("manage_agents", "manage_schedule", "memory_search",
+                      "confirm_user", "dev_review")
+                for t in tools_used
+            )
+        )
+        if should_save_fewshot:
+            task_type = FewShotStore.infer_task_type(tools_used)
+            if task_type != "conversation":
+                plan_steps = [
+                    {"tool": t, "description": ""}
+                    for t in tools_used[:5]
+                ]
+                asyncio.create_task(
+                    self._safe_save_fewshot(
+                        task, task_type, plan_steps,
+                        quality_score, tools_used,
+                    )
+                )
         # Q-5.3: infer causal/entity/procedural edges in background (non-blocking)
         if self.llm:
             try:
@@ -283,6 +307,23 @@ class MemoryManager:
             await analyzer.analyze_task(task_id, task, tools_used, self.llm)
         except Exception:
             pass
+
+    async def _safe_save_fewshot(
+        self, task: str, task_type: str,
+        plan_steps: list[dict], quality_score: float,
+        tools_used: list[str],
+    ) -> None:
+        """Background wrapper for FewShotStore.save_example \u2014 swallows exceptions."""
+        try:
+            await self.few_shot.save_example(
+                task_text=task, task_type=task_type,
+                plan_steps=plan_steps, quality_score=quality_score,
+                tools_used=tools_used,
+            )
+        except Exception as e:
+            from src.organism.logging.error_handler import log_exception, get_logger
+            log_exception(get_logger("memory.manager"),
+                          "Few-shot save failed", e)
 
     async def _safe_extract_template(
         self,

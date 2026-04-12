@@ -948,6 +948,33 @@ Results (8 entities):
 
 Client timeout raised from 5s to 30s to accommodate large batches.
 
+### FIX-FEWSHOT: Connect save_example to on_task_end (2026-04-12)
+
+**Problem:** FewShotStore.save_example() was implemented but never called.
+FewShotExample table accumulated zero rows since Q-7.3. Agent read from
+empty store — no few-shot examples injected — no self-improvement through
+examples. BENCH-1 exposed this: task #2 (CSV totals) stuck at 0.40,
+philosophy forbids rule-based fixes.
+
+**Root cause:** save_example() signature assumed Planner-era plan_steps,
+but Q-10.4 removed Planner. No integration path was wired.
+
+**Solution:**
+- `FewShotStore.infer_task_type(tools_used)` — heuristic classification
+  without LLM call (7 categories, order-sensitive rules).
+- `MemoryManager.on_task_end`: fire-and-forget save via `_safe_save_fewshot`
+  when success + quality >= 0.75 + tools_used non-empty + not a system
+  command (manage_agents, manage_schedule, memory_search, etc.).
+- `plan_steps` synthesized minimally from tools_used as
+  `[{"tool": t, "description": ""}]` — Q-10.4 compat shim.
+
+**Expected impact:** after N benchmark runs with writeback, task #2 (CSV)
+should climb from 0.40 toward 1.00 as similar successful examples
+accumulate. Validation signal: few_shot_examples row count > 0 after
+bench --quick, task #2 quality trajectory.
+
+Files: `memory/manager.py`, `memory/few_shot_store.py`.
+
 ## Testing History
 
 ### Current Benchmark (March 2026)

@@ -35,6 +35,7 @@
 - FIX-96: Artel isolation final pass — manager.py, metrics.py, auto_improver.py + dead import cleanup ✅
 - EMAIL-MCP: Gmail MCP server — OAuth2 auth, 5 tools (send, read_inbox, read_email, search, labels), port 8092 ✅
 - EMAIL-MCP-2: Bot integration — planner confirm_with_user rule, env config, docs ✅
+- FIX-FEWSHOT: Connect save_example to on_task_end — few-shot self-improvement pipeline active ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 
