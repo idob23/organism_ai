@@ -114,9 +114,9 @@ organism_ai/
 └── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
 ```
 
-## Текущие метрики (март 2026)
+## Текущие метрики (апрель 2026)
 - Benchmark: 31/31 success, quality 0.87 (quick: 8/8, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1, CAPABILITY-1
+- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1, CAPABILITY-1, MAPS-1, FIX-FEWSHOT, ARCH-GOODHART-1
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

@@ -75,11 +75,32 @@ B) Expected checks: benchmark_checks.py with check_numeric(), check_contains_all
    matched values). Tasks without `expected` use golden LLM evaluator as before.
    Tasks 1,7,8 = numeric check; Task 2 = contains_all check.
 
+BenchmarkResult extended with check_method field: det|llm|cap.
+Goodhart-test: changing evaluator.txt to "always 0.99" did not affect det-tasks.
+Isolation verified.
+
 Files: config/prompts/evaluator_golden.txt (new), benchmark_checks.py (new),
 src/organism/core/evaluator.py (golden param), src/organism/core/loop.py (evaluator param),
 benchmark.py (golden evaluator + expected logic + Chk column in table).
 
-### ARCH-GOODHART-1: Defense against self-improvement loops
+### MAPS-1: Architecture maps as reference artifact (2026-04-12)
+Problem: Platform architecture was described only in text (CLAUDE.md and
+ARCHITECTURE_DECISIONS.md). Without visual representation, the scale and
+connections between components are not visible at a glance; new team members
+have no quick way to onboard.
+
+Solution: docs/maps/ with 5 SVG maps — main modular structure map (7 layers),
+request flow (13 steps), database ERD (14 tables, 15 migrations), memory flow
+(on_task_start / on_task_end), self-improvement loop (production vs benchmark
+circuits). Maps are a reference artifact, updated on architectural changes
+alongside CLAUDE.md and ARCHITECTURE_DECISIONS.md.
+
+Update rule: any architectural PR must specify "Affected maps: X, Y" in the
+commit report, or explicitly state "No architectural changes, maps not affected".
+
+Files: docs/maps/*.svg, docs/maps/README.md, CONVENTIONS.md, PROMPT_TEMPLATE.md.
+
+### ARCH-GOODHART-1: Defense against self-improvement loops (2026-04-13)
 
 Principle: any mechanism that uses quality_score for self-improvement decisions
 must consider the possibility of a Goodhart loop and evaluate whether it needs

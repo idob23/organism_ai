@@ -1,6 +1,6 @@
 # Organism AI — Roadmap
 
-## Статус: Март 2026
+## Статус: Апрель 2026
 
 ### Завершено (Спринты 1–9)
 
@@ -36,6 +36,8 @@
 - EMAIL-MCP: Gmail MCP server — OAuth2 auth, 5 tools (send, read_inbox, read_email, search, labels), port 8092 ✅
 - EMAIL-MCP-2: Bot integration — planner confirm_with_user rule, env config, docs ✅
 - FIX-FEWSHOT: Connect save_example to on_task_end — few-shot self-improvement pipeline active ✅
+- MAPS-1: Architecture maps as reference artifact (5 SVG в docs/maps/) ✅
+- ARCH-GOODHART-1: Defense against self-improvement loops (архитектурный принцип) ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 
