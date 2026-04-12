@@ -79,6 +79,36 @@ Files: config/prompts/evaluator_golden.txt (new), benchmark_checks.py (new),
 src/organism/core/evaluator.py (golden param), src/organism/core/loop.py (evaluator param),
 benchmark.py (golden evaluator + expected logic + Chk column in table).
 
+### ARCH-GOODHART-1: Defense against self-improvement loops
+
+Principle: any mechanism that uses quality_score for self-improvement decisions
+must consider the possibility of a Goodhart loop and evaluate whether it needs
+an isolated golden judge.
+
+Context: BENCH-1 split the evaluator into production (optimizable via PVC) and
+golden (frozen) for benchmarks, so that scores don't optimize themselves. This
+applies to any mechanism that uses scores for learning.
+
+Checklist when adding a new mechanism:
+- Does it use quality_score for "learn or not" decisions?
+- Is a scenario possible where a distorted score reinforces incorrect behavior?
+- If yes — consider a golden judge or deterministic check instead of production evaluator.
+
+Current state:
+- Evaluator (BENCH-1): isolated, golden/production split.
+- SolutionCache.put: uses production quality >= 0.8. Cache errors are local
+  (one bad answer), not systemic.
+- FewShotStore.save_example: uses production quality >= 0.75. In practice,
+  with diverse real-world tasks, domination by bad examples is unlikely. Monitoring.
+- Templates.extract_template: uses quality_score. Similar assessment — low risk in prod.
+
+When to escalate: if in production a systematic bad pattern emerges that does not
+break through natural diversity accumulation — this is a signal to apply a golden
+judge to the corresponding mechanism.
+
+Related maps: docs/maps/organism_ai_self_improvement_loop.svg (contains info about
+BENCH-1 barrier only; ARCH-GOODHART-1 generalizes it to all mechanisms).
+
 ### API-PUBLIC-3: Web UI for Deduplication API (2026-03-27)
 Problem: Deduplication API (api_public/) had only programmatic access via API keys. Needed a
 self-service web interface for business users to upload xlsx/csv files from 1C and find duplicates
