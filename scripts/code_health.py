@@ -104,15 +104,21 @@ def _extract_registered_tools(filepath: Path) -> set[str]:
     body = match.group(0)
 
     tools: set[str] = set()
-    for m in re.finditer(r'registry\.register\(\s*(\w+)\s*\(', body):
+    # Match both registry.register(Tool()) and _register(Tool()) patterns
+    for m in re.finditer(r'(?:registry\.register|_register)\(\s*(\w+)\s*\(', body):
         tools.add(m.group(1))
     return tools
 
 
 def check_tool_registry() -> tuple[bool, str]:
-    """Compare tools registered in main.py vs benchmark.py."""
-    main_tools = _extract_registered_tools(ROOT / "main.py")
-    bench_tools = _extract_registered_tools(ROOT / "benchmark.py")
+    """Compare tools registered in main.py vs benchmark.py.
+
+    CAPABILITY-1: build_registry moved to src/organism/tools/bootstrap.py.
+    Both main.py and benchmark.py import from there (single source).
+    """
+    bootstrap = ROOT / "src" / "organism" / "tools" / "bootstrap.py"
+    main_tools = _extract_registered_tools(bootstrap)
+    bench_tools = main_tools  # same function, imported by both
 
     # Exclude tools that are intentionally different
     # ConfirmUserTool: registered in run_telegram(), not build_registry()

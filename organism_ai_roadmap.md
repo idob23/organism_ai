@@ -25,8 +25,9 @@
 - SCHED-1a/1b: DB persistence for scheduled jobs + ManageScheduleTool ✅
 - DOCKER-PROD: Production hardening — healthcheck, backup/restore, resource limits ✅
 - BotSender: Centralized Telegram sender (FIX-93) ✅
-- Benchmark: 30/30 задач, quality 0.87–0.89 ✅
+- Benchmark: 31/31 задач, quality 0.87–0.89 ✅
 - BENCH-1: Golden evaluator (frozen, Goodhart-proof) + deterministic expected checks for numeric tasks ✅
+- CAPABILITY-1: Personality-based tool filtering (YAML front-matter, unified bootstrap.py) ✅
 - REVIEW-1: Dev-only code review infrastructure (DEV_MODE, code_health.py, DevReviewTool, dev_roles stubs) ✅
 - REVIEW-2: Code review role templates — 9 reviewers + coordinator (memory, core, tools, channels, agents, infra, docs, quality, self_improvement) ✅
 - FIX-95a: Artel isolation completion — chat_messages, few_shot_examples, memory_edges + text_writer created_files ✅

@@ -36,9 +36,9 @@
 1. Создать `src/organism/tools/my_tool.py`, наследовать `BaseTool`
 2. Реализовать `name`, `description`, `parameters` (JSON schema), `execute()`
 3. Вернуть `ToolResult(output=..., created_files=[...])` если создаёт файлы
-4. Зарегистрировать в `main.py` → `build_registry()`
-5. Зарегистрировать в `benchmark.py` → `build_registry()`
-6. Если нужна инъекция — добавить setter (паттерн: `set_memory()`, `set_factory()`)
+4. Зарегистрировать в `src/organism/tools/bootstrap.py` → `build_registry()`
+5. Если нужна инъекция — добавить setter (паттерн: `set_memory()`, `set_factory()`)
+6. Добавить tool name в `config/personality/*.md` YAML whitelist для каждой personality
 7. Добавить benchmark-задачу если tool тестируем
 8. Обновить CLAUDE.md (File Structure, Tools таблица)
 
@@ -58,8 +58,8 @@ python main.py --stats               # Статистика памяти
 python main.py --improve --days 7    # Auto-improvement
 python main.py --optimize-prompts    # Оптимизация промптов
 python main.py --serve-mcp           # MCP-сервер (порт 8091)
-python benchmark.py                  # Полный benchmark (30 задач)
-python benchmark.py --quick          # Быстрый (7 задач)
+python benchmark.py                  # Полный benchmark (31 задач)
+python benchmark.py --quick          # Быстрый (8 задач)
 ```
 
 ## Команды бота
@@ -100,3 +100,37 @@ python benchmark.py --quick          # Быстрый (7 задач)
 - Для нового клиента достаточно новой personality конфигурации, код не меняется
 - Пользователи: бизнес-пользователи без технического бэкграунда
 - Язык интерфейса: русский
+
+## Как добавить новую Personality (CAPABILITY-1)
+
+Personality файлы: `config/personality/{name}.md`. Каждый файл может начинаться с YAML front-matter:
+
+```yaml
+---
+# Whitelist mode (only these tools available):
+allowed_tools:
+  - code_executor
+  - text_writer
+  - web_search
+# Blacklist (always denied, overrides whitelist):
+denied_tools:
+  - dev_review
+---
+
+# Personality: Client Name
+## Style
+...
+```
+
+**Режимы доступа к tools:**
+- `allowed_tools: null` (или отсутствует) → permissive, все tools разрешены
+- `allowed_tools: [list]` → strict whitelist, только перечисленные
+- `denied_tools: [list]` → проверяется первым, override-ит whitelist
+- Нет YAML-блока → backward compat, все tools разрешены
+
+**Добавление personality для нового клиента:**
+1. Создать `config/personality/client_name.md`
+2. Добавить YAML front-matter с нужными tools (скопировать из artel_zoloto.md как шаблон)
+3. Написать markdown-промпт (Style, Terminology, Escalation, Report Preferences)
+4. Настроить `ARTEL_ID=client_name` в `.env`
+5. При добавлении нового tool — добавить его в whitelist каждой personality где он нужен

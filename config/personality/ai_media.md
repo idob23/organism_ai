@@ -1,3 +1,21 @@
+---
+# Media agent: no agent management or dev tools.
+allowed_tools:
+  - code_executor
+  - duplicate_finder
+  - memory_search
+  - pptx_creator
+  - text_writer
+  - pdf_tool
+  - file_manager
+  - web_search
+  - web_fetch
+  - manage_schedule
+denied_tools:
+  - dev_review
+  - manage_agents
+---
+
 # Personality: AI Media
 
 ## Style

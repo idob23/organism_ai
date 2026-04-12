@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Organism AI benchmark suite.
 
-Measures quality across 29 task types and reports a formatted summary.
+Measures quality across 31 task types and reports a formatted summary.
 
 Tasks 1-10:  baseline (code, csv, writing, mixed, presentation, research,
              analysis, cache, multi-agent, command)
@@ -13,10 +13,12 @@ Tasks 20-23: Sprint 7 coverage (cross-agent, structured reflections, few-shot,
              evolutionary)
 Tasks 24-26: Sprint 8 coverage (duplicate-search, mcp-serve, a2a-infra)
 Tasks 27-29: Sprint 9 coverage (cmd-agents, cmd-create-agent, manage-agents-tool)
+Task  30:    SCHED-1b (schedule management via tool)
+Task  31:    CAPABILITY-1 (personality-based tool filtering)
 
 Usage:
-    python benchmark.py           # run all 29 tasks
-    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8, 27, 29 (no web / multi-agent)
+    python benchmark.py           # run all 31 tasks
+    python benchmark.py --quick   # run only tasks 1, 2, 3, 7, 8, 27, 29, 31 (no web / multi-agent)
 """
 import argparse
 import asyncio
@@ -31,13 +33,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.organism.llm.claude import ClaudeProvider
-from src.organism.tools.code_executor import CodeExecutorTool
-from src.organism.tools.web_search import WebSearchTool
-from src.organism.tools.web_fetch import WebFetchTool
-from src.organism.tools.file_manager import FileManagerTool
-from src.organism.tools.pptx_creator import PptxCreatorTool
-from src.organism.tools.text_writer import TextWriterTool
 from src.organism.tools.registry import ToolRegistry
+from src.organism.tools.bootstrap import build_registry
 from src.organism.core.loop import CoreLoop
 from src.organism.core.evaluator import Evaluator
 from src.organism.memory.manager import MemoryManager
@@ -436,11 +433,21 @@ TASKS = [
         "task": "\u043f\u043e\u043a\u0430\u0436\u0438 \u0432\u0441\u0435 \u0437\u0430\u043f\u043b\u0430\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u0437\u0430\u0434\u0430\u0447\u0438",
         "mode": "loop",
     },
+    # ── CAPABILITY-1: personality-based tool filtering ─────────────────────
+    {
+        "id": 31,
+        "type": "capability",
+        # "рассчитай 2+2" — with _capability_test personality that denies code_executor
+        "task": "\u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0439 2+2",
+        "mode": "loop",
+        "personality_override": "_capability_test",
+        "expected_tool_denied": "code_executor",
+    },
 ]
 
 # Task IDs included in --quick mode
 # Sprint 5 tasks (11-14) are excluded — they require a warm DB with memory/graph data
-QUICK_IDS = {1, 2, 3, 7, 8, 27, 29}
+QUICK_IDS = {1, 2, 3, 7, 8, 27, 29, 31}
 
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
@@ -459,45 +466,27 @@ class BenchmarkResult:
     check_method: str = "llm"
 
 
-# ── Infrastructure (mirrors main.py) ─────────────────────────────────────────
-
-def build_registry() -> ToolRegistry:
-    registry = ToolRegistry()
-    try:
-        registry.register(CodeExecutorTool())
-    except Exception:
-        print("  [warn] Docker unavailable — code_executor skipped")
-    registry.register(PptxCreatorTool())
-    registry.register(TextWriterTool())
-    registry.register(WebFetchTool())
-    registry.register(FileManagerTool())
-    from src.organism.tools.duplicate_finder import DuplicateFinderTool
-    registry.register(DuplicateFinderTool())
-    from src.organism.tools.pdf_tool import PdfTool
-    registry.register(PdfTool())
-    from src.organism.tools.memory_search import MemorySearchTool
-    registry.register(MemorySearchTool())
-    from src.organism.tools.manage_agents import ManageAgentsTool
-    registry.register(ManageAgentsTool())
-    from src.organism.tools.manage_schedule import ManageScheduleTool
-    registry.register(ManageScheduleTool())
-    if settings.tavily_api_key:
-        registry.register(WebSearchTool())
-    # REVIEW-1: Dev-only code review tool
-    if settings.dev_mode:
-        from src.organism.tools.dev_review import DevReviewTool
-        registry.register(DevReviewTool())
-    return registry
-
-
 # ── Task runners ──────────────────────────────────────────────────────────────
 
-async def run_loop_task(task_def: dict, loop: CoreLoop) -> BenchmarkResult:
+async def run_loop_task(task_def: dict, loop: CoreLoop,
+                        llm: "ClaudeProvider | None" = None) -> BenchmarkResult:
     """Run a single task through CoreLoop and extract benchmark metrics."""
     task_text = task_def["task"]
     t0 = time.time()
+
+    # CAPABILITY-1: personality_override creates an isolated loop with filtered registry
+    effective_loop = loop
+    if task_def.get("personality_override"):
+        from src.organism.core.personality import PersonalityConfig
+        _p = PersonalityConfig(artel_id=task_def["personality_override"])
+        _p.load()
+        _reg = build_registry(personality=_p)
+        _llm = llm or loop.llm
+        golden_eval = Evaluator(llm=_llm, pvc=None, golden=True)
+        effective_loop = CoreLoop(_llm, _reg, evaluator=golden_eval)
+
     try:
-        result = await loop.run(task_text, verbose=False)
+        result = await effective_loop.run(task_text, verbose=False)
         duration = time.time() - t0
 
         # Cache hits: TaskResult has steps=[] (cache returns before any tool execution)
@@ -520,6 +509,28 @@ async def run_loop_task(task_def: dict, loop: CoreLoop) -> BenchmarkResult:
                 cache_hit=cache_hit,
                 error=reason if score < 1.0 else "",
                 check_method="det",
+            )
+
+        # CAPABILITY-1: verify denied tool was not used
+        denied = task_def.get("expected_tool_denied")
+        if denied:
+            tool_used = denied in tools_used
+            score = 0.0 if tool_used else 1.0
+            reason = (
+                f"FAIL: {denied} was used despite being denied"
+                if tool_used else f"OK: {denied} correctly filtered out"
+            )
+            return BenchmarkResult(
+                id=task_def["id"],
+                type=task_def["type"],
+                task=task_text,
+                success=not tool_used,
+                quality_score=score,
+                duration=duration,
+                tools_used=tools_used,
+                cache_hit=cache_hit,
+                error=reason if tool_used else "",
+                check_method="cap",
             )
 
         return BenchmarkResult(
@@ -828,7 +839,7 @@ async def run_benchmark(quick: bool) -> None:
                 factory=benchmark_factory, loop=loop,
             )
         else:
-            bm = await run_loop_task(task_def, loop)
+            bm = await run_loop_task(task_def, loop, llm=llm)
 
         ok = "OK" if bm.success else "FAIL"
         extra = "  [CACHE HIT]" if bm.cache_hit else ""

@@ -3,81 +3,11 @@ import argparse
 import sys
 
 from src.organism.llm.claude import ClaudeProvider
-from src.organism.tools.code_executor import CodeExecutorTool
-from src.organism.tools.web_search import WebSearchTool
-from src.organism.tools.web_fetch import WebFetchTool
-from src.organism.tools.file_manager import FileManagerTool
-from src.organism.tools.telegram_sender import TelegramSenderTool
-from src.organism.tools.pptx_creator import PptxCreatorTool
-from src.organism.tools.text_writer import TextWriterTool
 from src.organism.tools.registry import ToolRegistry
+from src.organism.tools.bootstrap import build_registry
 from src.organism.core.loop import CoreLoop
 from src.organism.memory.manager import MemoryManager
 from config.settings import settings
-
-
-def build_registry() -> ToolRegistry:
-    registry = ToolRegistry()
-    registry.register(CodeExecutorTool())
-    registry.register(PptxCreatorTool())
-    registry.register(TextWriterTool())
-    registry.register(WebFetchTool())
-    registry.register(FileManagerTool())
-    from src.organism.tools.duplicate_finder import DuplicateFinderTool
-    registry.register(DuplicateFinderTool())
-    from src.organism.tools.pdf_tool import PdfTool
-    registry.register(PdfTool())
-    from src.organism.tools.memory_search import MemorySearchTool
-    registry.register(MemorySearchTool())
-    from src.organism.tools.manage_agents import ManageAgentsTool
-    registry.register(ManageAgentsTool())
-    from src.organism.tools.manage_schedule import ManageScheduleTool
-    registry.register(ManageScheduleTool())
-    if settings.tavily_api_key:
-        registry.register(WebSearchTool())
-    if settings.telegram_bot_token:
-        registry.register(TelegramSenderTool(settings.telegram_bot_token))
-    # Q-8.1: queue MCP servers for async connection (build_registry is sync)
-    if settings.mcp_servers:
-        try:
-            import json as _json
-            from src.organism.tools.mcp_client import MCPServerConfig
-            servers = _json.loads(settings.mcp_servers)
-            registry._pending_mcp = [
-                MCPServerConfig(
-                    name=srv.get("name", "unknown"),
-                    url=srv.get("url", ""),
-                    api_key=srv.get("api_key", ""),
-                    enabled=srv.get("enabled", True),
-                    artel_id=srv.get("artel_id", ""),
-                    timeout=srv.get("timeout", 30),
-                )
-                for srv in servers
-            ]
-        except Exception:
-            pass
-    # REVIEW-1: Dev-only code review tool
-    if settings.dev_mode:
-        from src.organism.tools.dev_review import DevReviewTool
-        registry.register(DevReviewTool())
-    # Q-8.5: Register A2A peer agents
-    if settings.a2a_peers:
-        try:
-            import json as _json2
-            from src.organism.a2a.protocol import PeerAgent, PeerRegistry, DelegateToAgentTool
-            peers_data = _json2.loads(settings.a2a_peers)
-            peer_reg = PeerRegistry()
-            for p in peers_data:
-                peer_reg.add_peer(PeerAgent(
-                    name=p.get("name", "unknown"),
-                    url=p.get("url", ""),
-                    api_key=p.get("api_key", ""),
-                ))
-            if peer_reg.list_peers():
-                registry.register(DelegateToAgentTool(peer_reg))
-        except Exception:
-            pass
-    return registry
 
 
 async def _connect_mcp(registry: ToolRegistry) -> None:
@@ -100,9 +30,9 @@ def _load_personality():
 
 def build_loop(registry: ToolRegistry | None = None, personality=None, with_orchestrator: bool = False) -> CoreLoop:
     llm = ClaudeProvider()
-    reg = registry or build_registry()
-    memory = MemoryManager() if settings.database_url else None
     p = personality if personality is not None else _load_personality()
+    reg = registry or build_registry(personality=p)
+    memory = MemoryManager() if settings.database_url else None
     orch = None
     factory = None
     if with_orchestrator:
@@ -148,7 +78,8 @@ async def run_single(task: str, use_orchestrator: bool = False) -> None:
     if use_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
         llm = ClaudeProvider()
-        registry = build_registry()
+        _p = _load_personality()
+        registry = build_registry(personality=_p)
         await _connect_mcp(registry)
         memory = MemoryManager() if settings.database_url else None
         if memory:
@@ -180,7 +111,8 @@ async def run_interactive(use_orchestrator: bool = False) -> None:
     if use_orchestrator:
         from src.organism.agents.orchestrator import Orchestrator
         llm = ClaudeProvider()
-        registry = build_registry()
+        _p = _load_personality()
+        registry = build_registry(personality=_p)
         await _connect_mcp(registry)
         memory = MemoryManager() if settings.database_url else None
         if memory:
@@ -243,7 +175,8 @@ async def run_telegram() -> None:
     if not settings.telegram_bot_token:
         print("Error: TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
-    registry = build_registry()
+    _p = _load_personality()
+    registry = build_registry(personality=_p)
     await _connect_mcp(registry)
 
     # FIX-93: Single BotSender for all Telegram sends
@@ -453,7 +386,8 @@ async def run_mcp_server(port: int) -> None:
     import aiohttp.web
     from src.organism.mcp_serve.server import create_organism_app
 
-    registry = build_registry()
+    _p = _load_personality()
+    registry = build_registry(personality=_p)
     await _connect_mcp(registry)
 
     memory = None

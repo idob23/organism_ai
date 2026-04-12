@@ -39,7 +39,7 @@ Haiku = классификация/роутинг. Sonnet = исполнение
 Python 3.11+ | Claude API (Sonnet/Haiku) | PostgreSQL + pgvector | aiogram 3.x
 Docker (sandbox) | aiohttp (MCP) | Tavily (search) | numpy (duplicate_finder)
 python-pptx | fpdf2 | structlog | pydantic-settings | proxyapi.ru (embeddings)
-google-api-python-client | google-auth-oauthlib (Gmail MCP)
+google-api-python-client | google-auth-oauthlib (Gmail MCP) | pyyaml (personality)
 
 ## Структура файлов
 ```
@@ -48,7 +48,7 @@ organism_ai/
 │   ├── core/           # loop.py, planner.py, evaluator.py, state_machine.py,
 │   │                   # decomposer.py (reserved), scheduler.py, personality.py,
 │   │                   # skill_matcher.py, human_approval.py
-│   ├── tools/          # registry.py + 14 tools:
+│   ├── tools/          # registry.py, bootstrap.py (unified build_registry) + 14 tools:
 │   │                   #   always: code_executor, pptx_creator, text_writer, web_fetch,
 │   │                   #           file_manager, duplicate_finder, pdf_tool, memory_search,
 │   │                   #           manage_agents, manage_schedule
@@ -82,7 +82,8 @@ organism_ai/
 │   ├── roles/          # marketer.md, analyst.md, procurement.md, lawyer.md, hr.md
 │   ├── agents/         # {agent_id}.json (created agents)
 │   ├── jobs/           # {artel_id}.json (scheduled jobs config, FIX-89)
-│   ├── personality/    # default.md, artel_zoloto.md, ai_media.md
+│   ├── personality/    # default.md, artel_zoloto.md, ai_media.md, _capability_test.md
+│   │                   # YAML front-matter for tool filtering (CAPABILITY-1)
 │   ├── prompts/        # planner_fast.txt, planner_react.txt, evaluator.txt
 │   │                   # evaluator_golden.txt (BENCH-1, frozen benchmark judge)
 │   │                   # causal_analyzer.txt, template_extractor.txt
@@ -100,15 +101,15 @@ organism_ai/
 │   ├── static/         # Web UI (index.html, style.css) — drag-and-drop dedup
 │   ├── Dockerfile      # Python 3.11-slim + uvicorn
 │   └── requirements.txt
-├── benchmark.py        # 30 задач (golden evaluator + expected checks, BENCH-1)
+├── benchmark.py        # 31 задач (golden evaluator + expected checks, BENCH-1)
 ├── benchmark_checks.py # Детерминистические проверки (numeric, contains_all)
 ├── pre_commit_check.py # Обязателен перед каждым коммитом
 └── CONVENTIONS.md      # Конвенции кода, чеклисты, команды
 ```
 
 ## Текущие метрики (март 2026)
-- Benchmark: 30/30 success, quality 0.87 (quick: 7/7, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1
+- Benchmark: 31/31 success, quality 0.87 (quick: 8/8, 0.89)
+- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1, CAPABILITY-1
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила

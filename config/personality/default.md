@@ -1,3 +1,10 @@
+---
+# Permissive: all tools allowed, none denied.
+# New tools are automatically available to this personality.
+allowed_tools: null
+denied_tools: null
+---
+
 # Personality: Default
 
 ## Style

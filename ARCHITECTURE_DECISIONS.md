@@ -33,6 +33,29 @@ See KP_Organism_AI_Artel.md in project knowledge.
 
 ## Sprint 9+ Decisions
 
+### CAPABILITY-1: Personality-Based Tool Filtering (2026-04-12)
+Problem: build_registry() in main.py and benchmark.py registered all tools unconditionally.
+Adding a second client would give them access to every tool, including dev_review. Also,
+build_registry was duplicated between main.py and benchmark.py with divergence risk.
+
+Solution:
+1) Unified build_registry in src/organism/tools/bootstrap.py — single source of truth.
+   main.py and benchmark.py import from there. Accepts optional personality param.
+2) PersonalityConfig now parses YAML front-matter (--- delimited) from .md files.
+   New fields: allowed_tools (whitelist, None=permissive), denied_tools (blacklist).
+   is_tool_allowed() method: denied checked first, then whitelist.
+3) Filtering happens at registry build time (tool simply not registered), not at call time.
+   Agent never sees denied tools — no error handling needed.
+4) Personality files updated: default.md (permissive), artel_zoloto.md (whitelist),
+   ai_media.md (no manage_agents). _capability_test.md for benchmark verification.
+5) Benchmark task #31 verifies filtering: code_executor denied via test personality.
+
+Design choice: filter at registration, not at execution. Simpler, impossible to bypass,
+no performance cost. MCP tools excluded from filtering in this sprint (CAPABILITY-2).
+
+Files: src/organism/tools/bootstrap.py (new), src/organism/core/personality.py (YAML),
+config/personality/*.md (front-matter), scripts/code_health.py (updated for bootstrap).
+
 ### BENCH-1: Golden Evaluator + Deterministic Checks (2026-04-12)
 Problem: Two conceptual issues with the benchmark:
 1) Goodhart's law — BenchmarkPromptOptimizer optimized evaluator.txt via PVC, then measured
