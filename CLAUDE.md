@@ -16,6 +16,11 @@ Telegram/CLI → планирование → выполнение через to
 Все механизмы (память, pgvector, self-improvement, few-shot, personality,
 solution cache, human-in-the-loop) — неприкосновенны.
 
+## Reference artifact
+Архитектура платформы зафиксирована в пяти картах в `docs/maps/`.
+Карты — обязательный артефакт, обновляются при архитектурных
+изменениях. См. `docs/maps/README.md`.
+
 ## Архитектура
 ```
 User → Gateway → CoreLoop.run()
@@ -89,6 +94,8 @@ organism_ai/
 │   │                   # causal_analyzer.txt, template_extractor.txt
 │   ├── dev_roles/      # 9 reviewer templates + coordinator (REVIEW-2)
 │   └── fonts/          # DejaVuSans*.ttf (PDF)
+├── docs/
+│   └── maps/           # 5 SVG architecture maps (reference artifact, MAPS-1)
 ├── scripts/            # health_check.py, code_health.py, deploy.sh, backup.sh, restore.sh
 ├── api_public/         # Standalone Deduplication API (FastAPI, SQLite, Docker)
 │   ├── app.py          # FastAPI app — /v1/deduplicate, /v1/health, /v1/usage,
