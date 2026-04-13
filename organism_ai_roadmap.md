@@ -38,6 +38,7 @@
 - FIX-FEWSHOT: Connect save_example to on_task_end — few-shot self-improvement pipeline active ✅
 - MAPS-1: Architecture maps as reference artifact (5 SVG в docs/maps/) ✅
 - ARCH-GOODHART-1: Defense against self-improvement loops (архитектурный принцип) ✅
+- SEC-1: Secrets to data/secrets/, sandbox config/ allowlist, code_health check #9 ✅
 
 ### Текущие расходы (тестирование, 3 человека)
 

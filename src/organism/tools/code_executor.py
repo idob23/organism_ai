@@ -42,14 +42,37 @@ _REPO_FILES = [
 ]
 
 
+# SEC-1: Only these config/ subdirectories are mounted into sandbox.
+# Secrets (config/gmail/) are structurally excluded. New subdirs must be
+# explicitly added here after verifying they contain no secrets.
+_CONFIG_ALLOWED_SUBDIRS = [
+    "prompts", "roles", "skills", "personality", "fonts", "jobs", "agents",
+]
+_CONFIG_ALLOWED_FILES = ["settings.py"]
+
+
 def _repo_volumes() -> dict:
     """Read-only mounts exposing project source code inside sandbox."""
     root = os.getcwd()
     vols: dict = {
         _docker_host_path(os.path.join(root, "src")): {"bind": "/repo/src", "mode": "ro"},
-        _docker_host_path(os.path.join(root, "config")): {"bind": "/repo/config", "mode": "ro"},
         _docker_host_path(os.path.join(root, "scripts")): {"bind": "/repo/scripts", "mode": "ro"},
     }
+    # SEC-1: mount only safe config subdirectories (never config/gmail/)
+    config_root = os.path.join(root, "config")
+    if os.path.isdir(config_root):
+        for subdir in _CONFIG_ALLOWED_SUBDIRS:
+            host_path = os.path.join(config_root, subdir)
+            if os.path.isdir(host_path):
+                vols[_docker_host_path(host_path)] = {
+                    "bind": f"/repo/config/{subdir}", "mode": "ro",
+                }
+        for fname in _CONFIG_ALLOWED_FILES:
+            fpath = os.path.join(config_root, fname)
+            if os.path.exists(fpath):
+                vols[_docker_host_path(fpath)] = {
+                    "bind": f"/repo/config/{fname}", "mode": "ro",
+                }
     for fname in _REPO_FILES:
         fpath = os.path.join(root, fname)
         if os.path.exists(fpath):
@@ -145,7 +168,7 @@ class CodeExecutorTool(BaseTool):
             "Print 'Saved files: filename.ext' after saving.\n"
             "REPO ACCESS (read-only):\n"
             "  /repo/src/ \u2014 Python source code\n"
-            "  /repo/config/ \u2014 configuration files\n"
+            "  /repo/config/ \u2014 configuration (prompts, roles, skills, personality, fonts, jobs)\n"
             "  /repo/scripts/ \u2014 health check and utility scripts\n"
             "  /repo/*.md \u2014 system documentation\n"
             "  /repo/benchmark.py, /repo/main.py \u2014 entry points\n"

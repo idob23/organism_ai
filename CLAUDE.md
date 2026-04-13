@@ -108,6 +108,7 @@ organism_ai/
 │   ├── static/         # Web UI (index.html, style.css) — drag-and-drop dedup
 │   ├── Dockerfile      # Python 3.11-slim + uvicorn
 │   └── requirements.txt
+├── tests/              # sandbox isolation tests (SEC-1, Docker-dependent)
 ├── benchmark.py        # 31 задач (golden evaluator + expected checks, BENCH-1)
 ├── benchmark_checks.py # Детерминистические проверки (numeric, contains_all)
 ├── pre_commit_check.py # Обязателен перед каждым коммитом
@@ -116,7 +117,7 @@ organism_ai/
 
 ## Текущие метрики (апрель 2026)
 - Benchmark: 31/31 success, quality 0.87 (quick: 8/8, 0.89)
-- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1, CAPABILITY-1, MAPS-1, FIX-FEWSHOT, ARCH-GOODHART-1
+- Спринты 1-9 завершены, FIX-1 → FIX-107, PERF-2, SCHED-1a, SCHED-1b, TG-UX, MEDIA-LAUNCH, REVIEW-1/2/3, API-PUBLIC-1/2/3/3d/3e, BENCH-1, CAPABILITY-1, MAPS-1, FIX-FEWSHOT, ARCH-GOODHART-1, SEC-1
 - Полный список задач и фиксов → ARCHITECTURE_DECISIONS.md
 
 ## Критические правила
@@ -128,6 +129,7 @@ organism_ai/
 6. Новая команда → HELP_TEXT в handler.py И секция Commands в CONVENTIONS.md
 7. Миграции → APPEND в `_MIGRATIONS` в database.py, НИКОГДА не переставлять
 8. После задачи → обновить CLAUDE.md + ARCHITECTURE_DECISIONS.md + git commit с префиксом задачи
+9. Secrets (OAuth, tokens, PEM) → `data/secrets/<service>/`, НИКОГДА в `config/`. check #9 в code_health.py
 
 ## Public API (api_public/)
 Автономный Deduplication API — первый коммерческий продукт. FastAPI + SQLite.

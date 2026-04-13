@@ -472,6 +472,69 @@ def check_artel_id_coverage() -> tuple[bool, str]:
     return True, f"Artel ID Coverage: {checked} files checked, all have artel_id filtering"
 
 
+# ── Check 9: No Secrets in Config ────────────────────────────────────────
+
+_SECRET_NAME_PATTERNS = re.compile(
+    r'(token|credential|secret|api_key|apikey|password)', re.IGNORECASE,
+)
+_SECRET_EXTENSIONS = {".pem", ".key", ".p12", ".pfx"}
+_SECRET_JSON_KEYS = {"access_token", "refresh_token", "client_secret", "api_key"}
+
+
+def check_no_secrets_in_config() -> tuple[bool, str]:
+    """SEC-1: Verify no secret files exist in config/ directory."""
+    import json as _json
+
+    config_dir = ROOT / "config"
+    if not config_dir.exists():
+        return True, "No Secrets in Config: config/ not found (skipped)"
+
+    violations: list[str] = []
+
+    for fpath in config_dir.rglob("*"):
+        if not fpath.is_file():
+            continue
+        if fpath.suffix == ".md":
+            continue
+        if "__pycache__" in str(fpath):
+            continue
+
+        rel = fpath.relative_to(ROOT)
+
+        # Check filename patterns
+        if _SECRET_NAME_PATTERNS.search(fpath.stem):
+            violations.append(f"  {rel}: filename matches secret pattern")
+            continue
+
+        # Check suspicious extensions
+        if fpath.suffix.lower() in _SECRET_EXTENSIONS:
+            violations.append(f"  {rel}: secret file extension {fpath.suffix}")
+            continue
+
+        # For .json files, check content for secret keys
+        if fpath.suffix == ".json":
+            try:
+                data = _json.loads(fpath.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    found_keys = _SECRET_JSON_KEYS & set(data.keys())
+                    if found_keys:
+                        violations.append(
+                            f"  {rel}: JSON contains keys: "
+                            f"{', '.join(sorted(found_keys))}"
+                        )
+            except Exception:
+                pass
+
+    if violations:
+        return False, (
+            "No Secrets in Config: SEC-1 violation \u2014 "
+            "move secrets to data/secrets/<service>/ "
+            "(see ARCHITECTURE_DECISIONS.md SEC-1)\n"
+            + "\n".join(sorted(violations))
+        )
+    return True, "No Secrets in Config: config/ is clean"
+
+
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -484,6 +547,7 @@ def main() -> int:
         check_benchmark_count,
         check_migration_order,
         check_artel_id_coverage,
+        check_no_secrets_in_config,
     ]
 
     print("=== Code Health Report ===\n")

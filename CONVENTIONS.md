@@ -31,6 +31,7 @@
 - God-объекты — один модуль = одна ответственность
 - `*args, **kwargs` без необходимости
 - Правила поверх симптомов — ищи технический корень проблемы
+- Secrets in config/ — use `data/secrets/<service>/` (see SEC-1 in ARCHITECTURE_DECISIONS.md)
 
 ## Чеклист: новый Tool
 1. Создать `src/organism/tools/my_tool.py`, наследовать `BaseTool`

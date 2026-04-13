@@ -9,6 +9,8 @@ Usage:
 """
 import base64
 import json
+import os
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -18,11 +20,44 @@ from src.organism.logging.error_handler import get_logger
 _log = get_logger("mcp_email.auth")
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
-CREDENTIALS_PATH = Path("config/gmail/credentials.json")
-TOKEN_PATH = Path("config/gmail/token.json")
+CREDENTIALS_PATH = Path(
+    os.environ.get("GMAIL_CREDENTIALS_PATH", "data/secrets/gmail/credentials.json")
+)
+TOKEN_PATH = Path(
+    os.environ.get("GMAIL_TOKEN_PATH", "data/secrets/gmail/token.json")
+)
+
+# SEC-1: old paths for auto-migration
+_OLD_CREDENTIALS_PATH = Path("config/gmail/credentials.json")
+_OLD_TOKEN_PATH = Path("config/gmail/token.json")
 
 _lock = threading.Lock()
 _cached_service = None
+
+
+def _migrate_secrets() -> None:
+    """SEC-1: Auto-migrate Gmail secrets from config/gmail/ to data/secrets/gmail/.
+
+    Idempotent: skips if target already exists or source is missing.
+    """
+    for old, new in [
+        (_OLD_CREDENTIALS_PATH, CREDENTIALS_PATH),
+        (_OLD_TOKEN_PATH, TOKEN_PATH),
+    ]:
+        if new.exists() or not old.exists():
+            continue
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old), str(new))
+        _log.info("SEC-1: migrated %s -> %s", old, new)
+
+    # Remove empty old directory
+    try:
+        old_dir = _OLD_CREDENTIALS_PATH.parent
+        if old_dir.exists() and not any(old_dir.iterdir()):
+            old_dir.rmdir()
+            _log.info("SEC-1: removed empty %s", old_dir)
+    except Exception:
+        pass
 
 
 def _save_token(creds) -> None:
@@ -80,6 +115,9 @@ def get_gmail_service():
     """
     global _cached_service
 
+    # SEC-1: migrate secrets from old location on first call
+    _migrate_secrets()
+
     # Late imports \u2014 these are optional dependencies
     try:
         from google.auth.transport.requests import Request
@@ -118,7 +156,7 @@ def get_gmail_service():
                 "Setup instructions:\n"
                 "  1. Go to https://console.cloud.google.com/apis/credentials\n"
                 "  2. Create OAuth 2.0 Client ID (Desktop app)\n"
-                "  3. Download JSON and save as config/gmail/credentials.json\n"
+                "  3. Download JSON and save as data/secrets/gmail/credentials.json\n"
                 "  4. Enable Gmail API in your project\n"
                 "  5. Run: python -m src.organism.mcp_email.server --auth"
             )

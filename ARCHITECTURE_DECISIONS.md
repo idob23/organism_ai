@@ -130,6 +130,58 @@ judge to the corresponding mechanism.
 Related maps: docs/maps/organism_ai_self_improvement_loop.svg (contains info about
 BENCH-1 barrier only; ARCH-GOODHART-1 generalizes it to all mechanisms).
 
+### SEC-1: Credentials in data/secrets/, not config/ (2026-04-13)
+Problem: Gmail OAuth credentials (credentials.json, token.json) lived in config/gmail/.
+code_executor.py mounted the entire config/ directory read-only into the Docker sandbox,
+giving sandboxed code structural access to secrets. network_mode="none" does not protect
+against exfiltration via stdout into agent context.
+
+Violated invariant: secrets in a directory that is mounted into sandbox. Any allowlist
+atop this layout is a rule that can be forgotten when adding a new secret.
+
+Solution -- three layers of defense:
+1) Path relocation: auth.py reads GMAIL_CREDENTIALS_PATH / GMAIL_TOKEN_PATH env vars,
+   defaults to data/secrets/gmail/. Auto-migration on first get_gmail_service() call:
+   if new path missing but old config/gmail/ exists, shutil.move + log + rmdir empty dir.
+   Idempotent. data/secrets/ is in .gitignore and .dockerignore.
+2) Sandbox allowlist (defense-in-depth): _repo_volumes() in code_executor.py replaced
+   single config/ mount with per-subdirectory mounts for 7 safe dirs (prompts, roles,
+   skills, personality, fonts, jobs, agents) + settings.py. config/gmail/ and any future
+   secret dirs are never mounted. Second layer, not primary mechanism.
+3) Automated invariant: check_no_secrets_in_config() in scripts/code_health.py (check #9)
+   scans config/ for filenames matching token/credential/secret/api_key/password,
+   extensions .pem/.key/.p12/.pfx, and JSON files containing access_token/refresh_token/
+   client_secret/api_key keys. FAIL blocks code_health report.
+
+Convention: config/ = non-sensitive configuration only. data/secrets/<service>/ = credentials
+and tokens. Invariant supported by file location, not by mount filtering.
+
+Regression tests: tests/test_sandbox_isolation.py (4 tests x warm/cold, Docker-dependent,
+skip if Docker unavailable).
+
+For docker-compose prod: email-mcp service should mount
+./data/secrets/gmail:/data/secrets/gmail:ro (not ./config/gmail).
+
+Files: src/organism/mcp_email/auth.py, src/organism/tools/code_executor.py,
+scripts/code_health.py, tests/test_sandbox_isolation.py (new).
+
+### ARCH-INFRA-BOUNDARY-1: Runtime remains own code, not delegated to hosting SaaS (2026-04-13)
+Context: Anthropic Managed Agents closes session / harness / sandbox as hosted infra.
+Temptation to offload the runtime layer there.
+
+Decision: Organism AI consciously owns the runtime layer as its own code.
+
+Rationale: USP includes on-premise deployment for clients with sensitive data (artel, 1C).
+Hosted runtime = vendor lock-in + incompatibility with on-premise. Russian regulations +
+client data security make US-hosted session logs of all agent actions unacceptable for
+the target segment.
+
+How to apply: reference API patterns from Managed Agents (append-only session, credential
+isolation, sandbox interface) are adapted locally, not consumed as SaaS.
+
+Consequence: SEC-1 is a local implementation of the credential isolation pattern from
+Managed Agents.
+
 ### API-PUBLIC-3: Web UI for Deduplication API (2026-03-27)
 Problem: Deduplication API (api_public/) had only programmatic access via API keys. Needed a
 self-service web interface for business users to upload xlsx/csv files from 1C and find duplicates
